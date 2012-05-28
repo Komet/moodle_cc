@@ -25,3 +25,8 @@ CVS
 /.project
 /.buildpath
 /.cache
+._*
+*.zip
+*.tgz
+*.tar
+test.php

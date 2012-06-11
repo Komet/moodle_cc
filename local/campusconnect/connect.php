@@ -30,6 +30,12 @@ require_once($CFG->dirroot.'/local/campusconnect/urilist.php');
 class campusconnect_connect_exception extends moodle_exception {
     function __construct($msg) {
         parent::__construct('error', 'local_campusconnect', '', $msg);
+        $this->email_admin($msg);
+    }
+
+    function email_admin($msg) {
+        // TODO - implement this function
+        // May need to consider gathering the errors into a log and only sending emails at most once an hour?
     }
 }
 
@@ -465,6 +471,9 @@ class campusconnect_connect {
         $this->set_option(CURLOPT_CUSTOMREQUEST, 'DELETE');
     }
 
+    /**
+     * Include the response header in the returned data
+     */
     protected function include_response_header() {
         $this->set_option(CURLOPT_HEADER, true);
     }

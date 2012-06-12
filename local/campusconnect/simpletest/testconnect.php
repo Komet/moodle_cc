@@ -44,7 +44,7 @@ class local_campusconnect_connect_test extends UnitTestCase {
         // Create the connections for testing
         $names = array(1 => 'unittest1', 2 => 'unittest2', 3 => 'unittest3');
         foreach ($names as $key => $name) {
-            $settings = new campusconnect_ecssettings($name);
+            $settings = new campusconnect_ecssettings(null, $name);
             $this->connect[$key] = new campusconnect_connect($settings);
         }
 

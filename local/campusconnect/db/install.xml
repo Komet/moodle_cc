@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="local/campusconnect/db" VERSION="20120611" COMMENT="XMLDB file for Moodle local/campusconnect"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
+>
+  <TABLES>
+    <TABLE NAME="local_campusconnect_ecs" COMMENT="Settings for connecting to different ECS">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="name"/>
+        <FIELD NAME="name" TYPE="text" LENGTH="small" NOTNULL="false" SEQUENCE="false" COMMENT="The local name used to identify this ECS" PREVIOUS="id" NEXT="url"/>
+        <FIELD NAME="url" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The URL of the ECS" PREVIOUS="name" NEXT="auth"/>
+        <FIELD NAME="auth" TYPE="int" LENGTH="3" NOTNULL="false" UNSIGNED="false" DEFAULT="2" SEQUENCE="false" COMMENT="The type of authentication to use (1 = none, 2 = http, 3 = certificate)" PREVIOUS="url" NEXT="ecsauth"/>
+        <FIELD NAME="ecsauth" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The ecsauth name to add to the header when using no authentication" PREVIOUS="auth" NEXT="httpuser"/>
+        <FIELD NAME="httpuser" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The username to use with basic http auth" PREVIOUS="ecsauth" NEXT="httppass"/>
+        <FIELD NAME="httppass" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The password to use with basic http auth" PREVIOUS="httpuser" NEXT="cacertpath"/>
+        <FIELD NAME="cacertpath" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The path to the CA certificate when using certificate authentication" PREVIOUS="httppass" NEXT="certpath"/>
+        <FIELD NAME="certpath" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The certificate path to use with certificate authentication" PREVIOUS="cacertpath" NEXT="keypath"/>
+        <FIELD NAME="keypath" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The path to the key file for use with certificate authentication." PREVIOUS="certpath" NEXT="keypass"/>
+        <FIELD NAME="keypass" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The key password for use with certificate authentication." PREVIOUS="keypath"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+    </TABLE>
+  </TABLES>
+</XMLDB>

@@ -66,6 +66,7 @@ class campusconnect_ecssettings {
             $this->url = 'http://localhost:3000';
             $this->auth = self::AUTH_NONE;
             $this->ecsauth = $unittest;
+            $this->recordid = -1;
             return;
         }
 

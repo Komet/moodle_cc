@@ -59,12 +59,16 @@ class campusconnect_connect {
      * Construct a new connection
      * @param campusconnect_ecssettings $settings - the settings for connecting to the ECS server
      */
-    public function __construct(campusconnect_ecssettings $settings = null) {
-        if (is_null($settings)) {
-            // FIXME - remove this option once the configuration forms are ready
-            $settings = new campusconnect_ecssettings();
-        }
+    public function __construct(campusconnect_ecssettings $settings) {
         $this->settings = $settings;
+    }
+
+    /**
+     * Get the ID of the ECS this is connected to
+     * @return int the ECSID (the ID of the record in 'local_campusconnect_ecs')
+     */
+    public function get_ecs_id() {
+        return $this->settings->get_id();
     }
 
     /**

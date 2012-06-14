@@ -15,22 +15,19 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * extra language strings needed in CampusConnect
+ * Redirect to external course if necessary
  *
  * @package    local_campusconnect
  * @copyright  2012 Synergy Learning
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-$string['error'] = 'Error: {$a}';
+// Note - this file needs to be placed in the [moodlecode]/course directory for it to work
 
-$string['field_courseid'] = 'Course ID';
-$string['field_coursetype'] = 'Course type';
-$string['field_credits'] = 'Credits';
-$string['field_language'] = 'Language';
-$string['field_organisation'] = 'Organisation';
-$string['field_semesterhours'] = 'Semester hours';
-$string['field_status'] = 'Status';
-$string['field_term'] = 'Term';
+defined('MOODLE_INTERNAL') || die();
 
-$string['pluginname'] = 'CampusConnect';
+require_once($CFG->dirroot.'/local/campusconnect/courselink.php');
+
+function extern_server_course($course) {
+    return campusconnect::check_redirect($course->id);
+}

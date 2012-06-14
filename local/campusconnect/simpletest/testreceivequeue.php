@@ -37,18 +37,29 @@ defined('MOODLE_INTERNAL') || die();
 require_once($CFG->dirroot.'/local/campusconnect/receivequeue.php');
 
 global $DB;
-Mock::generate(get_class($DB), 'mockDB');
+Mock::generate(get_class($DB), 'mockDB_coursecreate', array('mock_create_course',
+                                                            'mock_update_course',
+                                                            'mock_delete_course'));
+
+//define('SKIP_CAMPUSCONNECT_RECEIVEQUEUE_TESTS', 1);
 
 class local_campusconnect_receivequeue_test extends UnitTestCase {
     protected $connect = array();
     protected $mid = array();
     protected $realDB = null;
+    protected $resources = array();
+    protected $community = null;
+    protected $queue = null;
+
+    public function skip() {
+        $this->skipIf(defined('SKIP_CAMPUSCONNECT_RECEIVEQUEUE_TESTS'), 'Skipping receivequeue tests, to save time');
+    }
 
     public function setUp() {
         // Override the $DB global.
         global $DB;
         $this->realDB = $DB;
-        $DB = new mockDB();
+        $DB = new mockDB_coursecreate();
 
         // Create the connections for testing.
         $names = array(1 => 'unittest1', 2 => 'unittest2', 3 => 'unittest3');
@@ -67,6 +78,24 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
                 }
             }
         }
+
+        // Data for test resources to create
+        $this->resources[1] = (object)array('url' => 'http://www.example.com/test123',
+                                            'title' => 'Course from ECS',
+                                            'organization' => 'Synergy Learning',
+                                            'lang' => 'en',
+                                            'semesterHours' => '5',
+                                            'courseID' => 'course5:220',
+                                            'term' => 'WS 06/07',
+                                            'credits' => '10',
+                                            'status' => 'online',
+                                            'courseType' => 'Vorlesung');
+
+        $this->resources[2] = (object)array('url' => 'http://www.example.com/test456');
+
+        // General settings used by the tests
+        $this->community = 'unittest';
+        $this->queue = new campusconnect_receivequeue();
     }
 
     public function tearDown() {
@@ -96,27 +125,17 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         global $DB;
 
         // Check the update queue - no updates expected
-        $queue = new campusconnect_receivequeue();
         $DB->expectNever('insert_record');
         $DB->expectNever('update_record');
         $DB->expectNever('delete_records');
-        $queue->update_from_ecs($this->connect[2]);
+        $this->queue->update_from_ecs($this->connect[2]);
     }
 
     public function test_update_from_ecs_create_update_delete() {
         global $DB;
 
-        $url = 'http://www.example.com/test123/';
-        $post = (object)array('url' => $url);
-        $post = json_encode($post);
-        $url2 = 'http://www.example.com/test456/';
-        $post2 = (object)array('url' => $url2);
-        $post2 = json_encode($post2);
-        $community = 'unittest';
-        $queue = new campusconnect_receivequeue();
-
         // Add a resource to the community
-        $eid = $this->connect[1]->add_resource($post, $community);
+        $eid = $this->connect[1]->add_resource(json_encode($this->resources[1]), $this->community);
 
         // Set up the expectations - 3 records inserted, none deleted/updated
         $DB->expectNever('update_record');
@@ -126,7 +145,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         $expecteddata = array();
         $expecteddata[0] = (object)array('type' => 'campusconnect/courselinks',
                                       'resourceid' => "$eid",
-                                      'serverid' => -1,
+                                      'serverid' => $this->connect[2]->get_ecs_id(),
                                       'status' => campusconnect_event::STATUS_CREATED);
         $expecteddata[1] = clone $expecteddata[0];
         $expecteddata[1]->status = campusconnect_event::STATUS_UPDATED;
@@ -144,14 +163,14 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
 
         // Check the event is transferred correctly into the queue.
         // Expect first 'insert_record' call
-        $queue->update_from_ecs($this->connect[2]);
+        $this->queue->update_from_ecs($this->connect[2]);
 
         // Check there are no events in the queue any more.
         $result = $this->connect[2]->read_event_fifo();
         $this->assertEqual($result, false);
 
         // Update the resource.
-        $this->connect[1]->update_resource($eid, $post2, $community);
+        $this->connect[1]->update_resource($eid, json_encode($this->resources[2]), $this->community);
 
         // Check there is an event in the queue on the server.
         $result = $this->connect[2]->read_event_fifo();
@@ -159,7 +178,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
 
         // Check the event is transferred correctly into the queue.
         // Expect second 'insert_record' call
-        $queue->update_from_ecs($this->connect[2]);
+        $this->queue->update_from_ecs($this->connect[2]);
 
         // Check there are no events in the queue any more.
         $result = $this->connect[2]->read_event_fifo();
@@ -174,7 +193,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
 
         // Check the event is transferred correctly into the queue.
         // Expect third 'insert_record' call
-        $queue->update_from_ecs($this->connect[2]);
+        $this->queue->update_from_ecs($this->connect[2]);
 
         // Check there are no events in the queue any more.
         $result = $this->connect[2]->read_event_fifo();
@@ -184,21 +203,12 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
     public function test_update_from_ecs_create_two() {
         global $DB;
 
-        $url = 'http://www.example.com/test123/';
-        $post = (object)array('url' => $url);
-        $post = json_encode($post);
-        $url2 = 'http://www.example.com/test456/';
-        $post2 = (object)array('url' => $url2);
-        $post2 = json_encode($post2);
-        $community = 'unittest';
-        $queue = new campusconnect_receivequeue();
-
         $DB->expectNever('update_record');
         $DB->expectNever('delete_records');
 
         // Create two resources.
-        $eid = $this->connect[1]->add_resource($post, $community);
-        $eid2 = $this->connect[1]->add_resource($post2, $community);
+        $eid = $this->connect[1]->add_resource(json_encode($this->resources[1]), $this->community);
+        $eid2 = $this->connect[1]->add_resource(json_encode($this->resources[2]), $this->community);
 
         // Check there is at least one event in the queue on the server.
         $result = $this->connect[2]->read_event_fifo();
@@ -207,20 +217,134 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         // Check the event is transferred correctly into the queue.
         $expecteddata = (object)array('type' => 'campusconnect/courselinks',
                                       'resourceid' => "$eid",
-                                      'serverid' => -1,
+                                      'serverid' => $this->connect[2]->get_ecs_id(),
                                       'status' => campusconnect_event::STATUS_CREATED);
         $DB->expectAt(0, 'insert_record', array('local_campusconnect_eventin', $expecteddata));
         $expecteddata2 = (object)array('type' => 'campusconnect/courselinks',
                                       'resourceid' => "$eid2",
-                                      'serverid' => -1,
+                                      'serverid' => $this->connect[2]->get_ecs_id(),
                                       'status' => campusconnect_event::STATUS_CREATED);
         $DB->expectAt(1, 'insert_record', array('local_campusconnect_eventin', $expecteddata2));
         $DB->expectCallCount('insert_record', 2);
         $DB->setReturnValue('insert_record', 1);
-        $queue->update_from_ecs($this->connect[2]);
+        $this->queue->update_from_ecs($this->connect[2]);
 
         // Check there are no events in the queue any more.
         $result = $this->connect[2]->read_event_fifo();
         $this->assertEqual($result, false);
+    }
+
+    public function test_process_event_queue_create() {
+        global $DB;
+
+        // Send courselink from server 1 to server 2 and check that a course
+        // and courselink is correctly created on server 2
+
+        $eid = $this->connect[1]->add_resource(json_encode($this->resources[1]), $this->community);
+
+        // Mock up the event in the queue (adding events already tested above)
+        $eventdata = (object)array('id' => 1,
+                                   'type' => 'campusconnect/courselinks',
+                                   'resourceid' => "$eid",
+                                   'serverid' => $this->connect[2]->get_ecs_id(),
+                                   'status' => campusconnect_event::STATUS_CREATED);
+        $DB->setReturnValue('get_records', array()); // No further events.
+        $DB->setReturnValueAt(0, 'get_records', array($eventdata)); // Get event.
+        $DB->setReturnValue('get_record', false); // Check if courselink exists.
+        $DB->setReturnValue('mock_create_course', 5); // Create course.
+        $DB->setReturnValue('insert_record', 1); // Create course link.
+
+        // Note - using the 'generate_summary' function, as the summary is too fiddly to write a sensible test
+        $coursedata = (object)array('category' => 2,
+                                    'shortname' => $this->resources[1]->title,
+                                    'fullname' => $this->resources[1]->title,
+                                    'summary' => campusconnect_courselink::generate_summary($this->resources[1]),
+                                    'summary_format' => FORMAT_HTML);
+        $linkdata = (object)array('courseid' => 5,
+                                  'url' => $this->resources[1]->url,
+                                  'resourceid' => "$eid",
+                                  'ecsid' => $this->connect[2]->get_ecs_id(),
+                                  'mid' => $this->mid[1]);
+        $DB->expectOnce('mock_create_course', array($coursedata)); // Create course.
+        $DB->expectOnce('insert_record', array('local_campusconnect_clink', $linkdata)); // Create course link.
+
+        $DB->expectCallCount('get_records', 2); // Pulling items from the event queue
+        $DB->expectCallCount('delete_records', 1); // Deleting items from the event queue
+
+        $this->queue->process_queue();
+    }
+
+    public function test_process_event_queue_update() {
+        global $DB;
+
+        // Update a courselink sent by server 1 and received by server 2
+        // and check course and courselink are correctly updated
+
+        $eid = $this->connect[1]->add_resource(json_encode($this->resources[1]), $this->community);
+
+        // Mock up the event in the queue (adding events already tested above)
+        $eventdata = (object)array('id' => 1,
+                                   'type' => 'campusconnect/courselinks',
+                                   'resourceid' => "$eid",
+                                   'serverid' => $this->connect[2]->get_ecs_id(),
+                                   'status' => campusconnect_event::STATUS_UPDATED);
+        $linkdata = (object)array('id' => 1,
+                                  'courseid' => 5,
+                                  'url' => $this->resources[2]->url, // Note the URL change (from resource[2], not resource[1])
+                                  'resourceid' => "$eid",
+                                  'ecsid' => $this->connect[2]->get_ecs_id(),
+                                  'mid' => $this->mid[1]);
+        $DB->setReturnValue('get_records', array()); // No further events.
+        $DB->setReturnValueAt(0, 'get_records', array($eventdata)); // Get event.
+        $DB->setReturnValue('get_record', $linkdata); // Retrieve courselink.
+
+        // Note - using the 'generate_summary' function, as the summary is too fiddly to write a sensible test
+        $coursedata = (object)array('category' => 2,
+                                    'shortname' => $this->resources[1]->title,
+                                    'fullname' => $this->resources[1]->title,
+                                    'summary' => campusconnect_courselink::generate_summary($this->resources[1]),
+                                    'summary_format' => FORMAT_HTML,
+                                    'id' => 5);
+        $linkdata = (object)array('id' => 1,
+                                  'url' => $this->resources[1]->url);
+        $DB->expectOnce('mock_update_course', array($coursedata)); // Update course.
+        $DB->expectOnce('update_record', array('local_campusconnect_clink', $linkdata)); // Update course link.
+
+        $DB->expectCallCount('get_records', 2); // Pulling items from the event queue
+        $DB->expectCallCount('delete_records', 1); // Deleting items from the event queue
+
+        $this->queue->process_queue();
+    }
+
+    public function test_process_event_queue_delete() {
+        global $DB;
+
+        // Delete a courselink from server 1, received by course 2 and
+        // check the course and courselink are correctly deleted
+
+        $eid = 21;
+        // Mock up the event in the queue (adding events already tested above)
+        $eventdata = (object)array('id' => 1,
+                                   'type' => 'campusconnect/courselinks',
+                                   'resourceid' => "$eid",
+                                   'serverid' => $this->connect[2]->get_ecs_id(),
+                                   'status' => campusconnect_event::STATUS_DESTROYED);
+        $linkdata = (object)array('id' => 3,
+                                  'courseid' => 5,
+                                  'url' => $this->resources[1]->url,
+                                  'resourceid' => "$eid",
+                                  'ecsid' => $this->connect[2]->get_ecs_id(),
+                                  'mid' => $this->mid[1]);
+        $DB->setReturnValue('get_records', array()); // No further events.
+        $DB->setReturnValueAt(0, 'get_records', array($eventdata)); // Get event.
+        $DB->setReturnValue('get_record', $linkdata); // Retrieve courselink
+
+        $DB->expectOnce('mock_delete_course', array(5)); // Delete course.
+        $DB->expectAt(0, 'delete_records', array('local_campusconnect_clink', array('id' => 3))); // Delete course link.
+
+        $DB->expectCallCount('get_records', 2); // Pulling items from the event queue
+        $DB->expectCallCount('delete_records', 2); // Deleting items from the event queue
+
+        $this->queue->process_queue();
     }
 }

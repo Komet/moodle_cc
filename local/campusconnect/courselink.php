@@ -24,6 +24,8 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+require_once($CFG->dirroot.'/local/campusconnect/participantsettings.php');
+
 class campusconnect_courselink_exception extends moodle_exception {
     function __construct($msg) {
         parent::__construct('error', 'local_campusconnect', '', $msg);
@@ -35,39 +37,111 @@ class campusconnect_courselink {
     /**
      * Create a new courselink with the details provided.
      * @param int $resourceid the id of this link on the ECS server
-     * @param int $ecsid the id of the ECS server this came from
+     * @param campusconnect_ecssettings $settings the settings for this ECS server
      * @param object $courselink the details of the course from the ECS server
-     * @param object $transferdetails the details of where the link came from / went to
+     * @param campusconnect_details $transferdetails the details of where the link came from / went to
      * @return bool true if successfully created
      */
-    public static function create($resourceid, $ecsid, $courselink, $transferdetails) {
-        print_object($courselink);
-        print_object($transferdetails);
-        return false; // Just while testing.
+    public static function create($resourceid, campusconnect_ecssettings $settings, $courselink, campusconnect_details $transferdetails) {
+        if ($currlink = self::get_by_resourceid($resourceid, $settings->get_id())) {
+            throw new campusconnect_courselink_exception("Cannot create a courselink to resource $resourceid - it already exists.");
+        }
+
+        $mid = $transferdetails->get_sender_mid();
+        $partsettings = new campusconnect_participantsettings($mid);
+
+        // TODO - check if we are accepting course links from this participant
+
+        $coursedata = self::map_course_settings($courselink, $settings, $partsettings);
+        if ($settings->get_id() > 0) {
+            $course = create_course($coursedata);
+        } else {
+            // Nasty hack for unit testing - 'create_course' is too complex to
+            // be practical to mock up the database responses
+            global $DB;
+            $course = $coursedata;
+            $course->id = $DB->mock_create_course($coursedata);
+        }
+
+        $ins = new stdClass();
+        $ins->courseid = $course->id;
+        $ins->url = $courselink->url;
+        $ins->resourceid = $resourceid;
+        $ins->ecsid = $settings->get_id();
+        $ins->mid = $mid;
+
+        $DB->insert_record('local_campusconnect_clink', $ins);
+
+        return true;
     }
 
     /**
      * Update a new courselink with the details provided.
      * @param int $resourceid the id of this link on the ECS server
-     * @param int $ecsid the id of the ECS server this came from
+     * @param campusconnect_ecssettings $settings the settings for this ECS server
      * @param object $courselink the details of the course from the ECS server
-     * @param object $transferdetails the details of where the link came from / went to
+     * @param campusconnect_details $transferdetails the details of where the link came from / went to
      * @return bool true if successfully updated
      */
-    public static function update($resourceid, $ecsid, $courselink, $transferdetails) {
-        print_object($courselink);
-        print_object($transferdetails);
-        return false; // Just while testing.
+    public static function update($resourceid, campusconnect_ecssettings $settings, $courselink, campusconnect_details $transferdetails) {
+        $mid = $transferdetails->get_sender_mid();
+        $partsettings = new campusconnect_participantsettings($mid);
+
+        // TODO - check we are still accepting course links from this participant
+
+        if (!$currlink = self::get_by_resourceid($resourceid, $settings->get_id())) {
+            throw new campusconnect_courselink_exception("Cannot update courselink to resource $resourceid - it doesn't exist");
+        }
+
+        if ($currlink->mid != $mid) {
+            throw new campusconnect_courselink_exception("Participant $mid attempted to update resource created by participant {$currlink->mid}");
+        }
+
+        $coursedata = self::map_course_settings($courselink, $settings, $partsettings);
+        $coursedata->id = $currlink->courseid;
+
+        if ($settings->get_id() > 0) {
+            // Nasty hack for unit testing - 'update_course' is too complex to
+            // be practical to mock up the database responses
+            update_course($coursedata);
+        } else {
+            global $DB;
+            $DB->mock_update_course($coursedata);
+        }
+
+
+        if ($currlink->url != $courselink->url) {
+            $upd = new stdClass();
+            $upd->id = $currlink->id;
+            $upd->url = $courselink->url;
+
+            $DB->update_record('local_campusconnect_clink', $upd);
+        }
+
+        return true;
     }
 
     /**
      * Delete the courselink based on the details provided
      * @param int $resourceid the id of this link on the ECS server
-     * @param int $ecsid the id of the ECS server this came from
+     * @param campusconnect_ecssettings $settings the settings for this ECS server
      * @return bool true if successfully deleted
      */
-    public static function delete($resourceid, $ecsid) {
-        return false; // Just while testing.
+    public static function delete($resourceid, campusconnect_ecssettings $settings) {
+        global $DB;
+
+        if ($currlink = self::get_by_resourceid($resourceid, $settings->get_id())) {
+            if ($settings->get_id() > 0) {
+                // Nasty hack for unit testing - 'delete_course' is too complex to
+                // be practical to mock up the database responses
+                delete_course($currlink->courseid);
+            } else {
+                $DB->mock_delete_course($currlink->courseid);
+            }
+            $DB->delete_records('local_campusconnect_clink', array('id' => $currlink->id));
+        }
+
+        return true;
     }
 
     /**
@@ -76,7 +150,57 @@ class campusconnect_courselink {
      * @return mixed moodle_url | false - the URL to redirect to
      */
     public static function check_redirect($courseid) {
-        // TODO write this function
-        return false;
+        if (!$courselink = self::get_by_courseid($courseid)) {
+            return false;
+        }
+
+        $url = $courselink->url;
+
+        // TODO - add the auth token to the URL
+
+        return $url;
+    }
+
+    public static function get_by_courseid($courseid) {
+        global $DB;
+        return $DB->get_record('local_campusconnect_clink', array('courseid' => $courseid));
+    }
+
+    public static function get_by_resourceid($resourceid, $ecsid) {
+        global $DB;
+        $params = array('resourceid' => $resourceid, 'ecsid' => $ecsid);
+        return $DB->get_record('local_campusconnect_clink', $params);
+    }
+
+    public static function generate_summary($courselink) {
+        $mapping = array('organization' => get_string('field_organisation', 'local_campusconnect'),
+                         'lang' => get_string('field_language', 'local_campusconnect'),
+                         'semesterHours' => get_string('field_semesterhours', 'local_campusconnect'),
+                         'courseID' => get_string('field_courseid', 'local_campusconnect'),
+                         'term' => get_string('field_term', 'local_campusconnect'),
+                         'credits' => get_string('field_credits', 'local_campusconnect'),
+                         'status' => get_string('field_status', 'local_campusconnect'),
+                         'courseType' => get_string('field_coursetype', 'local_campusconnect'));
+        $summary = '';
+        foreach ($mapping as $field => $text) {
+            if (isset($courselink->$field)) {
+                $summary .= "<b>$text:</b> {$courselink->$field}<br/>";
+            }
+        }
+
+        return $summary;
+    }
+
+    protected static function map_course_settings($courselink, campusconnect_ecssettings $settings, campusconnect_participantsettings $partsettings) {
+        // TODO - map the course details in some kind of sensible way
+        $coursedata = new stdClass();
+
+        $coursedata->category = 2; // FIXME - put this somewhere more sensible!
+        $coursedata->shortname = $courselink->title;
+        $coursedata->fullname = $courselink->title;
+        $coursedata->summary = self::generate_summary($courselink);
+        $coursedata->summary_format = FORMAT_HTML;
+
+        return $coursedata;
     }
 }

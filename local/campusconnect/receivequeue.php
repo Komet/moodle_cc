@@ -27,6 +27,7 @@ defined('MOODLE_INTERNAL') || die();
 require_once($CFG->dirroot.'/local/campusconnect/connect.php');
 require_once($CFG->dirroot.'/local/campusconnect/event.php');
 require_once($CFG->dirroot.'/local/campusconnect/courselink.php');
+require_once($CFG->dirroot.'/local/campusconnect/details.php');
 
 class campusconnect_receivequeue_exception extends moodle_exception {
     function __construct($msg) {
@@ -35,6 +36,11 @@ class campusconnect_receivequeue_exception extends moodle_exception {
 }
 
 class campusconnect_receivequeue {
+
+    /**
+     * Code for pulling events from the ECS server and adding them to
+     * the local queue
+     */
 
     /**
      * Retrieve events from all the ECS registered with this system
@@ -97,13 +103,18 @@ class campusconnect_receivequeue {
     }
 
     /**
+     * Code for processing all the events in the local queue
+     */
+
+    /**
      * Retrieve the next event from the incoming event queue (without removing it)
      * @param int $ecsid optional is specified, only retrieve events from this ECS server
      * @return mixed campusconnect_event | false
      */
     protected function get_event_from_queue($ecsid = null) {
-        $params = array();
+        global $DB;
 
+        $params = array();
         if ($ecsid != null) {
             $params['serverid'] = $ecsid;
         }
@@ -152,10 +163,11 @@ class campusconnect_receivequeue {
      */
     protected function process_courselink_event(campusconnect_event $event) {
 
+        $settings = new campusconnect_ecssettings($event->get_ecs_id());
         $status = $event->get_status();
         // Delete events do not need to retrieve the resource.
         if ($status == campusconnect_event::STATUS_DESTROYED) {
-            campusconnect_courselink::delete($event->get_resource_id(), $event->get_ecs_id());
+            campusconnect_courselink::delete($event->get_resource_id(), $settings);
             return true;
         }
 
@@ -165,16 +177,15 @@ class campusconnect_receivequeue {
         }
 
         // Retrieve the resource.
-        $settings = new campusconnect_settings($event->get_ecs_id());
         $connect = new campusconnect_connect($settings);
         $resource = $connect->get_resource($event->get_resource_id());
-        $details = $connect->get_resource($event->get_resource_id(), true);
+        $details = new campusconnect_details($connect->get_resource($event->get_resource_id(), true));
 
         // Process the create/update event.
         if ($status == campusconnect_event::STATUS_CREATED) {
-            return campusconnect_courselink::create($event->get_resource_id(), $event->get_ecs_id(), $resource, $details);
+            return campusconnect_courselink::create($event->get_resource_id(), $settings, $resource, $details);
         }
 
-        return campusconnect_courselink::update($event->get_resource_id(), $event->get_ecs_id(), $resource, $details);
+        return campusconnect_courselink::update($event->get_resource_id(), $settings, $resource, $details);
     }
 }

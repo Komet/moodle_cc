@@ -15,22 +15,17 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * extra language strings needed in CampusConnect
+ * Represents a link to an external course
  *
  * @package    local_campusconnect
  * @copyright  2012 Synergy Learning
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-$string['error'] = 'Error: {$a}';
+defined('MOODLE_INTERNAL') || die();
 
-$string['field_courseid'] = 'Course ID';
-$string['field_coursetype'] = 'Course type';
-$string['field_credits'] = 'Credits';
-$string['field_language'] = 'Language';
-$string['field_organisation'] = 'Organisation';
-$string['field_semesterhours'] = 'Semester hours';
-$string['field_status'] = 'Status';
-$string['field_term'] = 'Term';
-
-$string['pluginname'] = 'CampusConnect';
+class campusconnect_participantsettings {
+    function __construct($mid) {
+        // TODO complete this
+    }
+}

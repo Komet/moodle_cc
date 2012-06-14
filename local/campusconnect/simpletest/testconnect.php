@@ -36,9 +36,15 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot.'/local/campusconnect/connect.php');
 
+define('SKIP_CAMPUSCONNECT_CONNECT_TESTS', 1);
+
 class local_campusconnect_connect_test extends UnitTestCase {
     protected $connect = array();
     protected $mid = array();
+
+    public function skip() {
+        $this->skipIf(defined('SKIP_CAMPUSCONNECT_CONNECT_TESTS'), 'Skipping connect tests, to save time');
+    }
 
     public function setUp() {
         // Create the connections for testing

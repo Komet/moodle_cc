@@ -62,11 +62,22 @@ class campusconnect_ecssettings {
      * @return void
      */
     function __construct($ecsid = null, $unittest = null) {
+
+        // Create fake settings for unit testing
+        static $unittestecs = array();
+        if ($ecsid < 0) {
+            $ecsid = -$ecsid;
+            $unittest = $unittestecs[$ecsid];
+        }
         if ($unittest) {
+            if (is_null($ecsid)) {
+                $ecsid = count($unittestecs) + 1;
+                $unittestecs[$ecsid] = $unittest;
+            }
             $this->url = 'http://localhost:3000';
             $this->auth = self::AUTH_NONE;
             $this->ecsauth = $unittest;
-            $this->recordid = -1;
+            $this->recordid = -$ecsid;
             return;
         }
 
@@ -78,7 +89,6 @@ class campusconnect_ecssettings {
 
     public static function list_ecs() {
         global $DB;
-
         return $DB->get_records_menu('local_campusconnect_ecs', array(), 'name, id', 'id, name');
     }
 

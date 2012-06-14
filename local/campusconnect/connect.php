@@ -178,6 +178,7 @@ class campusconnect_connect {
         if ($detailsonly) {
             $resourcepath .= '/details';
         }
+
         $this->init_connection($resourcepath);
 
         $result = $this->call();
@@ -389,6 +390,7 @@ class campusconnect_connect {
      * @param string $resourcepath - the path to the desired resource on the server
      */
     protected function init_connection($resourcepath) {
+
         if (substr($resourcepath, 0, 1) != '/' || substr($resourcepath, -1) == '/') {
             throw new coding_exception('Resource path must start with \'/\' and not end with \'/\'');
         }
@@ -421,7 +423,7 @@ class campusconnect_connect {
             $this->set_option(CURLOPT_CAINFO, $this->settings->get_ca_cert_path());
             $this->set_option(CURLOPT_SSLCERT, $this->settings->get_client_cert_path());
             $this->set_option(CURLOPT_SSLKEY, $this->settings->get_key_path());
-            $this->set_option(CURLOPT_SSLKEYPASWD, $this->settings->get_key_pass());
+            $this->set_option(CURLOPT_SSLKEYPASSWD, $this->settings->get_key_pass());
             break;
 
         default:

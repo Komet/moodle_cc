@@ -41,7 +41,7 @@ Mock::generate(get_class($DB), 'mockDB_coursecreate', array('mock_create_course'
                                                             'mock_update_course',
                                                             'mock_delete_course'));
 
-//define('SKIP_CAMPUSCONNECT_RECEIVEQUEUE_TESTS', 1);
+define('SKIP_CAMPUSCONNECT_RECEIVEQUEUE_TESTS', 1);
 
 class local_campusconnect_receivequeue_test extends UnitTestCase {
     protected $connect = array();

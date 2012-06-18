@@ -222,9 +222,9 @@ class local_campusconnect_ecssettings_test extends UnitTestCase {
         $data['notifycontent'] = 'testa@example.com,testb@example.com,testc@example.com';
         $data['notifycourses'] = 'testa@example.com';
         $settings->save_settings($data);
-        $this->expectEqual($settings->get_notify_users(), array('testa@example.com', 'testb@example.com', 'testc@example.com'));
-        $this->expectEqual($settings->get_notify_content(), array('testa@example.com', 'testb@example.com', 'testc@example.com'));
-        $this->expectEqual($settings->get_notify_courses(), array('testa@example.com'));
+        $this->assertEqual($settings->get_notify_users(), array('testa@example.com', 'testb@example.com', 'testc@example.com'));
+        $this->assertEqual($settings->get_notify_content(), array('testa@example.com', 'testb@example.com', 'testc@example.com'));
+        $this->assertEqual($settings->get_notify_courses(), array('testa@example.com'));
     }
 
     public function test_list_ecs() {
@@ -310,7 +310,7 @@ class local_campusconnect_ecssettings_test extends UnitTestCase {
         $this->assertEqual($settings->get_key_path(), $data['keypath']);
         $this->assertEqual($settings->get_key_pass(), $data['keypass']);
 
-        $this->assertEqual($settings->get_import_category, $data['importcategory']);
+        $this->assertEqual($settings->get_import_category(), $data['importcategory']);
         $this->assertEqual($settings->get_import_role(), $data['importrole']);
         $this->assertEqual($settings->get_import_period(), $data['importperiod']);
 

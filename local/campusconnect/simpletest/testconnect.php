@@ -36,7 +36,7 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot.'/local/campusconnect/connect.php');
 
-define('SKIP_CAMPUSCONNECT_CONNECT_TESTS', 1);
+//define('SKIP_CAMPUSCONNECT_CONNECT_TESTS', 1);
 
 class local_campusconnect_connect_test extends UnitTestCase {
     protected $connect = array();
@@ -240,8 +240,9 @@ class local_campusconnect_connect_test extends UnitTestCase {
 
         // Check 'unittest2' can see the new resource, but not 'unittest3'
         $result = $this->connect[2]->get_resource_list();
-        $this->assertEqual(count($result->get_ids()), 1);
-        $this->assertEqual($result->get_ids()[0], $eid);
+        $ids = $result->get_ids();
+        $this->assertEqual(count($ids), 1);
+        $this->assertEqual($ids[0], $eid);
         $result = $this->connect[3]->get_resource_list();
         $this->assertFalse($result->get_ids());
 

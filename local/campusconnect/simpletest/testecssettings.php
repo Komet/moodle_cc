@@ -27,19 +27,37 @@ defined('MOODLE_INTERNAL') || die();
 require_once($CFG->dirroot.'/local/campusconnect/ecssettings.php');
 
 class local_campusconnect_ecssettings_test extends UnitTestCase {
+
+    protected $testdata = array('name' => 'test1name',
+                                'url' => 'http://www.example.com',
+                                'auth' => campusconnect_ecssettings::AUTH_NONE,
+                                'ecsauth' => 'test1',
+                                'importcategory' => null,  // Set via 'setUp' function, below
+                                'importrole' => 'student',
+                                'importperiod' => 6);
+
     public function setUp() {
-        // Nothing to set up
+        global $DB;
+
+        // Use the first course category found in the database as the import category, for testing
+        $importcategory = $DB->get_records('course_categories', array(), 'id', 'id', 0, 1);
+        $importcategory = reset($importcategory);
+        $this->testdata['importcategory'] = $importcategory->id;
     }
 
     public function tearDown() {
-        // Nothing to tear down
+        // Make sure all test ECS are gone (in case a test crashed earlier)
+        $ecslist = campusconnect_ecssettings::list_ecs();
+        foreach ($ecslist as $ecsid => $ecsname) {
+            if ($ecsname == 'test1name' || $ecsname == 'test2name') {
+                $settings = new campusconnect_ecssettings($ecsid);
+                $settings->delete();
+            }
+        }
     }
 
     public function test_create_delete_settings() {
-        $data = array('name' => 'test1name',
-                      'url' => 'http://www.example.com',
-                      'auth' => campusconnect_ecssettings::AUTH_NONE,
-                      'ecsauth' => 'test1');
+        $data = $this->testdata;
         $settings = new campusconnect_ecssettings();
         $settings->save_settings($data);
 
@@ -72,12 +90,9 @@ class local_campusconnect_ecssettings_test extends UnitTestCase {
         $settings = new campusconnect_ecssettings($id);
     }
 
-    public function test_setting_validation() {
+    public function test_connect_setting_validation() {
         $settings = new campusconnect_ecssettings();
-        $testdata = array('name' => 'test1name',
-                          'url' => 'http://www.example.com',
-                          'auth' => campusconnect_ecssettings::AUTH_NONE,
-                          'ecsauth' => 'test1');
+        $testdata = $this->testdata;
 
         // Test all general settings are required.
         $data = $testdata;
@@ -155,13 +170,67 @@ class local_campusconnect_ecssettings_test extends UnitTestCase {
         $settings->delete();
     }
 
+    public function test_incoming_setting_validation() {
+        global $DB;
+
+        $settings = new campusconnect_ecssettings();
+
+        // Disable cron
+        $data = $this->testdata;
+        $data['crontime'] = 0;
+        $settings->save_settings($data);
+        $this->assertFalse($settings->time_for_cron(), 'Cron should be disabled');
+
+        // Enable cron
+        $data['crontime'] = 60;
+        $settings->save_settings($data);
+        $this->assertTrue($settings->time_for_cron(), 'Cron not ready to start');
+
+        // Try setting 'lastcron' - should be ignored
+        $data['lastcron'] = time() + 100;
+        $settings->save_settings($data);
+        $this->assertTrue($settings->time_for_cron(), 'Lastcron was incorrectly updated');
+
+        // Update the lastcron properly
+        $settings->update_last_cron();
+        $this->assertFalse($settings->time_for_cron(), 'Last cron not correctly updated');
+
+        // Check importcategory validation
+        $data = $this->testdata;
+        $lastcategory = $DB->get_records('course_categories', array(), 'id DESC', 'id', 0, 1);
+        $lastcategory = reset($lastcategory);
+        $data['importcategory'] = $lastcategory->id + 1;
+        $this->expectException('coding_exception');
+        $settings->save_settings($data);
+
+        // Check importrole validation
+        $data = $this->testdata;
+        $data['importrole'] = 'thisroledoesnotexist';
+        $this->expectException('coding_exception');
+        $settings->save_settings($data);
+
+    }
+
+    public function test_notify_setting() {
+        $settings = new campusconnect_ecssettings();
+
+        // Check notifyXX saving
+        $data = $this->testdata;
+        $data['notifyusers'] = '    testa@example.com,   testb@example.com
+
+, testc@example.com';
+        $data['notifycontent'] = 'testa@example.com,testb@example.com,testc@example.com';
+        $data['notifycourses'] = 'testa@example.com';
+        $settings->save_settings($data);
+        $this->expectEqual($settings->get_notify_users(), array('testa@example.com', 'testb@example.com', 'testc@example.com'));
+        $this->expectEqual($settings->get_notify_content(), array('testa@example.com', 'testb@example.com', 'testc@example.com'));
+        $this->expectEqual($settings->get_notify_courses(), array('testa@example.com'));
+    }
+
     public function test_list_ecs() {
         $startingecs = campusconnect_ecssettings::list_ecs();
 
-        $data = array('name' => 'test1name',
-                      'url' => 'http://www.example.com',
-                      'auth' => campusconnect_ecssettings::AUTH_NONE,
-                      'ecsauth' => 'test1');
+        $data = $this->testdata;
 
         // Add an ECS and test it is in the list
         $settings1 = new campusconnect_ecssettings();
@@ -197,16 +266,21 @@ class local_campusconnect_ecssettings_test extends UnitTestCase {
     }
 
     public function test_settings_retrieval() {
-        $data = array('name' => 'test1name',
-                      'url' => 'http://www.example.com',
-                      'auth' => campusconnect_ecssettings::AUTH_NONE,
-                      'ecsauth' => 'test1',
-                      'httpuser' => 'username',
-                      'httppass' => 'pass',
-                      'cacertpath' => 'path/to/cacert',
-                      'certpath' => 'path/to/cert',
-                      'keypath' => 'path/to/key',
-                      'keypass' => 'supersecretpass');
+        $notifyusers = array('testa@example.com','testb@example.com');
+        $notifycontent = array('testc@example.com','testd@example.com');
+        $notifycourses = array('teste@example.com','testf@example.com');
+        $data = array_merge($this->testdata, array(
+                                'crontime' => 60,
+                                'httpuser' => 'username',
+                                'httppass' => 'pass',
+                                'cacertpath' => 'path/to/cacert',
+                                'certpath' => 'path/to/cert',
+                                'keypath' => 'path/to/key',
+                                'keypass' => 'supersecretpass',
+                                'notifyusers' => implode(',', $notifyusers),
+                                'notifycontent' => implode(',', $notifycontent),
+                                'notifycourses' => implode(',', $notifycourses)
+                            ));
 
         $settings = new campusconnect_ecssettings();
         $settings->save_settings($data);
@@ -216,7 +290,7 @@ class local_campusconnect_ecssettings_test extends UnitTestCase {
         $settings = new campusconnect_ecssettings($id);
         $allsettings = $settings->get_settings();
         foreach ($data as $field => $value) {
-            $this->assertTrue(isset($allsettings->$field));
+            $this->assertTrue(isset($allsettings->$field), "$field is not set");
             $this->assertEqual($value, $allsettings->$field);
         }
 
@@ -226,17 +300,23 @@ class local_campusconnect_ecssettings_test extends UnitTestCase {
         $this->assertEqual($settings->get_auth_type(), $data['auth']);
         $this->assertEqual($settings->get_ecs_auth(), $data['ecsauth']);
 
-
         $settings->save_settings(array('auth' => campusconnect_ecssettings::AUTH_HTTP));
         $this->assertEqual($settings->get_http_user(), $data['httpuser']);
         $this->assertEqual($settings->get_http_password(), $data['httppass']);
-
 
         $settings->save_settings(array('auth' => campusconnect_ecssettings::AUTH_CERTIFICATE));
         $this->assertEqual($settings->get_ca_cert_path(), $data['cacertpath']);
         $this->assertEqual($settings->get_client_cert_path(), $data['certpath']);
         $this->assertEqual($settings->get_key_path(), $data['keypath']);
         $this->assertEqual($settings->get_key_pass(), $data['keypass']);
+
+        $this->assertEqual($settings->get_import_category, $data['importcategory']);
+        $this->assertEqual($settings->get_import_role(), $data['importrole']);
+        $this->assertEqual($settings->get_import_period(), $data['importperiod']);
+
+        $this->assertEqual($settings->get_notify_users(), $notifyusers);
+        $this->assertEqual($settings->get_notify_content(), $notifycontent);
+        $this->assertEqual($settings->get_notify_courses(), $notifycourses);
 
         $settings->delete();
     }

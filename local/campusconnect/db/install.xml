@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/campusconnect/db" VERSION="20120613" COMMENT="XMLDB file for Moodle local/campusconnect"
+<XMLDB PATH="local/campusconnect/db" VERSION="20120618" COMMENT="XMLDB file for Moodle local/campusconnect"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -16,10 +16,19 @@
         <FIELD NAME="cacertpath" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The path to the CA certificate when using certificate authentication" PREVIOUS="httppass" NEXT="certpath"/>
         <FIELD NAME="certpath" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The certificate path to use with certificate authentication" PREVIOUS="cacertpath" NEXT="keypath"/>
         <FIELD NAME="keypath" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The path to the key file for use with certificate authentication." PREVIOUS="certpath" NEXT="keypass"/>
-        <FIELD NAME="keypass" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The key password for use with certificate authentication." PREVIOUS="keypath"/>
+        <FIELD NAME="keypass" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The key password for use with certificate authentication." PREVIOUS="keypath" NEXT="crontime"/>
+        <FIELD NAME="crontime" TYPE="int" LENGTH="10" NOTNULL="false" UNSIGNED="false" DEFAULT="0" SEQUENCE="false" COMMENT="How often to check for updates from this ECS server (in seconds)" PREVIOUS="keypass" NEXT="lastcron"/>
+        <FIELD NAME="lastcron" TYPE="int" LENGTH="10" NOTNULL="false" UNSIGNED="false" DEFAULT="0" SEQUENCE="false" COMMENT="The last time we checked for updates from this ECS server" PREVIOUS="crontime" NEXT="importcategory"/>
+        <FIELD NAME="importcategory" TYPE="int" LENGTH="10" NOTNULL="false" UNSIGNED="false" SEQUENCE="false" COMMENT="The course category id to put imported courses into" PREVIOUS="lastcron" NEXT="importrole"/>
+        <FIELD NAME="importrole" TYPE="char" LENGTH="100" NOTNULL="false" SEQUENCE="false" COMMENT="The shortname of the role to assign to incoming users" PREVIOUS="importcategory" NEXT="importperiod"/>
+        <FIELD NAME="importperiod" TYPE="int" LENGTH="6" NOTNULL="false" UNSIGNED="false" DEFAULT="6" SEQUENCE="false" COMMENT="The number of months to keep imported users active" PREVIOUS="importrole" NEXT="notifyusers"/>
+        <FIELD NAME="notifyusers" TYPE="text" LENGTH="medium" NOTNULL="false" SEQUENCE="false" COMMENT="Comma-separated list of email addresses to notify about new users via ECS" PREVIOUS="importperiod" NEXT="notifycontent"/>
+        <FIELD NAME="notifycontent" TYPE="text" LENGTH="medium" NOTNULL="false" SEQUENCE="false" COMMENT="Comma-separated list of email addresses to notify about new external courses via ECS" PREVIOUS="notifyusers" NEXT="notifycourses"/>
+        <FIELD NAME="notifycourses" TYPE="text" LENGTH="medium" NOTNULL="false" SEQUENCE="false" COMMENT="Comma-separated list of email addresses to notify about newly exported courses via ECS" PREVIOUS="notifycontent"/>
       </FIELDS>
       <KEYS>
-        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id" NEXT="importcategory"/>
+        <KEY NAME="importcategory" TYPE="foreign" FIELDS="importcategory" REFTABLE="course_categories" REFFIELDS="id" PREVIOUS="primary"/>
       </KEYS>
     </TABLE>
     <TABLE NAME="local_campusconnect_eventin" COMMENT="Stores incoming events from the ECS server, until they have been processed" PREVIOUS="local_campusconnect_ecs" NEXT="local_campusconnect_clink">

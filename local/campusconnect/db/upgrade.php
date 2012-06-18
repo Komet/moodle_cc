@@ -77,5 +77,54 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2012061301, 'local', 'campusconnect');
     }
 
+    // Add more fields to ECS settings
+    if ($oldversion < 2012061800) {
+        $table = new xmldb_table('local_campusconnect_ecs');
+
+        $field = new xmldb_field('crontime', XMLDB_TYPE_INTEGER, '10', null, null, null, '0', 'keypass');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $field = new xmldb_field('lastcron', XMLDB_TYPE_INTEGER, '10', null, null, null, '0', 'crontime');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $field = new xmldb_field('importcategory', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'lastcron');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $field = new xmldb_field('importrole', XMLDB_TYPE_CHAR, '100', null, null, null, null, 'importcategory');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $field = new xmldb_field('importperiod', XMLDB_TYPE_INTEGER, '6', null, null, null, '6', 'importrole');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $field = new xmldb_field('notifyusers', XMLDB_TYPE_TEXT, 'medium', null, null, null, null, 'importperiod');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $field = new xmldb_field('notifycontent', XMLDB_TYPE_TEXT, 'medium', null, null, null, null, 'notifyusers');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $field = new xmldb_field('notifycourses', XMLDB_TYPE_TEXT, 'medium', null, null, null, null, 'notifycontent');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012061800, 'local', 'campusconnect');
+    }
+
     return true;
 }

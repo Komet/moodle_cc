@@ -30,6 +30,7 @@ class campusconnect_ecssettings {
     const AUTH_HTTP = 2; // Basic HTTP authentication.
     const AUTH_CERTIFICATE = 3; // Certificate based authentication.
 
+    // Connection settings
     protected $url = '';
     protected $auth = self::AUTH_CERTIFICATE;
     protected $ecsauth = '';
@@ -40,9 +41,23 @@ class campusconnect_ecssettings {
     protected $keypath = '';
     protected $keypass = '';
 
+    // Settings for incoming data
+    protected $crontime = 0;
+    protected $lastcron = 0;
+    protected $importcategory = null;
+    protected $importrole = null;
+    protected $importperiod = 6;
+
+    // Notification details
+    protected $notifyusers = '';
+    protected $notifycontent = '';
+    protected $notifycourses = '';
+
+    // Misc settings
     protected $recordid = null;
     protected $name = '';
 
+    // Used to validate incoming settings
     protected $validsettings = array('recordid' => 'id',
                                      'name' => 'name',
                                      'url' => 'url',
@@ -53,7 +68,14 @@ class campusconnect_ecssettings {
                                      'cacertpath' => 'cacertpath',
                                      'certpath' => 'certpath',
                                      'keypath' => 'keypath',
-                                     'keypass' => 'keypass');
+                                     'keypass' => 'keypass',
+                                     'crontime' => 'crontime',
+                                     'importcategory' => 'importcategory',
+                                     'importrole' => 'importrole',
+                                     'importperiod' => 'importperiod',
+                                     'notifyusers' => 'notifyusers',
+                                     'notifycontent' => 'notifycontent',
+                                     'notifycourses' => 'notifycourses');
 
     /**
      * Initialise a settings object
@@ -157,6 +179,30 @@ class campusconnect_ecssettings {
         return $this->keypass;
     }
 
+    public function get_import_category() {
+        return $this->importcategory;
+    }
+
+    public function get_import_role() {
+        return $this->importrole;
+    }
+
+    public function get_import_period() {
+        return $this->importperiod;
+    }
+
+    public function get_notify_users() {
+        return explode(',',$this->notifyusers);
+    }
+
+    public function get_notify_content() {
+        return explode(',',$this->notifycontent);
+    }
+
+    public function get_notify_courses() {
+        return explode(',',$this->notifycourses);
+    }
+
     protected function load_settings($ecsid) {
         global $DB;
 
@@ -169,6 +215,9 @@ class campusconnect_ecssettings {
             if (isset($settings->$dbname)) {
                 $this->$localname = $settings->$dbname;
             }
+        }
+        if (isset($settings->lastcron)) {
+            $this->lastcron = $settings->lastcron; // Not part of validsettings, as should never be set via the UI
         }
     }
 
@@ -222,7 +271,50 @@ class campusconnect_ecssettings {
             }
             break;
         default:
-            throw new coding_exception('campusconnect_ecssettings - invalid \'auth\' value');
+            throw new coding_exception("campusconnect_ecssettings - invalid \'auth\' value: $auth");
+        }
+
+        if (isset($settings->crontime) && $settings->crontime < 0) {
+            throw new coding_exception("campusconnect_ecssettings - invalid crontime: $settings->crontime");
+        }
+
+        if (isset($settings->importcategory)) {
+            if ($settings->importcategory != $this->importcategory) {
+                if (!$DB->record_exists('course_categories', array('id' => $settings->importcategory))) {
+                    throw new coding_exception("campusconnect_ecssettings - non-existent category ID: $settings->importcategory");
+                }
+            }
+        } else if (empty($this->importcategory)) {
+            throw new coding_exception("campusconnect_ecssettings - missing 'importcategory' field");
+        }
+
+        if (isset($settings->importrole)) {
+            if ($settings->importrole != $this->importrole) {
+                if (!$DB->record_exists('role', array('shortname' => $settings->importrole))) {
+                    throw new coding_exception("campusconnect_ecssettings - non-existent role shortname: $settings->importrole");
+                }
+            }
+        } else if (empty($this->importrole)) {
+            throw new coding_exception("campusconnect_ecssettings - missing 'importrole' field");
+        }
+
+        // Remove any spaces from the notify lists
+        if (isset($settings->notifyusers)) {
+            $notify = explode(',', $settings->notifyusers);
+            array_map('trim', $notify);
+            $settings = implode(',', $notify);
+        }
+
+        if (isset($settings->notifycontent)) {
+            $notify = explode(',', $settings->notifycontent);
+            array_map('trim', $notify);
+            $settings = implode(',', $notify);
+        }
+
+        if (isset($settings->notifycourses)) {
+            $notify = explode(',', $settings->notifycourses);
+            array_map('trim', $notify);
+            $settings = implode(',', $notify);
         }
 
         // Save the settings
@@ -254,5 +346,29 @@ class campusconnect_ecssettings {
             $this->recordid = null;
             $this->auth = -1;
         }
+    }
+
+    /**
+     * Check if it is time to run a cron update for this ECS
+     * @return bool true if time for cron script to run
+     */
+    public function time_for_cron() {
+        if ($this->crontime == 0) {
+            return false;
+        }
+        return (($this->lastcron + $this->crontime) < time());
+    }
+
+    /**
+     * Save the current time as the lastcron time
+     */
+    public function update_last_cron() {
+        global $DB;
+
+        $lastcron = time();
+        if (!is_null($this->recordid)) {
+            $DB->set_field('local_campusconnect_ecs', 'lastcron', $lastcron, array('id' => $this->recordid));
+        }
+        $this->lastcron = $lastcron;
     }
 }

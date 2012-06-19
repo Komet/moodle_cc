@@ -40,37 +40,43 @@ class campusconnect_courselink {
      * @param campusconnect_ecssettings $settings the settings for this ECS server
      * @param object $courselink the details of the course from the ECS server
      * @param campusconnect_details $transferdetails the details of where the link came from / went to
-     * @return bool true if successfully created
+     * @return bool false if a problem occurred
      */
     public static function create($resourceid, campusconnect_ecssettings $settings, $courselink, campusconnect_details $transferdetails) {
-        if ($currlink = self::get_by_resourceid($resourceid, $settings->get_id())) {
-            throw new campusconnect_courselink_exception("Cannot create a courselink to resource $resourceid - it already exists.");
-        }
-
         $mid = $transferdetails->get_sender_mid();
-        $partsettings = new campusconnect_participantsettings($mid);
+        $ecsid = $settings->get_id();
+        $partsettings = new campusconnect_participantsettings($ecsid, $mid);
 
-        // TODO - check if we are accepting course links from this participant
+        if (!$partsettings->is_import_enabled()) {
+            return true;
+        }
 
         $coursedata = self::map_course_settings($courselink, $settings, $partsettings);
-        if ($settings->get_id() > 0) {
-            $course = create_course($coursedata);
-        } else {
-            // Nasty hack for unit testing - 'create_course' is too complex to
-            // be practical to mock up the database responses
-            global $DB;
-            $course = $coursedata;
-            $course->id = $DB->mock_create_course($coursedata);
+
+        if ($partsettings->get_import_type() == campusconnect_participantsettings::IMPORT_LINK) {
+            if ($currlink = self::get_by_resourceid($resourceid, $settings->get_id())) {
+                throw new campusconnect_courselink_exception("Cannot create a courselink to resource $resourceid - it already exists.");
+            }
+
+            if ($settings->get_id() > 0) {
+                $course = create_course($coursedata);
+            } else {
+                // Nasty hack for unit testing - 'create_course' is too complex to
+                // be practical to mock up the database responses
+                global $DB;
+                $course = $coursedata;
+                $course->id = $DB->mock_create_course($coursedata);
+            }
+
+            $ins = new stdClass();
+            $ins->courseid = $course->id;
+            $ins->url = $courselink->url;
+            $ins->resourceid = $resourceid;
+            $ins->ecsid = $settings->get_id();
+            $ins->mid = $mid;
+
+            $DB->insert_record('local_campusconnect_clink', $ins);
         }
-
-        $ins = new stdClass();
-        $ins->courseid = $course->id;
-        $ins->url = $courselink->url;
-        $ins->resourceid = $resourceid;
-        $ins->ecsid = $settings->get_id();
-        $ins->mid = $mid;
-
-        $DB->insert_record('local_campusconnect_clink', $ins);
 
         return true;
     }
@@ -85,37 +91,43 @@ class campusconnect_courselink {
      */
     public static function update($resourceid, campusconnect_ecssettings $settings, $courselink, campusconnect_details $transferdetails) {
         $mid = $transferdetails->get_sender_mid();
-        $partsettings = new campusconnect_participantsettings($mid);
+        $ecsid = $settings->get_id();
+        $partsettings = new campusconnect_participantsettings($ecsid, $mid);
 
-        // TODO - check we are still accepting course links from this participant
-
-        if (!$currlink = self::get_by_resourceid($resourceid, $settings->get_id())) {
-            throw new campusconnect_courselink_exception("Cannot update courselink to resource $resourceid - it doesn't exist");
-        }
-
-        if ($currlink->mid != $mid) {
-            throw new campusconnect_courselink_exception("Participant $mid attempted to update resource created by participant {$currlink->mid}");
+        if (!$partsettings->is_import_enabled()) {
+            return true;
         }
 
         $coursedata = self::map_course_settings($courselink, $settings, $partsettings);
-        $coursedata->id = $currlink->courseid;
 
-        if ($settings->get_id() > 0) {
-            // Nasty hack for unit testing - 'update_course' is too complex to
-            // be practical to mock up the database responses
-            update_course($coursedata);
-        } else {
-            global $DB;
-            $DB->mock_update_course($coursedata);
-        }
+        if ($partsettings->get_import_type() == campusconnect_participantsettings::IMPORT_LINK) {
+            if (!$currlink = self::get_by_resourceid($resourceid, $settings->get_id())) {
+                throw new campusconnect_courselink_exception("Cannot update courselink to resource $resourceid - it doesn't exist");
+            }
+
+            if ($currlink->mid != $mid) {
+                throw new campusconnect_courselink_exception("Participant $mid attempted to update resource created by participant {$currlink->mid}");
+            }
+
+            $coursedata->id = $currlink->courseid;
+
+            if ($settings->get_id() > 0) {
+                // Nasty hack for unit testing - 'update_course' is too complex to
+                // be practical to mock up the database responses
+                update_course($coursedata);
+            } else {
+                global $DB;
+                $DB->mock_update_course($coursedata);
+            }
 
 
-        if ($currlink->url != $courselink->url) {
-            $upd = new stdClass();
-            $upd->id = $currlink->id;
-            $upd->url = $courselink->url;
+            if ($currlink->url != $courselink->url) {
+                $upd = new stdClass();
+                $upd->id = $currlink->id;
+                $upd->url = $courselink->url;
 
-            $DB->update_record('local_campusconnect_clink', $upd);
+                $DB->update_record('local_campusconnect_clink', $upd);
+            }
         }
 
         return true;

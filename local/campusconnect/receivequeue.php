@@ -108,15 +108,15 @@ class campusconnect_receivequeue {
 
     /**
      * Retrieve the next event from the incoming event queue (without removing it)
-     * @param int $ecsid optional is specified, only retrieve events from this ECS server
+     * @param campusconnect_ecssettings $ecsid optional is specified, only retrieve events from this ECS server
      * @return mixed campusconnect_event | false
      */
-    protected function get_event_from_queue($ecsid = null) {
+    protected function get_event_from_queue(campusconnect_ecssettings $ecssettings = null) {
         global $DB;
 
         $params = array();
-        if ($ecsid != null) {
-            $params['serverid'] = $ecsid;
+        if ($ecssettings != null) {
+            $params['serverid'] = $ecssettings->get_id();
         }
         $ret = $DB->get_records('local_campusconnect_eventin', $params, 'id', '*', 0, 1);
         if (empty($ret)) {
@@ -138,10 +138,10 @@ class campusconnect_receivequeue {
 
     /**
      * Process all the events in the queue and take the appropriate actions
-     * @param int $ecsid optional - if provided, only process events from the specified ECS server
+     * @param campusconnect_ecssettings $ecsid optional - if provided, only process events from the specified ECS server
      */
-    public function process_queue($ecsid = null) {
-        while ($event = $this->get_event_from_queue($ecsid)) {
+    public function process_queue(campusconnect_ecssettings $ecssettings = null) {
+        while ($event = $this->get_event_from_queue($ecssettings)) {
             switch ($event->get_resource_type()) {
             case campusconnect_event::RES_COURSELINK:
                 $result = $this->process_courselink_event($event);

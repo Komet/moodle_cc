@@ -41,7 +41,7 @@ Mock::generate(get_class($DB), 'mockDB_coursecreate', array('mock_create_course'
                                                             'mock_update_course',
                                                             'mock_delete_course'));
 
-define('SKIP_CAMPUSCONNECT_RECEIVEQUEUE_TESTS', 1);
+//define('SKIP_CAMPUSCONNECT_RECEIVEQUEUE_TESTS', 1);
 
 class local_campusconnect_receivequeue_test extends UnitTestCase {
     protected $connect = array();
@@ -74,7 +74,6 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
             foreach ($memberships[0]->participants as $participant) {
                 if ($participant->itsyou) {
                     $this->mid[$key] = $participant->mid;
-                    break;
                 }
             }
         }
@@ -112,9 +111,10 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
             }
         }
 
-        // Delete all events.
+        // Delete all events & participants.
         foreach ($this->connect as $connect) {
             while ($connect->read_event_fifo(true));
+            campusconnect_participantsettings::delete_ecs_participant_settings($connect->get_ecs_id());
         }
 
         $this->connect = array();
@@ -250,7 +250,9 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
                                    'status' => campusconnect_event::STATUS_CREATED);
         $DB->setReturnValue('get_records', array()); // No further events.
         $DB->setReturnValueAt(0, 'get_records', array($eventdata)); // Get event.
-        $DB->setReturnValue('get_record', false); // Check if courselink exists.
+        $DB->setReturnValueAt(1, 'get_record', false); // Check if courselink exists.
+        $DB->setReturnValueAt(0, 'get_record', (object)array('id' => 1, 'import' => 1, 'export' => 1,
+                                                             'importtype' => campusconnect_participantsettings::IMPORT_LINK)); // Load participant settings.
         $DB->setReturnValue('mock_create_course', 5); // Create course.
         $DB->setReturnValue('insert_record', 1); // Create course link.
 
@@ -267,6 +269,35 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
                                   'mid' => $this->mid[1]);
         $DB->expectOnce('mock_create_course', array($coursedata)); // Create course.
         $DB->expectOnce('insert_record', array('local_campusconnect_clink', $linkdata)); // Create course link.
+
+        $DB->expectCallCount('get_records', 2); // Pulling items from the event queue
+        $DB->expectCallCount('delete_records', 1); // Deleting items from the event queue
+
+        $this->queue->process_queue();
+    }
+
+    public function test_process_event_queue_import_disabled() {
+        global $DB;
+
+        // Send courselink from server 1 to server 2 and check that a course
+        // and courselink is correctly created on server 2
+
+        $eid = $this->connect[1]->add_resource(json_encode($this->resources[1]), $this->community);
+
+        // Mock up the event in the queue (adding events already tested above)
+        $eventdata = (object)array('id' => 1,
+                                   'type' => 'campusconnect/courselinks',
+                                   'resourceid' => "$eid",
+                                   'serverid' => $this->connect[2]->get_ecs_id(),
+                                   'status' => campusconnect_event::STATUS_CREATED);
+        $DB->setReturnValue('get_records', array()); // No further events.
+        $DB->setReturnValueAt(0, 'get_records', array($eventdata)); // Get event.
+        $DB->setReturnValueAt(1, 'get_record', false); // Check if courselink exists.
+        $DB->setReturnValueAt(0, 'get_record', (object)array('id' => 1, 'import' => 0, 'export' => 1,
+                                                             'importtype' => campusconnect_participantsettings::IMPORT_LINK)); // Load participant settings.
+
+        $DB->expectNever('mock_create_course', 'Import disabled - did not expect a course to be created');
+        $DB->expectNever('insert_record', 'Import disabled - did not expect a course link to be created');
 
         $DB->expectCallCount('get_records', 2); // Pulling items from the event queue
         $DB->expectCallCount('delete_records', 1); // Deleting items from the event queue
@@ -296,7 +327,9 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
                                   'mid' => $this->mid[1]);
         $DB->setReturnValue('get_records', array()); // No further events.
         $DB->setReturnValueAt(0, 'get_records', array($eventdata)); // Get event.
-        $DB->setReturnValue('get_record', $linkdata); // Retrieve courselink.
+        $DB->setReturnValueAt(1, 'get_record', $linkdata); // Retrieve courselink.
+        $DB->setReturnValueAt(0, 'get_record', (object)array('id' => 1, 'import' => 1, 'export' => 1,
+                                                             'importtype' => campusconnect_participantsettings::IMPORT_LINK)); // Load participant settings.
 
         // Note - using the 'generate_summary' function, as the summary is too fiddly to write a sensible test
         $coursedata = (object)array('category' => 2,

@@ -25,6 +25,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot.'/local/campusconnect/participantsettings.php');
+require_once($CFG->dirroot.'/local/campusconnect/metadata.php');
+require_once($CFG->dirroot.'/course/lib.php');
 
 class campusconnect_courselink_exception extends moodle_exception {
     function __construct($msg) {
@@ -43,6 +45,8 @@ class campusconnect_courselink {
      * @return bool false if a problem occurred
      */
     public static function create($resourceid, campusconnect_ecssettings $settings, $courselink, campusconnect_details $transferdetails) {
+        global $DB;
+
         $mid = $transferdetails->get_sender_mid();
         $ecsid = $settings->get_id();
         $partsettings = new campusconnect_participantsettings($ecsid, $mid);
@@ -61,6 +65,12 @@ class campusconnect_courselink {
             $coursedata->category = $settings->get_import_category();
 
             if ($settings->get_id() > 0) {
+                $baseshortname = $coursedata->shortname;
+                $num = 1;
+                while ($DB->record_exists('course', array('shortname' => $coursedata->shortname))) {
+                    $num++;
+                    $coursedata->shortname = "{$baseshortname}_{$num}";
+                }
                 $course = create_course($coursedata);
             } else {
                 // Nasty hack for unit testing - 'create_course' is too complex to

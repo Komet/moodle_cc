@@ -33,4 +33,10 @@ $string['field_semesterhours'] = 'Semester hours';
 $string['field_status'] = 'Status';
 $string['field_term'] = 'Term';
 
+
+$string['settings'] = 'Settings';
+$string['ecs'] = 'ECS';
+$string['allecs'] = 'All ECS';
+$string['field_term'] = 'Term';
+
 $string['pluginname'] = 'CampusConnect';

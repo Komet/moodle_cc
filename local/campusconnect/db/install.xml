@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/campusconnect/db" VERSION="20120618" COMMENT="XMLDB file for Moodle local/campusconnect"
+<XMLDB PATH="local/campusconnect/db" VERSION="20120619" COMMENT="XMLDB file for Moodle local/campusconnect"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -44,7 +44,7 @@
         <KEY NAME="serverid" TYPE="foreign" FIELDS="serverid" REFTABLE="local_campusconnect_ecs" REFFIELDS="id" PREVIOUS="primary"/>
       </KEYS>
     </TABLE>
-    <TABLE NAME="local_campusconnect_clink" COMMENT="Stores information about course links" PREVIOUS="local_campusconnect_eventin">
+    <TABLE NAME="local_campusconnect_clink" COMMENT="Stores information about course links" PREVIOUS="local_campusconnect_eventin" NEXT="local_campusconnect_part">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="courseid"/>
         <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="false" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the 'fake' course that will redirect to this link" PREVIOUS="id" NEXT="url"/>
@@ -58,6 +58,23 @@
         <KEY NAME="courseid" TYPE="foreign" FIELDS="courseid" REFTABLE="course" REFFIELDS="id" PREVIOUS="primary" NEXT="ecsid"/>
         <KEY NAME="ecsid" TYPE="foreign" FIELDS="ecsid" REFTABLE="local_campusconnect_ecs" REFFIELDS="id" PREVIOUS="courseid"/>
       </KEYS>
+    </TABLE>
+    <TABLE NAME="local_campusconnect_part" COMMENT="Settings for participants in an ECS" PREVIOUS="local_campusconnect_clink">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="ecsid"/>
+        <FIELD NAME="ecsid" TYPE="int" LENGTH="10" NOTNULL="false" UNSIGNED="false" SEQUENCE="false" COMMENT="ECS that this participant is found on" PREVIOUS="id" NEXT="mid"/>
+        <FIELD NAME="mid" TYPE="int" LENGTH="10" NOTNULL="false" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the participant in the community on the ECS server" PREVIOUS="ecsid" NEXT="export"/>
+        <FIELD NAME="export" TYPE="int" LENGTH="4" NOTNULL="false" UNSIGNED="false" DEFAULT="0" SEQUENCE="false" COMMENT="Should courses be exported to this participant?" PREVIOUS="mid" NEXT="import"/>
+        <FIELD NAME="import" TYPE="int" LENGTH="4" NOTNULL="false" UNSIGNED="false" DEFAULT="0" SEQUENCE="false" COMMENT="Should course be imported from this participant?" PREVIOUS="export" NEXT="importtype"/>
+        <FIELD NAME="importtype" TYPE="int" LENGTH="4" NOTNULL="false" UNSIGNED="false" DEFAULT="1" SEQUENCE="false" COMMENT="How to treat courses imported from this participant" PREVIOUS="import"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id" NEXT="ecsid"/>
+        <KEY NAME="ecsid" TYPE="foreign" FIELDS="ecsid" REFTABLE="local_campusconnect_ecs" REFFIELDS="id" PREVIOUS="primary"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="ecsid_mid" UNIQUE="true" FIELDS="ecsid, mid"/>
+      </INDEXES>
     </TABLE>
   </TABLES>
 </XMLDB>

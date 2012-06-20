@@ -22,6 +22,9 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+$string['ecserror_body'] = 'An error occurred whilst attempting to connect to the ECS server \'{$a->ecsname}\' ({$a->ecsid}). The error was:
+{$a->msg}';
+$string['ecserror_subject'] = 'Error connecting to the ECS server';
 $string['error'] = 'Error: {$a}';
 
 $string['field_courseid'] = 'Course ID';
@@ -33,10 +36,10 @@ $string['field_semesterhours'] = 'Semester hours';
 $string['field_status'] = 'Status';
 $string['field_term'] = 'Term';
 
-
 $string['settings'] = 'Settings';
 $string['ecs'] = 'ECS';
 $string['allecs'] = 'All ECS';
 $string['field_term'] = 'Term';
 
+$string['messageprovider:ecserror'] = 'ECS Connection problems';
 $string['pluginname'] = 'CampusConnect';

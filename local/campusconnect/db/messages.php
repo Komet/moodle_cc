@@ -15,16 +15,18 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * version file for CampusConnect
+ * Defines the messages that can be sent out
  *
  * @package    local_campusconnect
  * @copyright  2012 Synergy Learning
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-$plugin->version = 2012061901;
-$plugin->requires = 2010112400; // Moodle 2.0+
-$plugin->cron = 1; // Run every second (or as oftern as cron is run)
-$plugin->component = 'local_campusconnect';
-$plugin->maturity = MATURITY_ALPHA;
-$plugin->release = '2.x (Build: 2012061901)';
+defined('MOODLE_INTERNAL') || die();
+
+$messageproviders = array(
+    // Send notifications about ECS connection problems.
+    'ecserror' => array(
+        'capability' => 'moodle/site:config'
+    )
+);

@@ -301,20 +301,20 @@ class campusconnect_ecssettings {
         // Remove any spaces from the notify lists
         if (isset($settings->notifyusers)) {
             $notify = explode(',', $settings->notifyusers);
-            array_map('trim', $notify);
-            $settings = implode(',', $notify);
+            $notify = array_map('trim', $notify);
+            $settings->notifyusers = implode(',', $notify);
         }
 
         if (isset($settings->notifycontent)) {
             $notify = explode(',', $settings->notifycontent);
-            array_map('trim', $notify);
-            $settings = implode(',', $notify);
+            $notify = array_map('trim', $notify);
+            $settings->notifycontent = implode(',', $notify);
         }
 
         if (isset($settings->notifycourses)) {
             $notify = explode(',', $settings->notifycourses);
-            array_map('trim', $notify);
-            $settings = implode(',', $notify);
+            $notify = array_map('trim', $notify);
+            $settings->notifycourses = implode(',', $notify);
         }
 
         // Save the settings

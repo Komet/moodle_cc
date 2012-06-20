@@ -121,9 +121,37 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
             $dbman->add_field($table, $field);
         }
 
-
         // campusconnect savepoint reached
         upgrade_plugin_savepoint(true, 2012061800, 'local', 'campusconnect');
+    }
+
+   if ($oldversion < 2012061801) {
+
+        // Define table local_campusconnect_part to be created
+        $table = new xmldb_table('local_campusconnect_part');
+
+        // Adding fields to table local_campusconnect_part
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', XMLDB_UNSIGNED, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('ecsid', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('mid', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('export', XMLDB_TYPE_INTEGER, '4', null, null, null, '0');
+        $table->add_field('import', XMLDB_TYPE_INTEGER, '4', null, null, null, '0');
+        $table->add_field('importtype', XMLDB_TYPE_INTEGER, '4', null, null, null, '1');
+
+        // Adding keys to table local_campusconnect_part
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+        $table->add_key('ecsid', XMLDB_KEY_FOREIGN, array('ecsid'), 'local_campusconnect_ecs', array('id'));
+
+        // Adding indexes to table local_campusconnect_part
+        $table->add_index('ecsid_mid', XMLDB_INDEX_UNIQUE, array('ecsid', 'mid'));
+
+        // Conditionally launch create table for local_campusconnect_part
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012061801, 'local', 'campusconnect');
     }
 
     return true;

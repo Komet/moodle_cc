@@ -256,12 +256,12 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         $DB->setReturnValue('mock_create_course', 5); // Create course.
         $DB->setReturnValue('insert_record', 1); // Create course link.
 
-        // Note - using the 'generate_summary' function, as the summary is too fiddly to write a sensible test
-        $coursedata = (object)array('category' => 2,
-                                    'shortname' => $this->resources[1]->title,
-                                    'fullname' => $this->resources[1]->title,
-                                    'summary' => campusconnect_courselink::generate_summary($this->resources[1]),
-                                    'summary_format' => FORMAT_HTML);
+        // Using the map_remote_to_course function to generate the comparison meta data
+        // as that is what the process event queue function should be doing
+        $metadata = new campusconnect_metadata();
+        $coursedata = $metadata->map_remote_to_course($this->resources[1]);
+        $coursedata->summaryformat = FORMAT_HTML;
+        $coursedata->category = $this->connect[2]->get_import_category();
         $linkdata = (object)array('courseid' => 5,
                                   'url' => $this->resources[1]->url,
                                   'resourceid' => "$eid",
@@ -331,13 +331,12 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         $DB->setReturnValueAt(0, 'get_record', (object)array('id' => 1, 'import' => 1, 'export' => 1,
                                                              'importtype' => campusconnect_participantsettings::IMPORT_LINK)); // Load participant settings.
 
-        // Note - using the 'generate_summary' function, as the summary is too fiddly to write a sensible test
-        $coursedata = (object)array('category' => 2,
-                                    'shortname' => $this->resources[1]->title,
-                                    'fullname' => $this->resources[1]->title,
-                                    'summary' => campusconnect_courselink::generate_summary($this->resources[1]),
-                                    'summary_format' => FORMAT_HTML,
-                                    'id' => 5);
+        // Using the map_remote_to_course function to generate the comparison meta data
+        // as that is what the process event queue function should be doing
+        $metadata = new campusconnect_metadata();
+        $coursedata = $metadata->map_remote_to_course($this->resources[1]);
+        $coursedata->summaryformat = FORMAT_HTML;
+        $coursedata->id = 5; // Courseid from the course link
         $linkdata = (object)array('id' => 1,
                                   'url' => $this->resources[1]->url);
         $DB->expectOnce('mock_update_course', array($coursedata)); // Update course.

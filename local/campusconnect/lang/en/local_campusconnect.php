@@ -22,6 +22,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+$string['cannotbeempty'] = 'The field {$a} cannot be empty';
 $string['ecserror_body'] = 'An error occurred whilst attempting to connect to the ECS server \'{$a->ecsname}\' ({$a->ecsid}). The error was:
 {$a->msg}';
 $string['ecserror_subject'] = 'Error connecting to the ECS server';
@@ -36,5 +37,7 @@ $string['field_semesterhours'] = 'Semester hours';
 $string['field_status'] = 'Status';
 $string['field_term'] = 'Term';
 
+$string['localfieldnotfound'] = 'The local field {$a} does not exist';
 $string['messageprovider:ecserror'] = 'ECS Connection problems';
 $string['pluginname'] = 'CampusConnect';
+$string['remotefieldnotfound'] = 'The remote field {$a} does not exist';

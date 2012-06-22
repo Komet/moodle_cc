@@ -39,7 +39,9 @@ $string['field_term'] = 'Term';
 $string['settings'] = 'Settings';
 $string['ecs'] = 'ECS';
 $string['allecs'] = 'All ECS';
-$string['field_term'] = 'Term';
+$string['participants'] = 'Participants';
+$string['ecsdatamapping'] = 'ECS Data Mapping';
+$string['assignmenttocategories'] = 'Assignment To Categories';
 
 $string['messageprovider:ecserror'] = 'ECS Connection problems';
 $string['pluginname'] = 'CampusConnect';

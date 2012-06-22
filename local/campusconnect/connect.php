@@ -72,6 +72,14 @@ class campusconnect_connect {
     }
 
     /**
+     * Get the category to put new courses into
+     * @return int the categoryid
+     */
+    public function get_import_category() {
+        return $this->settings->get_import_category();
+    }
+
+    /**
      * Generate an auth token for a user
      * @param mixed $post the details of the URL the user is connecting to
      * @param int $targetmid the id of the participant the user is connecting to

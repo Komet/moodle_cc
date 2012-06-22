@@ -25,6 +25,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot.'/local/campusconnect/participantsettings.php');
+require_once($CFG->dirroot.'/local/campusconnect/metadata.php');
+require_once($CFG->dirroot.'/course/lib.php');
 
 class campusconnect_courselink_exception extends moodle_exception {
     function __construct($msg) {
@@ -43,6 +45,8 @@ class campusconnect_courselink {
      * @return bool false if a problem occurred
      */
     public static function create($resourceid, campusconnect_ecssettings $settings, $courselink, campusconnect_details $transferdetails) {
+        global $DB;
+
         $mid = $transferdetails->get_sender_mid();
         $ecsid = $settings->get_id();
         $partsettings = new campusconnect_participantsettings($ecsid, $mid);
@@ -51,14 +55,22 @@ class campusconnect_courselink {
             return true;
         }
 
-        $coursedata = self::map_course_settings($courselink, $settings, $partsettings);
+        $coursedata = self::map_course_settings($courselink);
 
         if ($partsettings->get_import_type() == campusconnect_participantsettings::IMPORT_LINK) {
             if ($currlink = self::get_by_resourceid($resourceid, $settings->get_id())) {
                 throw new campusconnect_courselink_exception("Cannot create a courselink to resource $resourceid - it already exists.");
             }
 
+            $coursedata->category = $settings->get_import_category();
+
             if ($settings->get_id() > 0) {
+                $baseshortname = $coursedata->shortname;
+                $num = 1;
+                while ($DB->record_exists('course', array('shortname' => $coursedata->shortname))) {
+                    $num++;
+                    $coursedata->shortname = "{$baseshortname}_{$num}";
+                }
                 $course = create_course($coursedata);
             } else {
                 // Nasty hack for unit testing - 'create_course' is too complex to
@@ -98,7 +110,7 @@ class campusconnect_courselink {
             return true;
         }
 
-        $coursedata = self::map_course_settings($courselink, $settings, $partsettings);
+        $coursedata = self::map_course_settings($courselink);
 
         if ($partsettings->get_import_type() == campusconnect_participantsettings::IMPORT_LINK) {
             if (!$currlink = self::get_by_resourceid($resourceid, $settings->get_id())) {
@@ -184,34 +196,11 @@ class campusconnect_courselink {
         return $DB->get_record('local_campusconnect_clink', $params);
     }
 
-    public static function generate_summary($courselink) {
-        $mapping = array('organization' => get_string('field_organisation', 'local_campusconnect'),
-                         'lang' => get_string('field_language', 'local_campusconnect'),
-                         'semesterHours' => get_string('field_semesterhours', 'local_campusconnect'),
-                         'courseID' => get_string('field_courseid', 'local_campusconnect'),
-                         'term' => get_string('field_term', 'local_campusconnect'),
-                         'credits' => get_string('field_credits', 'local_campusconnect'),
-                         'status' => get_string('field_status', 'local_campusconnect'),
-                         'courseType' => get_string('field_coursetype', 'local_campusconnect'));
-        $summary = '';
-        foreach ($mapping as $field => $text) {
-            if (isset($courselink->$field)) {
-                $summary .= "<b>$text:</b> {$courselink->$field}<br/>";
-            }
-        }
+    protected static function map_course_settings($courselink) {
 
-        return $summary;
-    }
-
-    protected static function map_course_settings($courselink, campusconnect_ecssettings $settings, campusconnect_participantsettings $partsettings) {
-        // TODO - map the course details in some kind of sensible way
-        $coursedata = new stdClass();
-
-        $coursedata->category = 2; // FIXME - put this somewhere more sensible!
-        $coursedata->shortname = $courselink->title;
-        $coursedata->fullname = $courselink->title;
-        $coursedata->summary = self::generate_summary($courselink);
-        $coursedata->summary_format = FORMAT_HTML;
+        $metadata = new campusconnect_metadata();
+        $coursedata = $metadata->map_remote_to_course($courselink);
+        $coursedata->summaryformat = FORMAT_HTML;
 
         return $coursedata;
     }

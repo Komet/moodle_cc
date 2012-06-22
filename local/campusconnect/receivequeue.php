@@ -167,6 +167,7 @@ class campusconnect_receivequeue {
         $status = $event->get_status();
         // Delete events do not need to retrieve the resource.
         if ($status == campusconnect_event::STATUS_DESTROYED) {
+            mtrace("CampusConnect: delete courselink: ".$event->get_resource_id()."\n");
             campusconnect_courselink::delete($event->get_resource_id(), $settings);
             return true;
         }
@@ -183,9 +184,11 @@ class campusconnect_receivequeue {
 
         // Process the create/update event.
         if ($status == campusconnect_event::STATUS_CREATED) {
+            mtrace("CampusConnect: create courselink: ".$event->get_resource_id()."\n");
             return campusconnect_courselink::create($event->get_resource_id(), $settings, $resource, $details);
         }
 
+        mtrace("CampusConnect: update courselink: ".$event->get_resource_id()."\n");
         return campusconnect_courselink::update($event->get_resource_id(), $settings, $resource, $details);
     }
 }

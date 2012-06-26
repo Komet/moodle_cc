@@ -174,15 +174,51 @@ class campusconnect_courselink {
      * @return mixed moodle_url | false - the URL to redirect to
      */
     public static function check_redirect($courseid) {
+        global $USER;
+
         if (!$courselink = self::get_by_courseid($courseid)) {
             return false;
         }
 
         $url = $courselink->url;
 
-        // TODO - add the auth token to the URL
+        if (!isguestuser()) {
+            // Add the auth token.
+            if (strpos($url, '?') !== false) {
+                $url .= '&';
+            } else {
+                $url .= '?';
+            }
+            $url .= 'ecs_hash='.self::get_ecs_hash($courselink);
+            $url .= '&'.self::get_user_data($USER);
+        }
 
         return $url;
+    }
+
+    protected static function get_ecs_hash($courselink) {
+        $ecssettings = new campusconnect_ecssettings($courselink->ecsid);
+        $connect = new campusconnect_connect($ecssettings);
+
+        $post = (object)array('url' => $courselink->url);
+        $post = json_encode($post);
+
+        return $connect->add_auth($post, $courselink->mid);
+    }
+
+    protected static function get_user_data($user) {
+        global $CFG;
+
+        $uid_hash = 'moodle_'.$CFG->wwwroot.'_usr_'.$user->id;
+        $userdata = array('ecs_login' => $user->username,
+                          'ecs_firstname' => $user->firstname,
+                          'ecs_lastname' => $user->lastname,
+                          'ecs_email' => $user->email,
+                          'ecs_institution' => '',
+                          'ecs_uid_hash' => $uid_hash);
+        $userdata = array_map('urlencode', $userdata);
+
+        return http_build_query($userdata);
     }
 
     public static function get_by_courseid($courseid) {

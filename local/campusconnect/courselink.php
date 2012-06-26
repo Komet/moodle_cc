@@ -102,6 +102,8 @@ class campusconnect_courselink {
      * @return bool true if successfully updated
      */
     public static function update($resourceid, campusconnect_ecssettings $settings, $courselink, campusconnect_details $transferdetails) {
+        global $DB;
+
         $mid = $transferdetails->get_sender_mid();
         $ecsid = $settings->get_id();
         $partsettings = new campusconnect_participantsettings($ecsid, $mid);
@@ -121,15 +123,42 @@ class campusconnect_courselink {
                 throw new campusconnect_courselink_exception("Participant $mid attempted to update resource created by participant {$currlink->mid}");
             }
 
-            $coursedata->id = $currlink->courseid;
+            if (!$DB->record_exists('course', array('id' => $currlink->courseid))) {
+                // The course has been deleted - recreate it.
+                $coursedata->category = $settings->get_import_category();
+                if ($settings->get_id() > 0) {
+                    $baseshortname = $coursedata->shortname;
+                    $num = 1;
+                    while ($DB->record_exists('course', array('shortname' => $coursedata->shortname))) {
+                        $num++;
+                        $coursedata->shortname = "{$baseshortname}_{$num}";
+                    }
+                    $course = create_course($coursedata);
+                } else {
+                    // Nasty hack for unit testing - 'create_course' is too complex to
+                    // be practical to mock up the database responses
+                    global $DB;
+                    $course = $coursedata;
+                    $course->id = $DB->mock_create_course($coursedata);
+                }
 
-            if ($settings->get_id() > 0) {
-                // Nasty hack for unit testing - 'update_course' is too complex to
-                // be practical to mock up the database responses
-                update_course($coursedata);
+                // Update the courselink record to point at this new course.
+                $upd = new stdClass();
+                $upd->id = $currlink->id;
+                $upd->courseid = $course->id;
+                $DB->update_record('local_campusconnect_clink', $upd);
+
             } else {
-                global $DB;
-                $DB->mock_update_course($coursedata);
+                // Course still exists - update it.
+                $coursedata->id = $currlink->courseid;
+                if ($settings->get_id() > 0) {
+                    // Nasty hack for unit testing - 'update_course' is too complex to
+                    // be practical to mock up the database responses
+                    update_course($coursedata);
+                } else {
+                    global $DB;
+                    $DB->mock_update_course($coursedata);
+                }
             }
 
 

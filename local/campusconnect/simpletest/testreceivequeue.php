@@ -330,6 +330,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         $DB->setReturnValueAt(1, 'get_record', $linkdata); // Retrieve courselink.
         $DB->setReturnValueAt(0, 'get_record', (object)array('id' => 1, 'import' => 1, 'export' => 1,
                                                              'importtype' => campusconnect_participantsettings::IMPORT_LINK)); // Load participant settings.
+        $DB->setReturnValue('record_exists', true); // Check the course (that holds the link) still exists.
 
         // Using the map_remote_to_course function to generate the comparison meta data
         // as that is what the process event queue function should be doing
@@ -376,6 +377,54 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
 
         $DB->expectCallCount('get_records', 2); // Pulling items from the event queue
         $DB->expectCallCount('delete_records', 2); // Deleting items from the event queue
+
+        $this->queue->process_queue();
+    }
+
+    public function test_process_event_queue_update_course_deleted() {
+        global $DB;
+
+        // Update a courselink sent by server 1 and received by server 2
+        // and check course and courselink are correctly updated
+
+        $eid = $this->connect[1]->add_resource(json_encode($this->resources[1]), $this->community);
+
+        // Mock up the event in the queue (adding events already tested above)
+        $eventdata = (object)array('id' => 1,
+                                   'type' => 'campusconnect/courselinks',
+                                   'resourceid' => "$eid",
+                                   'serverid' => $this->connect[2]->get_ecs_id(),
+                                   'status' => campusconnect_event::STATUS_UPDATED);
+        $linkdata = (object)array('id' => 1,
+                                  'courseid' => 5,
+                                  'url' => $this->resources[2]->url, // Note the URL change (from resource[2], not resource[1])
+                                  'resourceid' => "$eid",
+                                  'ecsid' => $this->connect[2]->get_ecs_id(),
+                                  'mid' => $this->mid[1]);
+        $DB->setReturnValue('get_records', array()); // No further events.
+        $DB->setReturnValueAt(0, 'get_records', array($eventdata)); // Get event.
+        $DB->setReturnValueAt(1, 'get_record', $linkdata); // Retrieve courselink.
+        $DB->setReturnValueAt(0, 'get_record', (object)array('id' => 1, 'import' => 1, 'export' => 1,
+                                                             'importtype' => campusconnect_participantsettings::IMPORT_LINK)); // Load participant settings.
+        $DB->setReturnValue('record_exists', false); // Check the course (that holds the link) still exists.
+        $DB->setReturnValue('mock_create_course', 6); // Create the course (as the old course has been deleted).
+
+        // Using the map_remote_to_course function to generate the comparison meta data
+        // as that is what the process event queue function should be doing
+        $metadata = new campusconnect_metadata();
+        $coursedata = $metadata->map_remote_to_course($this->resources[1]);
+        $coursedata->summaryformat = FORMAT_HTML;
+        $coursedata->category = $this->connect[2]->get_import_category();
+        $linkdata = (object)array('id' => 1,
+                                  'courseid' => 6);
+        $linkdata2 = (object)array('id' => 1,
+                                  'url' => $this->resources[1]->url);
+        $DB->expectOnce('mock_create_course', array($coursedata)); // Update course.
+        $DB->expectAt(0, 'update_record', array('local_campusconnect_clink', $linkdata)); // Update course link (new courseid).
+        $DB->expectAt(1, 'update_record', array('local_campusconnect_clink', $linkdata2)); // Update course link (new url).
+
+        $DB->expectCallCount('get_records', 2); // Pulling items from the event queue
+        $DB->expectCallCount('delete_records', 1); // Deleting items from the event queue
 
         $this->queue->process_queue();
     }

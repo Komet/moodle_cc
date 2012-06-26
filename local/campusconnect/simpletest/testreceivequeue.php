@@ -44,6 +44,7 @@ Mock::generate(get_class($DB), 'mockDB_coursecreate', array('mock_create_course'
 //define('SKIP_CAMPUSCONNECT_RECEIVEQUEUE_TESTS', 1);
 
 class local_campusconnect_receivequeue_test extends UnitTestCase {
+    protected $settings = array();
     protected $connect = array();
     protected $mid = array();
     protected $realDB = null;
@@ -64,8 +65,8 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         // Create the connections for testing.
         $names = array(1 => 'unittest1', 2 => 'unittest2', 3 => 'unittest3');
         foreach ($names as $key => $name) {
-            $settings = new campusconnect_ecssettings(null, $name);
-            $this->connect[$key] = new campusconnect_connect($settings);
+            $this->settings[$key] = new campusconnect_ecssettings(null, $name);
+            $this->connect[$key] = new campusconnect_connect($this->settings[$key]);
         }
 
         // Retrieve the mid values for each participant.
@@ -249,7 +250,8 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
                                    'serverid' => $this->connect[2]->get_ecs_id(),
                                    'status' => campusconnect_event::STATUS_CREATED);
         $DB->setReturnValue('get_records', array()); // No further events.
-        $DB->setReturnValueAt(0, 'get_records', array($eventdata)); // Get event.
+        $DB->setReturnValueAt(0, 'get_records', array()); // Default metadata mappings.
+        $DB->setReturnValueAt(1, 'get_records', array($eventdata)); // Get event.
         $DB->setReturnValueAt(1, 'get_record', false); // Check if courselink exists.
         $DB->setReturnValueAt(0, 'get_record', (object)array('id' => 1, 'import' => 1, 'export' => 1,
                                                              'importtype' => campusconnect_participantsettings::IMPORT_LINK)); // Load participant settings.
@@ -258,7 +260,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
 
         // Using the map_remote_to_course function to generate the comparison meta data
         // as that is what the process event queue function should be doing
-        $metadata = new campusconnect_metadata();
+        $metadata = new campusconnect_metadata($this->settings[2], true);
         $coursedata = $metadata->map_remote_to_course($this->resources[1]);
         $coursedata->summaryformat = FORMAT_HTML;
         $coursedata->category = $this->connect[2]->get_import_category();
@@ -270,7 +272,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         $DB->expectOnce('mock_create_course', array($coursedata)); // Create course.
         $DB->expectOnce('insert_record', array('local_campusconnect_clink', $linkdata)); // Create course link.
 
-        $DB->expectCallCount('get_records', 2); // Pulling items from the event queue
+        $DB->expectCallCount('get_records', 4); // Pulling items from the event queue + loading metadata settings
         $DB->expectCallCount('delete_records', 1); // Deleting items from the event queue
 
         $this->queue->process_queue();
@@ -326,7 +328,8 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
                                   'ecsid' => $this->connect[2]->get_ecs_id(),
                                   'mid' => $this->mid[1]);
         $DB->setReturnValue('get_records', array()); // No further events.
-        $DB->setReturnValueAt(0, 'get_records', array($eventdata)); // Get event.
+        $DB->setReturnValueAt(0, 'get_records', array()); // Default metadata mappings.
+        $DB->setReturnValueAt(1, 'get_records', array($eventdata)); // Get event.
         $DB->setReturnValueAt(1, 'get_record', $linkdata); // Retrieve courselink.
         $DB->setReturnValueAt(0, 'get_record', (object)array('id' => 1, 'import' => 1, 'export' => 1,
                                                              'importtype' => campusconnect_participantsettings::IMPORT_LINK)); // Load participant settings.
@@ -334,7 +337,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
 
         // Using the map_remote_to_course function to generate the comparison meta data
         // as that is what the process event queue function should be doing
-        $metadata = new campusconnect_metadata();
+        $metadata = new campusconnect_metadata($this->settings[2], true);
         $coursedata = $metadata->map_remote_to_course($this->resources[1]);
         $coursedata->summaryformat = FORMAT_HTML;
         $coursedata->id = 5; // Courseid from the course link
@@ -343,7 +346,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         $DB->expectOnce('mock_update_course', array($coursedata)); // Update course.
         $DB->expectOnce('update_record', array('local_campusconnect_clink', $linkdata)); // Update course link.
 
-        $DB->expectCallCount('get_records', 2); // Pulling items from the event queue
+        $DB->expectCallCount('get_records', 4); // Pulling items from the event queue + loading metadata settings
         $DB->expectCallCount('delete_records', 1); // Deleting items from the event queue
 
         $this->queue->process_queue();
@@ -402,7 +405,8 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
                                   'ecsid' => $this->connect[2]->get_ecs_id(),
                                   'mid' => $this->mid[1]);
         $DB->setReturnValue('get_records', array()); // No further events.
-        $DB->setReturnValueAt(0, 'get_records', array($eventdata)); // Get event.
+        $DB->setReturnValueAt(0, 'get_records', array()); // Default metadata mappings.
+        $DB->setReturnValueAt(1, 'get_records', array($eventdata)); // Get event.
         $DB->setReturnValueAt(1, 'get_record', $linkdata); // Retrieve courselink.
         $DB->setReturnValueAt(0, 'get_record', (object)array('id' => 1, 'import' => 1, 'export' => 1,
                                                              'importtype' => campusconnect_participantsettings::IMPORT_LINK)); // Load participant settings.
@@ -411,7 +415,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
 
         // Using the map_remote_to_course function to generate the comparison meta data
         // as that is what the process event queue function should be doing
-        $metadata = new campusconnect_metadata();
+        $metadata = new campusconnect_metadata($this->settings[2], true);
         $coursedata = $metadata->map_remote_to_course($this->resources[1]);
         $coursedata->summaryformat = FORMAT_HTML;
         $coursedata->category = $this->connect[2]->get_import_category();
@@ -423,7 +427,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         $DB->expectAt(0, 'update_record', array('local_campusconnect_clink', $linkdata)); // Update course link (new courseid).
         $DB->expectAt(1, 'update_record', array('local_campusconnect_clink', $linkdata2)); // Update course link (new url).
 
-        $DB->expectCallCount('get_records', 2); // Pulling items from the event queue
+        $DB->expectCallCount('get_records', 4); // Pulling items from the event queue + loading metadata settings
         $DB->expectCallCount('delete_records', 1); // Deleting items from the event queue
 
         $this->queue->process_queue();

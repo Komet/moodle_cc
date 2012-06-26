@@ -342,6 +342,8 @@ class campusconnect_ecssettings {
         global $DB;
 
         if (!is_null($this->recordid)) {
+            campusconnect_metadata::delete_ecs_metadata_mappings($this->recordid);
+            campusconnect_participantsettings::delete_ecs_participant_settings($this->recordid);
             $DB->delete_records('local_campusconnect_ecs', array('id' => $this->recordid));
             $this->recordid = null;
             $this->auth = -1;

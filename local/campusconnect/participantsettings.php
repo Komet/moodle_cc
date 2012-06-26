@@ -186,6 +186,16 @@ class campusconnect_participantsettings {
             $settings->id = $this->recordid;
             $DB->update_record('local_campusconnect_part', $settings);
             $this->set_settings($settings);
+
+            // Import state changed - need to update all course links
+            if (isset($settings->import)) {
+                if ($settings->import) {
+                    // TODO - update all imported course links
+                } else {
+                    // No longer importing course links
+                    campusconnect_courselink::delete_mid_courselinks($this->mid);
+                }
+            }
         }
     }
 
@@ -215,6 +225,7 @@ class campusconnect_participantsettings {
         global $DB;
 
         $DB->delete_records('local_campusconnect_part', array('id' => $this->recordid));
+        campusconnect_courselink::delete_mid_courselinks($this->mid);
     }
 
     public static function load_communities(campusconnect_ecssettings $ecssettings) {
@@ -244,6 +255,10 @@ class campusconnect_participantsettings {
         // Delete settings for all participants in the given ECS
         global $DB;
 
+        $parts = $DB->get_records('local_campusconnect_part', array('ecsid' => $ecsid));
+        foreach ($parts as $participant) {
+            campusconnect_courselink::delete_mid_courselinks($participant->mid);
+        }
         $DB->delete_records('local_campusconnect_part', array('ecsid' => $ecsid));
     }
 }

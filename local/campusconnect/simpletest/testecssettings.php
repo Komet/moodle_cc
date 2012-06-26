@@ -26,6 +26,8 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot.'/local/campusconnect/ecssettings.php');
 
+//define('SKIP_CAMPUSCONNECT_ECSSETTINGS_TESTS', 1);
+
 class local_campusconnect_ecssettings_test extends UnitTestCase {
 
     protected $testdata = array('name' => 'test1name',
@@ -35,6 +37,10 @@ class local_campusconnect_ecssettings_test extends UnitTestCase {
                                 'importcategory' => null,  // Set via 'setUp' function, below
                                 'importrole' => 'student',
                                 'importperiod' => 6);
+
+    public function skip() {
+        $this->skipIf(defined('SKIP_CAMPUSCONNECT_ECSSETTINGS_TESTS'), 'Skipping receivequeue tests, to save time');
+    }
 
     public function setUp() {
         global $DB;

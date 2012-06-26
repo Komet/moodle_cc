@@ -55,7 +55,7 @@ class campusconnect_courselink {
             return true;
         }
 
-        $coursedata = self::map_course_settings($courselink);
+        $coursedata = self::map_course_settings($courselink, $settings);
 
         if ($partsettings->get_import_type() == campusconnect_participantsettings::IMPORT_LINK) {
             if ($currlink = self::get_by_resourceid($resourceid, $settings->get_id())) {
@@ -112,7 +112,7 @@ class campusconnect_courselink {
             return true;
         }
 
-        $coursedata = self::map_course_settings($courselink);
+        $coursedata = self::map_course_settings($courselink, $settings);
 
         if ($partsettings->get_import_type() == campusconnect_participantsettings::IMPORT_LINK) {
             if (!$currlink = self::get_by_resourceid($resourceid, $settings->get_id())) {
@@ -198,6 +198,22 @@ class campusconnect_courselink {
     }
 
     /**
+     * Delete all the courselinks to the given participant (used when
+     * deleting an ECS or switching off import from a particular participant)
+     * @param int $mid the participant ID the course links are associated with
+     */
+    public static function delete_mid_courselinks($mid) {
+        global $DB;
+
+        $courselinks = $DB->get_records('local_campusconnect_clink', array('mid' => $mid));
+        foreach ($courselinks as $courselink) {
+            delete_course($courselink->courseid);
+        }
+        $DB->delete_records('local_campusconnect_clink', array('mid' => $mid));
+    }
+
+
+    /**
      * Check if the courseid provided refers to a remote course and return the URL if it does
      * @param int $courseid the ID of the course being viewed
      * @return mixed moodle_url | false - the URL to redirect to
@@ -261,9 +277,9 @@ class campusconnect_courselink {
         return $DB->get_record('local_campusconnect_clink', $params);
     }
 
-    protected static function map_course_settings($courselink) {
+    protected static function map_course_settings($courselink, campusconnect_ecssettings $ecssettings) {
 
-        $metadata = new campusconnect_metadata();
+        $metadata = new campusconnect_metadata($ecssettings, true);
         $coursedata = $metadata->map_remote_to_course($courselink);
         $coursedata->summaryformat = FORMAT_HTML;
 

@@ -179,6 +179,20 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2012062600, 'local', 'campusconnect');
     }
 
+    if ($oldversion < 2012062601) {
+
+        // Define field displayname to be added to local_campusconnect_part
+        $table = new xmldb_table('local_campusconnect_part');
+        $field = new xmldb_field('displayname', XMLDB_TYPE_TEXT, 'small', null, null, null, null, 'importtype');
+
+        // Conditionally launch add field displayname
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012062601, 'local', 'campusconnect');
+    }
 
     return true;
 }

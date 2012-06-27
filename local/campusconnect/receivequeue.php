@@ -163,6 +163,8 @@ class campusconnect_receivequeue {
      */
     protected function process_courselink_event(campusconnect_event $event) {
 
+        return true; // Disabled until Phase 2
+
         $settings = new campusconnect_ecssettings($event->get_ecs_id());
         $status = $event->get_status();
         // Delete events do not need to retrieve the resource.

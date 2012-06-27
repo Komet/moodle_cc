@@ -66,7 +66,8 @@
         <FIELD NAME="mid" TYPE="int" LENGTH="10" NOTNULL="false" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the participant in the community on the ECS server" PREVIOUS="ecsid" NEXT="export"/>
         <FIELD NAME="export" TYPE="int" LENGTH="4" NOTNULL="false" UNSIGNED="false" DEFAULT="0" SEQUENCE="false" COMMENT="Should courses be exported to this participant?" PREVIOUS="mid" NEXT="import"/>
         <FIELD NAME="import" TYPE="int" LENGTH="4" NOTNULL="false" UNSIGNED="false" DEFAULT="0" SEQUENCE="false" COMMENT="Should course be imported from this participant?" PREVIOUS="export" NEXT="importtype"/>
-        <FIELD NAME="importtype" TYPE="int" LENGTH="4" NOTNULL="false" UNSIGNED="false" DEFAULT="1" SEQUENCE="false" COMMENT="How to treat courses imported from this participant" PREVIOUS="import"/>
+        <FIELD NAME="importtype" TYPE="int" LENGTH="4" NOTNULL="false" UNSIGNED="false" DEFAULT="1" SEQUENCE="false" COMMENT="How to treat courses imported from this participant" PREVIOUS="import" NEXT="displayname"/>
+        <FIELD NAME="displayname" TYPE="text" LENGTH="small" NOTNULL="false" SEQUENCE="false" PREVIOUS="importtype"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id" NEXT="ecsid"/>

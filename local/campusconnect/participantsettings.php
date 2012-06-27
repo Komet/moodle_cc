@@ -41,19 +41,39 @@ class campusconnect_participantsettings {
     protected $import = false;
     protected $importtype = self::IMPORT_LINK;
 
+    protected $displayname = null; // Constructed from the community name + part name
+
     // Settings loaded from the ECS server.
     protected $name = null;
+    protected $communityname = null;
     protected $description = null;
     protected $dns = null;
     protected $email = null;
     protected $org = null;
     protected $orgabbr = null;
 
-    protected static $validsettings = array('export', 'import', 'importtype');
-    protected static $ecssettings = array('name', 'description', 'dns', 'email', 'org', 'orgabbr');
+    // Flagged as being exported in the current course.
+    protected $exported = null;
 
-    public function __construct($ecsid, $mid, $extradetails = null) {
-        $this->load_settings($ecsid, $mid);
+    protected static $validsettings = array('export', 'import', 'importtype');
+    protected static $ecssettings = array('name', 'description', 'dns', 'email', 'org', 'orgabbr', 'communityname');
+
+    /**
+     * @param mixed $ecsidordata either the ID of the ECS or an object containing
+     *                           the settings record loaded from the database
+     * @param int $mid optional the participant ID (required if the ECS ID is provided)
+     * @param object $extradetails details about the participant loaded from the ECS
+     */
+    public function __construct($ecsidordata, $mid = null, $extradetails = null) {
+        if (is_object($ecsidordata)) {
+            // Data already loaded from database - store it.
+            $this->set_settings($ecsidordata);
+        } else {
+            if (is_null($mid)) {
+                throw new coding_exception("Must set the participant id (mid) if not passing in the database record");
+            }
+            $this->load_settings($ecsidordata, $mid);
+        }
 
         if (isset($extradetails)) {
             foreach ($extradetails as $name => $value) {
@@ -66,6 +86,8 @@ class campusconnect_participantsettings {
                     $this->$name = $value;
                 }
             }
+
+            $this->set_display_name();
         }
     }
 
@@ -83,6 +105,10 @@ class campusconnect_participantsettings {
 
     public function get_import_type() {
         return $this->importtype;
+    }
+
+    public function get_displayname() {
+        return $this->displayname;
     }
 
     public function get_name() {
@@ -109,6 +135,17 @@ class campusconnect_participantsettings {
         return $this->orgabbr;
     }
 
+    public function is_exported() {
+        if (isnull($this->exported)) {
+            throw new coding_exception('is_exported can only be called after set_exported has been called (usually via campusconnect_export)');
+        }
+        return $this->exported;
+    }
+
+    public function show_exported($exported) {
+        $this->exported = $exported;
+    }
+
     protected function load_settings($ecsid, $mid) {
         global $DB;
 
@@ -124,6 +161,31 @@ class campusconnect_participantsettings {
                 $ins->$setting = $this->$setting; // Set all the defaults from this class.
             }
             $this->recordid = $DB->insert_record('local_campusconnect_part', $ins);
+        }
+    }
+
+    /**
+     * Set the display name for this participant (and save it in
+     * the database, so it can be shown later, without needing to
+     * connect to the ECS)
+     */
+    protected function set_display_name() {
+        global $DB;
+
+        if (empty($this->name)) {
+            return;
+        }
+        $displayname = $this->name;
+        if (!empty($this->communityname)) {
+            $displayname = $this->communityname.': '.$displayname;
+        }
+
+        if ($displayname != $this->displayname) {
+            $this->displayname = $displayname;
+            $upd = new stdClass();
+            $upd->id = $this->recordid;
+            $upd->displayname = $displayname;
+            $DB->update_record('local_campusconnect_part', $upd);
         }
     }
 
@@ -206,7 +268,14 @@ class campusconnect_participantsettings {
             }
         }
         if (isset($settings->id)) {
+            // The settings came from the database.
             $this->recordid = $settings->id;
+            $dbsettings = array('mid', 'ecsid', 'displayname');
+            foreach ($dbsettings as $fieldname) {
+                if (isset($settings->$fieldname)) {
+                    $this->$fieldname = $settings->$fieldname;
+                }
+            }
         }
     }
 
@@ -228,6 +297,27 @@ class campusconnect_participantsettings {
         campusconnect_courselink::delete_mid_courselinks($this->mid);
     }
 
+    /**
+     * Get a list of all the participants in all the ECS that we are able to
+     * export courses to
+     * @return array of campusconnect_participantsettings
+     */
+    public static function list_potential_export_participants() {
+        global $DB;
+        $parts = $DB->get_records('local_campusconnect_part', array('export' => 1), 'displayname');
+        $ret = array();
+        foreach ($parts as $part) {
+            $ret[$part->mid] = new campusconnect_participantsettings($part);
+        }
+        return $ret;
+    }
+
+    /**
+     * Load all the communities we are a member of (including participant lists) from
+     * the given ECS
+     * @param campusconnect_ecssettings $ecssettings - the ECS to connect to
+     * @return array details of the communities
+     */
     public static function load_communities(campusconnect_ecssettings $ecssettings) {
         $connect = new campusconnect_connect($ecssettings);
         $communities = $connect->get_memberships();
@@ -241,6 +331,7 @@ class campusconnect_participantsettings {
             $comm->participants = array();
             foreach ($community->participants as $participant) {
                 $mid = $participant->mid;
+                $participant->communityname = $comm->name;
                 $part = new campusconnect_participantsettings($ecsid, $mid, $participant);
                 $comm->participants[$mid] = $part;
             }
@@ -251,8 +342,12 @@ class campusconnect_participantsettings {
         return $resp;
     }
 
+    /**
+     * Delete the settings for the participants in this ECS (also deletes
+     * and course links created by these participants)
+     * @param int $ecsid
+     */
     public static function delete_ecs_participant_settings($ecsid) {
-        // Delete settings for all participants in the given ECS
         global $DB;
 
         $parts = $DB->get_records('local_campusconnect_part', array('ecsid' => $ecsid));

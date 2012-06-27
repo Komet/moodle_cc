@@ -91,6 +91,10 @@ class campusconnect_participantsettings {
         }
     }
 
+    public function get_ecs_id() {
+        return $this->ecsid;
+    }
+
     public function get_mid() {
         return $this->mid;
     }
@@ -300,7 +304,7 @@ class campusconnect_participantsettings {
     /**
      * Get a list of all the participants in all the ECS that we are able to
      * export courses to
-     * @return array of campusconnect_participantsettings
+     * @return array of mid => campusconnect_participantsettings
      */
     public static function list_potential_export_participants() {
         global $DB;

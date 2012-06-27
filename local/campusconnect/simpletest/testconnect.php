@@ -116,7 +116,6 @@ class local_campusconnect_connect_test extends UnitTestCase {
     public function test_auth() {
         $url = 'http://www.example.com/test123/';
         $post = (object)array('url' => $url);
-        $post = json_encode($post);
 
         // Retrieve an auth hash for connecting from 'unittest1' to 'unittest2'
         $hash = $this->connect[1]->add_auth($post, $this->mid[2]);
@@ -139,7 +138,6 @@ class local_campusconnect_connect_test extends UnitTestCase {
     public function test_add_delete_resource() {
         $url = 'http://www.example.com/test123/';
         $post = (object)array('url' => $url);
-        $post = json_encode($post);
         $community = 'unittest';
 
         // Add the resource - the response should be an integer > 0
@@ -180,7 +178,6 @@ class local_campusconnect_connect_test extends UnitTestCase {
     public function test_read_event_fifo() {
         $url = 'http://www.example.com/test123/';
         $post = (object)array('url' => $url);
-        $post = json_encode($post);
         $community = 'unittest';
 
         // Check the event queue is empty
@@ -226,7 +223,6 @@ class local_campusconnect_connect_test extends UnitTestCase {
     public function test_get_resource_list() {
         $url = 'http://www.example.com/test123/';
         $post = (object)array('url' => $url);
-        $post = json_encode($post);
 
         // Check the resource list is empty to begin with
         $result = $this->connect[2]->get_resource_list();
@@ -257,12 +253,10 @@ class local_campusconnect_connect_test extends UnitTestCase {
     public function test_update_resource() {
         $url = 'http://www.example.com/test123/';
         $post = (object)array('url' => $url);
-        $post = json_encode($post);
         $community = 'unittest';
 
         $url2 = 'http://www.example.com/updatetesting/';
         $post2 = (object)array('url' => $url2);
-        $post2 = json_encode($post2);
 
         // Add a resource
         $eid = $this->connect[1]->add_resource($post, $community);

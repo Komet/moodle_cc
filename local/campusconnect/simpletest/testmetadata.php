@@ -26,38 +26,21 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot.'/local/campusconnect/metadata.php');
 
+//define('SKIP_CAMPUSCONNECT_METADATA_TESTS', 1);
+
 class local_campusconnect_metadata_test extends UnitTestCase {
+    protected $settings = null;
+
+    public function skip() {
+        $this->skipIf(defined('SKIP_CAMPUSCONNECT_METADATA_TESTS'), 'Skipping receivequeue tests, to save time');
+    }
+
     public function setUp() {
-        // Rename all 'map?_*' config values to 'unittest_*'
-        $config = get_config('local_campusconnect');
-        foreach ($config as $name => $value) {
-            if (substr_compare($name, 'unittest_', 0, 9) == 0) {
-                continue; // Skip renaming ones that are already renamed
-            }
-            if ((substr_compare($name, 'mapi_', 0, 5) == 0) ||
-                (substr_compare($name, 'mape_', 0, 5) == 0)) {
-                set_config('unittest_'.$name, $value, 'local_campusconnect');
-                unset_config($name, 'local_campusconnect');
-            }
-        }
+        $this->settings = new campusconnect_ecssettings(null, 'unittest1');
     }
 
     public function tearDown() {
-        // Put all config values back to their original values
-        $config = get_config('local_campusconnect');
-        foreach ($config as $name => $value) {
-            if ((substr_compare($name, 'mapi_', 0, 5) == 0) ||
-                (substr_compare($name, 'mape_', 0, 5) == 0)) {
-                unset_config($name, 'local_campusconnect');
-            }
-        }
-        foreach ($config as $name => $value) {
-            if (substr_compare($name, 'unittest_', 0, 9) == 0) {
-                $origname = substr($name, 9);
-                set_config($origname, $value, 'local_campusconnect');
-                unset_config($name, 'local_campusconnect');
-            }
-        }
+        campusconnect_metadata::delete_ecs_metadata_mappings($this->settings->get_id());
     }
 
     public function test_set_import_mapping() {
@@ -65,7 +48,7 @@ class local_campusconnect_metadata_test extends UnitTestCase {
                                  'lang' => 'lang', 'timecreated' => '', 'timemodified' => '');
 
         // Test the default settings.
-        $meta = new campusconnect_metadata();
+        $meta = new campusconnect_metadata($this->settings, true);
         $mappings = $meta->get_import_mappings();
         unset($mappings['summary']); // Default summary is fiddly to test
         $this->assertEqual($mappings, $defaultmappings, 'Expected get_import_mappings to return the default settings');
@@ -79,7 +62,7 @@ class local_campusconnect_metadata_test extends UnitTestCase {
         $this->assertEqual($mappings, $testmappings, 'Expected get_import_mappings to return the mappings just set');
 
         // Test retrieving from new object.
-        $meta = new campusconnect_metadata();
+        $meta = new campusconnect_metadata($this->settings, true);
         $mappings = $meta->get_import_mappings();
         $this->assertEqual($mappings, $testmappings, 'Expected get_import_mappings to return the mappings previously set');
 
@@ -90,7 +73,7 @@ class local_campusconnect_metadata_test extends UnitTestCase {
         $this->assertEqual($mappings, $testmappings, 'Expected set_import_mapping to update the shortname correctly');
 
         // Test retrieving from new object.
-        $meta = new campusconnect_metadata();
+        $meta = new campusconnect_metadata($this->settings, true);
         $mappings = $meta->get_import_mappings();
         $this->assertEqual($mappings, $testmappings, 'Expected get_import_mappings to return the mappings previously set');
 
@@ -115,7 +98,7 @@ class local_campusconnect_metadata_test extends UnitTestCase {
                                  'end' => '', 'study_courses' => '', 'lecturer' => '');
 
         // Test the default settings.
-        $meta = new campusconnect_metadata();
+        $meta = new campusconnect_metadata($this->settings, true);
         $mappings = $meta->get_export_mappings();
         $this->assertEqual($mappings, $defaultmappings, 'Expected get_export_mappings to return the default settings');
 
@@ -130,7 +113,7 @@ class local_campusconnect_metadata_test extends UnitTestCase {
         $this->assertEqual($mappings, $testmappings, 'Expected get_export_mappings to return the mappings just set');
 
         // Test retrieving from new object.
-        $meta = new campusconnect_metadata();
+        $meta = new campusconnect_metadata($this->settings, true);
         $mappings = $meta->get_export_mappings();
         $this->assertEqual($mappings, $testmappings, 'Expected get_export_mappings to return the mappings previously set');
 
@@ -141,7 +124,7 @@ class local_campusconnect_metadata_test extends UnitTestCase {
         $this->assertEqual($mappings, $testmappings, 'Expected set_export_mapping to update the shortname correctly');
 
         // Test retrieving from new object.
-        $meta = new campusconnect_metadata();
+        $meta = new campusconnect_metadata($this->settings, true);
         $mappings = $meta->get_export_mappings();
         $this->assertEqual($mappings, $testmappings, 'Expected get_export_mappings to return the mappings previously set');
 
@@ -176,7 +159,7 @@ class local_campusconnect_metadata_test extends UnitTestCase {
                                         'lang' => $remotedata->lang,
                                         'summary' => 'Org: '.$remotedata->organization.', Begin: '.userdate(strtotime($timeplace->begin), get_string('strftimedatetime')));
 
-        $meta = new campusconnect_metadata();
+        $meta = new campusconnect_metadata($this->settings, true);
         $meta->set_import_mappings($mappings);
         $course = $meta->map_remote_to_course($remotedata);
 
@@ -200,7 +183,7 @@ class local_campusconnect_metadata_test extends UnitTestCase {
                                         'title' => $course->fullname.' - '.$course->shortname.' - '.$startdatestr,
                                         'timePlace' => (object)array('begin' => $startdatestr));
 
-        $meta = new campusconnect_metadata();
+        $meta = new campusconnect_metadata($this->settings, true);
         $meta->set_export_mappings($mappings);
         $remotedata = $meta->map_course_to_remote($course);
 

@@ -29,11 +29,13 @@ require_once($CFG->dirroot.'/local/campusconnect/connect.php');
 require_once($CFG->dirroot.'/local/campusconnect/receivequeue.php');
 
 function local_campusconnect_cron() {
+    // Get updates from all ECS.
     $ecslist = campusconnect_ecssettings::list_ecs();
     foreach ($ecslist as $ecsid => $name) {
         $ecssettings = new campusconnect_ecssettings($ecsid);
 
         if ($ecssettings->time_for_cron()) {
+            // TODO - send updates as well as receiving updates.
             mtrace("Checking for updates on ECS server '".$ecssettings->get_name()."'\n");
             $connect = new campusconnect_connect($ecssettings);
             $queue = new campusconnect_receivequeue();

@@ -25,6 +25,12 @@
 defined('MOODLE_INTERNAL') || die();
 
 class campusconnect_metadata {
+
+    const TYPE_IMPORT_COURSE = 1;
+    const TYPE_IMPORT_EXTERNAL_COURSE = 2;
+    const TYPE_EXPORT_COURSE = 3;
+    const TYPE_EXPORT_EXTERNAL_COURSE = 4;
+
     protected static $coursefields = array('fullname' => 'string', 'shortname' => 'string',
                                            'idnumber' => 'string', 'summary' => 'string',
                                            'startdate' => 'date', 'lang' => 'lang',
@@ -71,6 +77,8 @@ class campusconnect_metadata {
 
     protected $lasterrormsg = null;
     protected $lasterrorfield = null;
+    protected $external = true;
+    protected $ecsid = null;
 
     /**
      * Returns a list of all the remote fields (any of which can be
@@ -174,29 +182,66 @@ class campusconnect_metadata {
         return $summary;
     }
 
-    public function __construct() {
-        // This may need to use a campusconnect_ecssettings object in the future, if mappings
-        // need to be done on a per-ECS basis
-        $config = get_config('local_campusconnect');
-        foreach ($config as $name => $value) {
-            if (substr_compare($name, 'mapi_', 0, 5) == 0) {
-                $fieldname = substr($name, 5);
-                // Note the conversion to lowercase, as get/set_config only supports lower case
-                if (array_key_exists($fieldname, self::$coursefields)) {
-                    $this->importmappings[$fieldname] = $value;
+    /**
+     * Delete all metadata mappings associated with the given ECS
+     * @param campusconnect_ecssettings $ecssettings the ECS to clear
+     */
+    public static function delete_ecs_metadata_mappings($ecsid) {
+        global $DB;
+
+        $DB->delete_records('local_campusconnect_mappings', array('ecsid' => $ecsid));
+    }
+
+    /**
+     * @param campusconnect_ecssettings $ecssettings the ECS this is the mapping for
+     * @param bool $external - true if this is the mappings for 'external courses'
+     */
+    public function __construct(campusconnect_ecssettings $ecssettings, $external = true) {
+        global $DB;
+
+        $this->external = $external;
+        $this->ecsid = $ecssettings->get_id();
+
+        $mappings = $DB->get_records('local_campusconnect_mappings', array('ecsid' => $this->ecsid));
+        foreach ($mappings as $mapping) {
+            if ($external) {
+                if ($mapping->type == self::TYPE_IMPORT_COURSE ||
+                    $mapping->type == self::TYPE_EXPORT_COURSE) {
+                    continue;
                 }
-            } else if (substr_compare($name, 'mape_', 0, 5) == 0) {
-                $fieldname = substr($name, 5);
-                // Note the conversion to lowercase, as get/set_config only supports lower case
-                if (array_key_exists($fieldname, self::$remotefields)) {
-                    $this->exportmappings[$fieldname] = $value;
+            } else {
+                if ($mapping->type == self::TYPE_IMPORT_EXTERNAL_COURSE ||
+                    $mapping->type == self::TYPE_EXPORT_EXTERNAL_COURSE) {
+                    continue;
                 }
+            }
+            switch ($mapping->type) {
+            case self::TYPE_IMPORT_COURSE:
+            case self::TYPE_IMPORT_EXTERNAL_COURSE:
+                if (array_key_exists($mapping->field, self::$coursefields)) {
+                    $this->importmappings[$mapping->field] = $mapping->setto;
+                }
+                break;
+            case self::TYPE_EXPORT_COURSE:
+            case self::TYPE_EXPORT_EXTERNAL_COURSE:
+                if (array_key_exists($mapping->field, self::$remotefields)) {
+                    $this->exportmappings[$mapping->field] = $mapping->setto;
+                }
+                break;
             }
         }
 
         if (is_null($this->importmappings['summary'])) {
             $this->importmappings['summary'] = self::generate_default_summary();
         }
+    }
+
+    /**
+     * Is this mapping for external courses?
+     * @return bool true if the mapping is for external courses
+     */
+    public function is_external() {
+        return $this->external;
     }
 
     /**
@@ -255,8 +300,14 @@ class campusconnect_metadata {
             return false;
         }
 
+        if ($this->external) {
+            $type = self::TYPE_IMPORT_EXTERNAL_COURSE;
+        } else {
+            $type = self::TYPE_IMPORT_COURSE;
+        }
+
         $this->importmappings[$localfield] = $remotefield;
-        set_config('mapi_'.$localfield, $remotefield, 'local_campusconnect');
+        $this->save_mapping($localfield, $remotefield, $type);
         return true;
     }
 
@@ -284,8 +335,14 @@ class campusconnect_metadata {
             }
         }
 
+        if ($this->external) {
+            $type = self::TYPE_EXPORT_EXTERNAL_COURSE;
+        } else {
+            $type = self::TYPE_EXPORT_COURSE;
+        }
+
         $this->exportmappings[$remotefield] = $localfield;
-        set_config('mape_'.$remotefield, $localfield, 'local_campusconnect');
+        $this->save_mapping($remotefield, $localfield, $type);
         return true;
     }
 
@@ -315,6 +372,33 @@ class campusconnect_metadata {
             }
         }
         return true;
+    }
+
+    /**
+     * Save the setting in the database
+     * @param string $field - the name of the field the mapping is for
+     * @param string $setto - what this field should map to
+     * @param int $type - the type of the mapping
+     */
+    protected function save_mapping($field, $setto, $type) {
+        global $DB;
+
+        $existing = $DB->get_record('local_campusconnect_mappings', array('ecsid' => $this->ecsid,
+                                                                          'field' => $field,
+                                                                          'type' => $type));
+        if ($existing) {
+            $upd = new stdClass();
+            $upd->id = $existing->id;
+            $upd->setto = $setto;
+            $DB->update_record('local_campusconnect_mappings', $upd);
+        } else {
+            $ins = new stdClass();
+            $ins->field = $field;
+            $ins->setto = $setto;
+            $ins->ecsid = $this->ecsid;
+            $ins->type = $type;
+            $DB->insert_record('local_campusconnect_mappings', $ins);
+        }
     }
 
     /**

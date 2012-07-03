@@ -99,6 +99,10 @@ class campusconnect_participantsettings {
         return $this->mid;
     }
 
+    public function get_identifier() {
+        return "{$this->ecsid}_{$this->mid}";
+    }
+
     public function is_export_enabled() {
         return $this->export;
     }
@@ -140,7 +144,7 @@ class campusconnect_participantsettings {
     }
 
     public function is_exported() {
-        if (isnull($this->exported)) {
+        if (is_null($this->exported)) {
             throw new coding_exception('is_exported can only be called after set_exported has been called (usually via campusconnect_export)');
         }
         return $this->exported;
@@ -262,6 +266,14 @@ class campusconnect_participantsettings {
                     campusconnect_courselink::delete_mid_courselinks($this->mid);
                 }
             }
+
+            if (isset($settings->export)) {
+                if ($settings->export) {
+                    // Nothing to do here?
+                } else {
+                    // TODO inform ECS that all exported courses have been deleted.
+                }
+            }
         }
     }
 
@@ -304,14 +316,15 @@ class campusconnect_participantsettings {
     /**
      * Get a list of all the participants in all the ECS that we are able to
      * export courses to
-     * @return array of mid => campusconnect_participantsettings
+     * @return array of ecsid_mid => campusconnect_participantsettings
      */
     public static function list_potential_export_participants() {
         global $DB;
         $parts = $DB->get_records('local_campusconnect_part', array('export' => 1), 'displayname');
         $ret = array();
         foreach ($parts as $part) {
-            $ret[$part->mid] = new campusconnect_participantsettings($part);
+            $participant = new campusconnect_participantsettings($part);
+            $ret[$participant->get_identifier()] = $participant;
         }
         return $ret;
     }

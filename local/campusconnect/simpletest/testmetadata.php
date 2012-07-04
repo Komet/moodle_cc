@@ -44,7 +44,7 @@ class local_campusconnect_metadata_test extends UnitTestCase {
     }
 
     public function test_set_import_mapping() {
-        $defaultmappings = array('fullname' => '{title}', 'shortname' => '{title}', 'idnumber' => '', 'startdate' => 'begin',
+        $defaultmappings = array('fullname' => '{title}', 'shortname' => '{title}', 'idnumber' => '', 'startdate' => 'firstDate',
                                  'lang' => 'lang', 'timecreated' => '', 'timemodified' => '');
 
         // Test the default settings.
@@ -55,7 +55,7 @@ class local_campusconnect_metadata_test extends UnitTestCase {
 
         // Test setting and immediately retrieving.
         $testmappings = $defaultmappings;
-        $testmappings['fullname'] = '{title} - {organization} - {begin}';
+        $testmappings['fullname'] = '{title} - {destinationForDisplay} - {firstDate}';
         $testmappings['summary'] = 'Title: {title}';
         $this->assertTrue($meta->set_import_mappings($testmappings), 'Error whilst calling set_import_mappings');
         $mappings = $meta->get_import_mappings();
@@ -67,7 +67,7 @@ class local_campusconnect_metadata_test extends UnitTestCase {
         $this->assertEqual($mappings, $testmappings, 'Expected get_import_mappings to return the mappings previously set');
 
         // Test setting individual fields.
-        $testmappings['shortname'] = '{courseID} - {title}';
+        $testmappings['shortname'] = '{id} - {title}';
         $this->assertTrue($meta->set_import_mapping('shortname', $testmappings['shortname']), 'Error whilst calling set_import_mapping');
         $mappings = $meta->get_import_mappings();
         $this->assertEqual($mappings, $testmappings, 'Expected set_import_mapping to update the shortname correctly');
@@ -84,7 +84,7 @@ class local_campusconnect_metadata_test extends UnitTestCase {
         $this->assertEqual($mappings, $testmappings, "Able to set an invalid mapping 'startdate' = 'title'");
 
         // Test setting string with invalid placeholder.
-        $this->assertFalse($meta->set_import_mapping('summary', '{title} - {fishfinger} - {begin}'), "Should not be able to include invalid fields in 'summary' mapping");
+        $this->assertFalse($meta->set_import_mapping('summary', '{title} - {fishfinger} - {firstDate}'), "Should not be able to include invalid fields in 'summary' mapping");
         list($errfield, $errstr) = $meta->get_last_error();
         $this->assertEqual($errfield, 'summary', "Expected an error in the 'summary' field");
         $mappings = $meta->get_import_mappings();
@@ -92,10 +92,17 @@ class local_campusconnect_metadata_test extends UnitTestCase {
     }
 
     public function test_set_export_mapping() {
-        $defaultmappings = array('organization' => '', 'lang' => 'lang', 'semesterHours' => '',
-                                 'courseID' => '', 'term' => '', 'credits' => '', 'status' => '',
-                                 'title' => '{fullname}', 'room' => '', 'cycle' => '', 'begin' => 'startdate',
-                                 'end' => '', 'study_courses' => '', 'lecturer' => '');
+        $defaultmappings = array('destinationForDisplay' => '', 'lang' => 'lang', 'hoursPerWeek' => '',
+                                 'id' => '', 'number' => '', 'term' => '', 'credits' => '',
+                                 'status' => '', 'courseType' => '', 'title' => '{fullname}',
+                                 'firstDate' => 'startdate', 'datesAndVenues.day' => '',
+                                 'datesAndVenues.start' => '', 'datesAndVenues.end' => '',
+                                 'datesAndVenues.cycle' => '', 'datesAndVenues.venue' => '',
+                                 'datesAndVenues.firstDate.startDatetime' => '',
+                                 'datesAndVenues.firstDate.endDatetime' => '',
+                                 'datesAndVenues.lastDate.startDatetime' => '',
+                                 'datesAndVenues.lastDate.endDatetime' => '',
+                                 'degreeProgrammes' => '', 'lecturers' => '');
 
         // Test the default settings.
         $meta = new campusconnect_metadata($this->settings, true);
@@ -105,9 +112,9 @@ class local_campusconnect_metadata_test extends UnitTestCase {
         // Test setting and immediately retrieving.
         $testmappings = $defaultmappings;
         $testmappings['title'] = '{fullname} - {shortname}';
-        $testmappings['courseID'] = '{idnumber}';
-        $testmappings['begin'] = '';
-        $testmappings['end'] = 'timecreated';
+        $testmappings['id'] = '{idnumber}';
+        $testmappings['firstDate'] = '';
+        $testmappings['datesAndVenues.lastDate.endDatetime'] = 'timecreated';
         $this->assertTrue($meta->set_export_mappings($testmappings), 'Error whilst calling set_export_mappings');
         $mappings = $meta->get_export_mappings();
         $this->assertEqual($mappings, $testmappings, 'Expected get_export_mappings to return the mappings just set');
@@ -129,13 +136,13 @@ class local_campusconnect_metadata_test extends UnitTestCase {
         $this->assertEqual($mappings, $testmappings, 'Expected get_export_mappings to return the mappings previously set');
 
         // Test setting invalid mapping.
-        $this->expectException('coding_exception', "Should not be able to map the local 'fullname' field onto the remote 'begin' field");
-        $meta->set_export_mapping('begin', 'fullname');
+        $this->expectException('coding_exception', "Should not be able to map the local 'fullname' field onto the remote 'firstname' field");
+        $meta->set_export_mapping('firstDate', 'fullname');
         $mappings = $meta->get_export_mappings();
         $this->assertEqual($mappings, $testmappings, "Able to set an invalid mapping 'begin' = 'fullname'");
 
         // Test setting string with invalid placeholder.
-        $this->assertFalse($meta->set_export_mapping('title', '{title} - {fishfinger} - {begin}'), "Should not be able to include invalid fields in 'title' mapping");
+        $this->assertFalse($meta->set_export_mapping('title', '{title} - {fishfinger} - {firstDate}'), "Should not be able to include invalid fields in 'title' mapping");
         list($errfield, $errstr) = $meta->get_last_error();
         $this->assertEqual($errfield, 'title', "Expected an error in the 'title' field");
         $mappings = $meta->get_export_mappings();
@@ -143,34 +150,48 @@ class local_campusconnect_metadata_test extends UnitTestCase {
     }
 
     public function test_map_remote_to_course() {
-        $mappings = array('fullname' => 'Title: {title}', 'shortname' => '{title}', 'idnumber' => '{courseID}', 'startdate' => 'begin',
+        $mappings = array('fullname' => 'Title: {title}', 'shortname' => '{title}', 'idnumber' => '{id}', 'startdate' => 'firstDate',
                           'lang' => 'lang', 'timecreated' => '', 'timemodified' => '',
-                          'summary' => 'Org: {organization}, Begin: {begin}');
+                          'summary' => 'Destination: {destinationForDisplay}, firstDate: {firstDate}, lecturers: {lecturers}');
 
-        $timeplace = (object)array('room' => 'Room 101', 'cycle' => 'week', 'begin' => '2012-06-20T14:48:00+01:00', 'end' => '2012-06-30T15:00:00+01:00');
-        $lecturer = array('Prof. Plum', 'C. Mustard');
-        $remotedata = (object)array('organization' => 'Test org', 'lang' => 'en', 'term' => '1st',
-                                    'credits' => '50', 'title' => 'Test course', 'timePlace' => $timeplace, 'lecturer' => $lecturer);
+        $datesandvenues = array((object)array('day' => 'Monday', 'start' => '2012-06-20T14:48:00+01:00', 'end' => '2012-06-30T15:00:00+01:00',
+                                              'cycle' => 'week', 'venue' => 'Room 101',
+                                              'firstDate' => (object)array('startDatetime' => '2012-06-20T14:48:00+01:00',
+                                                                           'endDatetime' => '2012-06-20T15:00:00+01:00'),
+                                              'lastDate' => (object)array('startDatetime' => '2012-06-30T14:48:00+01:00',
+                                                                          'endDatetime' => '2012-06-30T15:00:00+01:00')));
+        $lecturers = array((object)array('firstName' => 'Prof.', 'lastName' => 'Plum'),
+                           (object)array('firstName' => 'C.', 'lastName' => 'Mustard'));
+        $remotedata = (object)array('url' => 'http://www.synergy-learning.com', 'destinationForDisplay' => 'Test org',
+                                    'lang' => 'en', 'hoursPerWeek' => 5, 'id' => 'ABC-123', 'number' => '5', 'term' => '1st',
+                                    'credits' => 50, 'status' => 'open', 'courseType' => 'online', 'title' => 'Test course',
+                                    'firstDate' => '2012-06-20T14:48:00+01:00', 'datesAndVenues' => $datesandvenues, 'lecturers' => $lecturers);
 
         $expectedcourse = (object)array('fullname' => 'Title: '.$remotedata->title,
                                         'shortname' => $remotedata->title,
-                                        'idnumber' => '',
-                                        'startdate' => strtotime($timeplace->begin),
-                                        'lang' => $remotedata->lang,
-                                        'summary' => 'Org: '.$remotedata->organization.', Begin: '.userdate(strtotime($timeplace->begin), get_string('strftimedatetime')));
+                                        'idnumber' => 'ABC-123',
+                                        'summary' => 'Destination: '.$remotedata->destinationForDisplay.', firstDate: '.userdate(strtotime($remotedata->firstDate), get_string('strftimedatetime')).', lecturers: Prof. Plum, C. Mustard',
+                                        'startdate' => strtotime($remotedata->firstDate),
+                                        'lang' => $remotedata->lang);
+
 
         $meta = new campusconnect_metadata($this->settings, true);
         $meta->set_import_mappings($mappings);
         $course = $meta->map_remote_to_course($remotedata);
 
-        $this->assertEqual($course, $expectedcourse, "Mapped data did not match expectations");
+        $this->assertEqual($course, $expectedcourse);
     }
 
     public function test_map_course_to_remote() {
-        $mappings = array('organization' => '', 'lang' => 'lang', 'semesterHours' => '',
-                          'courseID' => '{idnumber}', 'term' => '', 'credits' => '', 'status' => '',
-                          'title' => '{fullname} - {shortname} - {startdate}', 'room' => '', 'cycle' => '', 'begin' => 'startdate',
-                          'end' => '', 'study_courses' => '', 'lecturer' => '');
+        $mappings = array('destinationForDisplay' => '', 'lang' => 'lang', 'hoursPerWeek' => '',
+                          'id' => '{idnumber}', 'number' => '', 'term' => '', 'credits' => '', 'status' => '',
+                          'courseType' => '', 'title' => '{fullname} - {shortname} - {startdate}', 'firstDate' => 'startdate',
+                          'datesAndVenues.day' => '', 'datesAndVenues.start' => '', 'datesAndVenues.end' => '',
+                          'datesAndVenues.cycle' => '', 'datesAndVenues.venue' => '',
+                          'datesAndVenues.firstDate.startDatetime' => 'startdate', 'datesAndVenues.firstDate.endDatetime' => '',
+                          'datesAndVenues.lastDate.startDatetime' => '', 'datesAndVenues.lastDate.endDatetime' => '',
+                          'degreeProgrammes' => '', 'lecturers' => '');
+
         $course = (object)array('fullname' => 'Test course fullname',
                                 'shortname' => 'Shortname',
                                 'summary' => "I don't expect to see this summary in the output",
@@ -179,9 +200,10 @@ class local_campusconnect_metadata_test extends UnitTestCase {
 
         $startdatestr = userdate($course->startdate, '%Y-%m-%dT%H:%M:%S%z');
         $expectedremote = (object)array('lang' => $course->lang,
-                                        'courseID' => '',
+                                        'id' => '',
                                         'title' => $course->fullname.' - '.$course->shortname.' - '.$startdatestr,
-                                        'timePlace' => (object)array('begin' => $startdatestr));
+                                        'firstDate' => $startdatestr,
+                                        'datesAndVenues' => array((object)array('firstDate' => (object)array('startDatetime' => $startdatestr))));
 
         $meta = new campusconnect_metadata($this->settings, true);
         $meta->set_export_mappings($mappings);

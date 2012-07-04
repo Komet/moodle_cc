@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/campusconnect/db" VERSION="20120626" COMMENT="XMLDB file for Moodle local/campusconnect"
+<XMLDB PATH="local/campusconnect/db" VERSION="20120627" COMMENT="XMLDB file for Moodle local/campusconnect"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -66,7 +66,8 @@
         <FIELD NAME="mid" TYPE="int" LENGTH="10" NOTNULL="false" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the participant in the community on the ECS server" PREVIOUS="ecsid" NEXT="export"/>
         <FIELD NAME="export" TYPE="int" LENGTH="4" NOTNULL="false" UNSIGNED="false" DEFAULT="0" SEQUENCE="false" COMMENT="Should courses be exported to this participant?" PREVIOUS="mid" NEXT="import"/>
         <FIELD NAME="import" TYPE="int" LENGTH="4" NOTNULL="false" UNSIGNED="false" DEFAULT="0" SEQUENCE="false" COMMENT="Should course be imported from this participant?" PREVIOUS="export" NEXT="importtype"/>
-        <FIELD NAME="importtype" TYPE="int" LENGTH="4" NOTNULL="false" UNSIGNED="false" DEFAULT="1" SEQUENCE="false" COMMENT="How to treat courses imported from this participant" PREVIOUS="import"/>
+        <FIELD NAME="importtype" TYPE="int" LENGTH="4" NOTNULL="false" UNSIGNED="false" DEFAULT="1" SEQUENCE="false" COMMENT="How to treat courses imported from this participant" PREVIOUS="import" NEXT="displayname"/>
+        <FIELD NAME="displayname" TYPE="text" LENGTH="small" NOTNULL="false" SEQUENCE="false" PREVIOUS="importtype"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id" NEXT="ecsid"/>
@@ -76,7 +77,7 @@
         <INDEX NAME="ecsid_mid" UNIQUE="true" FIELDS="ecsid, mid"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="local_campusconnect_mappings" COMMENT="Stores the metadata mappings for each ECS course import/export" PREVIOUS="local_campusconnect_part">
+    <TABLE NAME="local_campusconnect_mappings" COMMENT="Stores the metadata mappings for each ECS course import/export" PREVIOUS="local_campusconnect_part" NEXT="local_campusconnect_export">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="field"/>
         <FIELD NAME="field" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="The destination field for the mapping" PREVIOUS="id" NEXT="setto"/>
@@ -87,6 +88,21 @@
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id" NEXT="ecsid"/>
         <KEY NAME="ecsid" TYPE="foreign" FIELDS="ecsid" REFTABLE="local_campusconnect_ecs" REFFIELDS="id" PREVIOUS="primary"/>
+      </KEYS>
+    </TABLE>
+    <TABLE NAME="local_campusconnect_export" COMMENT="Details of the courses that are exported via the ECS" PREVIOUS="local_campusconnect_mappings">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="courseid"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="false" UNSIGNED="false" SEQUENCE="false" COMMENT="The course being exported" PREVIOUS="id" NEXT="ecsid"/>
+        <FIELD NAME="ecsid" TYPE="int" LENGTH="10" NOTNULL="false" UNSIGNED="false" SEQUENCE="false" COMMENT="The ECS being exported to" PREVIOUS="courseid" NEXT="mids"/>
+        <FIELD NAME="mids" TYPE="text" LENGTH="small" NOTNULL="false" SEQUENCE="false" COMMENT="Comma-separated list of participant ids that this course is shared with" PREVIOUS="ecsid" NEXT="status"/>
+        <FIELD NAME="status" TYPE="int" LENGTH="4" NOTNULL="false" UNSIGNED="false" SEQUENCE="false" COMMENT="What has happened to this export since the ECS was last informed (0 = nothing, 1 = created, 2 = updated, 3 = deleted)" PREVIOUS="mids" NEXT="resourceid"/>
+        <FIELD NAME="resourceid" TYPE="int" LENGTH="10" NOTNULL="false" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the resource on the ECS server" PREVIOUS="status"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id" NEXT="courseid"/>
+        <KEY NAME="courseid" TYPE="foreign" FIELDS="courseid" REFTABLE="course" REFFIELDS="id" PREVIOUS="primary" NEXT="ecsid"/>
+        <KEY NAME="ecsid" TYPE="foreign" FIELDS="ecsid" REFTABLE="local_campusconnect_ecs" REFFIELDS="id" PREVIOUS="courseid"/>
       </KEYS>
     </TABLE>
   </TABLES>

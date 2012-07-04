@@ -116,7 +116,8 @@ class campusconnect_courselink {
 
         if ($partsettings->get_import_type() == campusconnect_participantsettings::IMPORT_LINK) {
             if (!$currlink = self::get_by_resourceid($resourceid, $settings->get_id())) {
-                throw new campusconnect_courselink_exception("Cannot update courselink to resource $resourceid - it doesn't exist");
+                return self::create($resourceid, $settings, $courselink, $transferdetails);
+                //throw new campusconnect_courselink_exception("Cannot update courselink to resource $resourceid - it doesn't exist");
             }
 
             if ($currlink->mid != $mid) {

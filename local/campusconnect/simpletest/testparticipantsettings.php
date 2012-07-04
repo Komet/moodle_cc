@@ -57,12 +57,17 @@ class local_campusconnect_participantsettings_test extends UnitTestCase {
         $this->assertEqual(count($parts), 3, "Expected 3 participants in the 'unittest' community");
 
         $expectednames = array('Unit test 1', 'Unit test 2', 'Unit test 3');
+        $expecteddisplaynames = array('unittest: Unit test 1', 'unittest: Unit test 2', 'unittest: Unit test 3');
         foreach ($parts as $part) {
             $this->assertIsA($part, 'campusconnect_participantsettings');
             $name = $part->get_name();
             $pos = array_search($name, $expectednames);
             $this->assertIsA($pos, 'integer', "Unexpected participant '$name'");
             unset($expectednames[$pos]);
+
+            $displayname = $part->get_displayname();
+            $pos = array_search($displayname, $expecteddisplaynames);
+            $this->assertIsA($pos, 'integer', "Unexpected participant display name '$displayname'");
         }
     }
 

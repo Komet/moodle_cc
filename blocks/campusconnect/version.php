@@ -15,16 +15,19 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * version file for CampusConnect
+ * version file for CampusConnect block
  *
- * @package    local_campusconnect
+ * @package    block_campusconnect
  * @copyright  2012 Synergy Learning
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-$plugin->version = 2012062700;
+defined('MOODLE_INTERNAL') || die();
+
+$plugin->version = 2012062600;
 $plugin->requires = 2010112400; // Moodle 2.0+
-$plugin->cron = 1; // Run every second (or as oftern as cron is run)
-$plugin->component = 'local_campusconnect';
+$plugin->cron = 0; // Does not use cron
+$plugin->component = 'block_campusconnect';
 $plugin->maturity = MATURITY_ALPHA;
-$plugin->release = '2.x (Build: 2012062700)';
+$plugin->release = '2.x (Build: 2012062600)';
+$plugin->dependencies = array('local_campusconnect' => 2012062700);

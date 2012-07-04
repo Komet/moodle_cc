@@ -72,6 +72,14 @@ class campusconnect_connect {
     }
 
     /**
+     * Get the ECS settings object
+     * @return campusconnect_ecssettings
+     */
+    public function get_settings() {
+        return $this->settings;
+    }
+
+    /**
      * Get the category to put new courses into
      * @return int the categoryid
      */
@@ -86,13 +94,14 @@ class campusconnect_connect {
      * @return string the hash value to append to the url parameters
      */
     public function add_auth($post, $targetmid) {
-        if (!is_string($post)) {
-            throw new campusconnect_connect_exception('add_auth - expected \'post\' to be (JSON encoded) string');
+        if (!is_object($post)) {
+            throw new campusconnect_connect_exception('add_auth - expected \'post\' to be an object');
         }
 
+        $poststr = json_encode($post);
         $this->init_connection('/sys/auths');
         $this->set_memberships($targetmid);
-        $this->set_postfields($post);
+        $this->set_postfields($poststr);
 
         $result = $this->call();
         if (!$this->check_status(self::HTTP_CODE_CREATED)) {
@@ -160,8 +169,11 @@ class campusconnect_connect {
      * Get a list of available resources on the remote VLEs
      * @return array of links to get further details about each resource
      */
-    public function get_resource_list() {
-        $this->init_connection('/campusconnect/courselinks');
+    public function get_resource_list($type = campusconnect_event::RES_COURSELINK) {
+        if (!campusconnect_event::is_valid_resource($type)) {
+            throw new coding_error("get_resource_list: unknown resource type $type");
+        }
+        $this->init_connection('/'.$type);
 
         $result = $this->call();
         if (!$this->check_status(self::HTTP_CODE_OK)) {
@@ -178,8 +190,11 @@ class campusconnect_connect {
      *                           details for the resource, false for the contents
      * @return object the details retrieved
      */
-    public function get_resource($id, $detailsonly = false) {
-        $resourcepath = '/campusconnect/courselinks';
+    public function get_resource($id, $detailsonly = false, $type = campusconnect_event::RES_COURSELINK) {
+        if (!campusconnect_event::is_valid_resource($type)) {
+            throw new coding_error("get_resource: unknown resource type $type");
+        }
+        $resourcepath = '/'.$type;
         if ($id) {
             $resourcepath .= "/$id";
         }
@@ -199,20 +214,27 @@ class campusconnect_connect {
 
     /**
      * Add a resource that other VLEs can retrieve
-     * @param mixed $post the details of the resource to create
+     * @param object $post the details of the resource to create
      * @param string $targetcommunityids a comma-separated list of community IDs that have access to this resource
      * @param string $targetmids a comma-separated list of participant IDs that have access to this resource
      * @result int the id that this resource has been allocated on the ECS
      */
-    public function add_resource($post, $targetcommunityids = null, $targetmids = null) {
+    public function add_resource($post, $targetcommunityids = null, $targetmids = null, $type = campusconnect_event::RES_COURSELINK) {
+        if (!campusconnect_event::is_valid_resource($type)) {
+            throw new coding_error("add_resource: unknown resource type $type");
+        }
+        if (!is_object($post)) {
+            throw new coding_exception('add_resource - expected \'post\' to be an object');
+        }
         if (is_null($targetmids) && is_null($targetcommunityids)) {
             throw new coding_exception('add_resource - must specify either \'targetmids\' or \'targetcommunityids\'');
         } else if (!is_null($targetmids) && !is_null($targetcommunityids)) {
             throw new coding_exception('add_resource - cannot specify both \'targetmids\' and \'targetcommunityids\'');
         }
 
-        $this->init_connection('/campusconnect/courselinks');
-        $this->set_postfields($post);
+        $poststr = json_encode($post);
+        $this->init_connection('/'.$type);
+        $this->set_postfields($poststr);
         $this->include_response_header();
         if (!is_null($targetmids)) {
             $this->set_memberships($targetmids);
@@ -231,23 +253,28 @@ class campusconnect_connect {
     /**
      * Update a previously shared resource
      * @param int $id the id allocated when the resource was first posted
-     * @param string $post the new details
+     * @param object $post the new details
+     * @param string $targetcommunityids a comma-separated list of community IDs that have access to this resource
+     * @param string $targetmids a comma-separated list of participant IDs that have access to this resource
      * @return object the response from the ECS server
      */
-    public function update_resource($id, $post, $targetcommunityids = null, $targetmids = null) {
+    public function update_resource($id, $post, $targetcommunityids = null, $targetmids = null, $type = campusconnect_event::RES_COURSELINK) {
+        if (!campusconnect_event::is_valid_resource($type)) {
+            throw new coding_error("update_resource: unknown resource type $type");
+        }
+        if (!is_object($post)) {
+            throw new coding_exception('add_resource - expected \'post\' to be an object');
+        }
         if (!$id) {
             throw new campusconnect_connect_exception('update_resource - no resource id given');
         }
-        if (!is_string($post)) {
-            throw new campusconnect_connect_exception('update_resource - post data must be a string');
-        }
         if (is_null($targetmids) && is_null($targetcommunityids)) {
-            throw new coding_exception('add_resource - must specify either \'targetmids\' or \'targetcommunityids\'');
+            throw new coding_exception('update_resource - must specify either \'targetmids\' or \'targetcommunityids\'');
         } else if (!is_null($targetmids) && !is_null($targetcommunityids)) {
-            throw new coding_exception('add_resource - cannot specify both \'targetmids\' and \'targetcommunityids\'');
+            throw new coding_exception('update_resource - cannot specify both \'targetmids\' and \'targetcommunityids\'');
         }
 
-        $this->init_connection("/campusconnect/courselinks/$id");
+        $this->init_connection("/$type/$id");
         if (!is_null($targetmids)) {
             $this->set_memberships($targetmids);
         } else {
@@ -258,9 +285,10 @@ class campusconnect_connect {
         if (!$fp = fopen('php://temp', 'w+')) {
             throw new campusconnect_connect_exception('update_resource - unable to create temporary file');
         }
-        fwrite($fp, $post);
+        $poststr = json_encode($post);
+        fwrite($fp, $poststr);
         fseek($fp, 0);
-        $this->set_putfile($fp, strlen($post));
+        $this->set_putfile($fp, strlen($poststr));
         $result = $this->call();
         fclose($fp);
 
@@ -276,11 +304,14 @@ class campusconnect_connect {
      * @param int $id the id allocated when the resource was first posted
      * @return object the response from the server
      */
-    public function delete_resource($id) {
+    public function delete_resource($id, $type = campusconnect_event::RES_COURSELINK) {
+        if (!campusconnect_event::is_valid_resource($type)) {
+            throw new coding_error("delete_resource: unknown resource type $type");
+        }
         if (!$id) {
             throw new campusconnect_connect_exception('delete_resource - no resource id given');
         }
-        $this->init_connection("/campusconnect/courselinks/$id");
+        $this->init_connection("/$type/$id");
         $this->set_delete();
 
         $result = $this->call();

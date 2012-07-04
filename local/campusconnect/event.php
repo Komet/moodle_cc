@@ -37,9 +37,12 @@ class campusconnect_event {
     const STATUS_NEW_EXPORT = 'new_export'; // Not quite sure when this is sent.
 
     const RES_COURSELINK = 'campusconnect/courselinks';
+    const RES_DIRECTORYTREE = 'campusconnect/cms_directorytree';
+    const RES_COURSE = 'campusconnect/cms_courses';
+    const RES_COURSE_MEMBERS = 'campusconnect/cmd_course_members';
 
-    protected $validstatus = array(self::STATUS_CREATED, self::STATUS_UPDATED, self::STATUS_DESTROYED);
-    protected $validresources = array(self::RES_COURSELINK);
+    protected static $validstatus = array(self::STATUS_CREATED, self::STATUS_UPDATED, self::STATUS_DESTROYED);
+    protected static $validresources = array(self::RES_COURSELINK, self::RES_DIRECTORYTREE, self::RES_COURSE, self::RES_COURSE_MEMBERS);
 
     protected $resource;
     protected $resourceid;
@@ -69,10 +72,10 @@ class campusconnect_event {
             $this->resourcetype = implode('/', $resource);
         }
 
-        if (!in_array($this->resourcetype, $this->validresources)) {
+        if (!self::is_valid_resource($this->resourcetype)) {
             throw new campusconnect_event_exception("Unexpected event type: $this->resourcetype");
         }
-        if (!in_array($this->status, $this->validstatus)) {
+        if (!self::is_valid_status($this->status)) {
             throw new campusconnect_event_exception("Unexpected event status: $status");
         }
     }
@@ -107,5 +110,13 @@ class campusconnect_event {
      */
     public function should_update_duplicate() {
         return $this->get_status() == self::STATUS_CREATED || $this->get_status() == self::STATUS_DESTROYED;
+    }
+
+    public static function is_valid_resource($type) {
+        return in_array($type, self::$validresources);
+    }
+
+    public static function is_valid_status($status) {
+        return in_array($type, self::$validstatus);
     }
 }

@@ -24,9 +24,8 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-require_once($CFG->dirroot.'/local/campusconnect/ecssettings.php');
-require_once($CFG->dirroot.'/local/campusconnect/connect.php');
 require_once($CFG->dirroot.'/local/campusconnect/receivequeue.php');
+require_once($CFG->dirroot.'/local/campusconnect/export.php');
 
 function local_campusconnect_cron() {
     // Get updates from all ECS.
@@ -35,14 +34,20 @@ function local_campusconnect_cron() {
         $ecssettings = new campusconnect_ecssettings($ecsid);
 
         if ($ecssettings->time_for_cron()) {
-            // TODO - send updates as well as receiving updates.
-            mtrace("Checking for updates on ECS server '".$ecssettings->get_name()."'\n");
+            mtrace("Checking for updates on ECS server '".$ecssettings->get_name()."'");
             $connect = new campusconnect_connect($ecssettings);
             $queue = new campusconnect_receivequeue();
 
             try {
                 $queue->update_from_ecs($connect);
                 $queue->process_queue($ecssettings);
+            } catch (campusconnect_connect_exception $e) {
+                local_campusconnect_ecs_error_notification($ecssettings, $e->getMessage());
+            }
+
+            mtrace("Sending updates to ECS server '".$ecssettings->get_name()."'");
+            try {
+                campusconnect_export::update_ecs($connect);
             } catch (campusconnect_connect_exception $e) {
                 local_campusconnect_ecs_error_notification($ecssettings, $e->getMessage());
             }

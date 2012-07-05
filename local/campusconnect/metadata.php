@@ -186,7 +186,11 @@ class campusconnect_metadata {
     public static function list_local_to_remote_fields($remotefieldname, $external = true) {
         $remotefields = $external ? self::$remotefieldsext : self::$remotefields;
         if (!array_key_exists($remotefieldname, $remotefields)) {
-            throw new coding_exception("$remotefieldname is not an available Moodle course field");
+            if ($external) {
+                throw new coding_exception("$remotefieldname is not an available remote external course field");
+            } else {
+                throw new coding_exception("$remotefieldname is not an available remote course field");
+            }
         }
         $type = $remotefields[$remotefieldname];
         $ret = array();

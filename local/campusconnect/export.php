@@ -178,6 +178,47 @@ class campusconnect_export {
     }
 
     /**
+     * Update ECS with course update if this course is currently exported
+     */
+    public function updated() {
+        global $DB;
+
+        foreach ($this->exportsettings as $setting) {
+            if ($setting->status == self::STATUS_UPTODATE) {
+                // Need to inform ECS about update.
+                $upd = new stdClass();
+                $upd->id = $setting->id;
+                $upd->status = self::STATUS_UPDATED;
+                $DB->update_record('local_campusconnect_export', $upd);
+                $this->exportsettings[$setting->id]->status = self::STATUS_UPDATED;
+            }
+            // else - Update already pending, no changes needed.
+        }
+    }
+
+    /**
+     * Update ECS with course deletion if this course was exported
+     */
+    public function deleted() {
+        global $DB;
+
+        foreach ($this->exportsettings as $setting) {
+            if ($setting->status == self::STATUS_CREATED) {
+                // ECS never knew about this course - just delete the record.
+                $DB->delete_records('local_campusconnect_export', array('id' => $setting->id));
+                unset($this->exportsettings[$setting->id]);
+            } else {
+                // Need to inform ECS server about this deletion.
+                $upd = new stdClass();
+                $upd->id = $setting->id;
+                $upd->status = self::STATUS_DELETED;
+                $DB->update_record('local_campusconnect_export', $upd);
+                $this->exportsettings[$setting->id]->status = self::STATUS_DELETED;
+            }
+        }
+    }
+
+    /**
      * Set this course to not be exported to any participants
      */
     public function clear_exports() {
@@ -260,6 +301,132 @@ class campusconnect_export {
             }
             $DB->update_record('local_campusconnect_export', $upd);
         }
+    }
+
+    /**
+     * A course has been updated - inform the ECS, if it is currently exported
+     * @param object $course
+     */
+    public static function course_updated($course) {
+        $export = new campusconnect_export($course->id);
+        $export->updated();
+    }
+
+    /**
+     * A course has been deleted - inform the ECS, if it is currently exported
+     * @param object $course
+     */
+    public static function course_deleted($course) {
+        $export = new campusconnect_export($course->id);
+        $export->deleted();
+    }
+
+    /**
+     * Get list of exported courses from ECS - delete any that should not be there any more, create
+     * any that should be there and update all others
+     * @param campusconnect_connect $connect connection to the ECS to update
+     * @return object containing: ->created = array of resourceids created
+     *                            ->updated = array of resourceids updated
+     *                            ->deleted = array of resourceids deleted
+     */
+    public static function refresh_ecs(campusconnect_connect $connect) {
+        global $DB;
+
+        $ret = (object)array('created' => array(), 'updated' => array(), 'deleted' => array());
+
+        // Start by updating ECS with any recent changes.
+        self::update_ecs($connect);
+
+        // Get a list of MIDs that this site is known by.
+        $mymids = array();
+        $knownmids = array();
+        $memberships = $connect->get_memberships();
+        foreach ($memberships as $membership) {
+            foreach ($membership->participants as $participant) {
+                if ($participant->itsyou) {
+                    $mymids[] = $participant->mid;
+                } else {
+                    $knownmids[] = $participant->mid;
+                }
+            }
+        }
+
+        // Get a list of the courses we have exported.
+        $exportedcourses = $DB->get_records('local_campusconnect_export', array('ecsid' => $connect->get_ecs_id()), '', 'resourceid, id, courseid, mids');
+        $metadata = new campusconnect_metadata($connect->get_settings());
+
+        // Check all the resources on the server against our local list.
+        $resources = $connect->get_resource_list();
+        foreach ($resources->get_ids() as $resourceid) {
+            $details = $connect->get_resouce($resourceid, true);
+            if (!in_array($details->senders[0]->mid, $mymids)) {
+                continue; // Not one of this VLE's resources.
+            }
+
+            if (!array_key_exists($resourceid, $exportedresourceids)) {
+                // This VLE does not have that course - need remove from ECS.
+                // (Not that this should ever happen).
+                $connect->delete_resource($resourceid);
+                $ret->deleted[] = $resourceid;
+            } else {
+                // Course is present in VLE and on ECS - update with latest details.
+                $courseid = $exportedcourses[$resourceid]->courseid;
+                $mids = $exportedcourses[$resourceid]->mids;
+
+                // Check all the destination mids are still in the communities.
+                $mids = explode(',', $mids);
+                foreach ($mids as $key => $mid) {
+                    if (!in_array($mid, $knownmids)) {
+                        unset($mids[$key]);
+                    }
+                }
+                $mids = implode(',', $mids);
+                if (!$mids) {
+                    // None of the recipients are in the same community any more
+                    // => delete the resource from ECS and local export list.
+                    $connect->delete_resource($resourceid);
+                    $DB->delete_record('local_campusconnect_export', array('id' => $exportedcourses[$resourceid]->id));
+                    unset($exportedcourses[$resourceid]);
+                    $ret->deleted[] = $resourceid;
+                } else {
+                    $course = $DB->get_record('course', array('id' => $courseid));
+                    $data = $metadata->map_course_to_remote($course);
+                    $url = new moodle_url('/course/view.php', array('id' => $course->id));
+                    $data->url = $url->out();
+
+                    $connect->update_resource($resourceid, $data, null, $mids);
+
+                    $exportedcourses[$resourceid]->updated = true;
+                    $ret->updated[] = $resourceid;
+                }
+            }
+        }
+
+        // Check for any courses that were not found on the ECS.
+        foreach ($exportedcourses as $exporedcourse) {
+            if (!empty($exportedcourse->updated)) {
+                continue; // Already updated.
+            }
+
+            // Course not found on ECS - add it (should not happen).
+            $courseid = $exportedcourse->courseid;
+            $mids = $exportedcourse->mids;
+
+            $course = $DB->get_record('course', array('id' => $courseid));
+            $data = $metadata->map_course_to_remote($course);
+            $url = new moodle_url('/course/view.php', array('id' => $course->id));
+            $data->url = $url->out();
+
+            $resourceid = $connect->add_resource($data, null, $mids);
+
+            $upd = new stdClass();
+            $upd->id = $exportedcourse->id;
+            $upd->resourceid = $resourceid;
+            $DB->update_record('local_campusconnect_export', $upd);
+            $ret->created[] = $resourceid;
+        }
+
+        return $ret;
     }
 
     /**

@@ -22,17 +22,16 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-    require_once('../config.php');
-    require_once($CFG->libdir.'/adminlib.php');
-    require_once($CFG->dirroot.'/local/campusconnect/lib.php');
+function print_option($array, $post, $default = null) {
 
-    admin_externalpage_setup('campusconnectsettings');
+    ($post = $post or $post = $default);
 
-    echo $OUTPUT->header();
-    echo $OUTPUT->heading(get_string('pluginname', 'local_campusconnect'));
+    foreach ($array as $value => $display) {
+        print "<option value='$value' ";
+        if ($post==$value) {
+            print 'selected';
+        }
+        print ">$display</option>";
+    }
 
-    print 'Campus Connect Settings';
-
-    print '<br /><br />TODO';
-
-    echo $OUTPUT->footer();
+}

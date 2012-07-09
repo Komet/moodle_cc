@@ -22,17 +22,27 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-    require_once('../config.php');
-    require_once($CFG->libdir.'/adminlib.php');
-    require_once($CFG->dirroot.'/local/campusconnect/lib.php');
+require_once('../../config.php');
+require_once($CFG->libdir.'/adminlib.php');
+require_once($CFG->dirroot.'/local/campusconnect/connect.php');
+require_once($CFG->dirroot.'/admin/campusconnect/lib.php');
 
-    admin_externalpage_setup('campusconnectsettings');
+defined('MOODLE_INTERNAL') || die();
 
-    echo $OUTPUT->header();
-    echo $OUTPUT->heading(get_string('pluginname', 'local_campusconnect'));
+$PAGE->set_url('/admin/campusconnect/releasedcourses.php');
+$PAGE->set_context(context_system::instance());
 
-    print 'Campus Connect Settings';
+admin_externalpage_setup('campusconnectreleasedcourses');
 
-    print '<br /><br />TODO';
+require_login();
+require_capability('moodle/site:config', get_context_instance(CONTEXT_SYSTEM));
 
-    echo $OUTPUT->footer();
+echo $OUTPUT->header();
+echo $OUTPUT->heading(get_string('pluginname', 'local_campusconnect'));
+
+$ecslist = campusconnect_ecssettings::list_ecs();
+print '<h4 style="text-align: center">'.get_string('releasedcourses', 'local_campusconnect').'</h4>';
+
+print 'TODO';
+
+echo $OUTPUT->footer();

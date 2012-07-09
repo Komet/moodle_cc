@@ -178,6 +178,47 @@ class campusconnect_export {
     }
 
     /**
+     * Update ECS with course update if this course is currently exported
+     */
+    public function updated() {
+        global $DB;
+
+        foreach ($this->exportsettings as $setting) {
+            if ($setting->status == self::STATUS_UPTODATE) {
+                // Need to inform ECS about update.
+                $upd = new stdClass();
+                $upd->id = $setting->id;
+                $upd->status = self::STATUS_UPDATED;
+                $DB->update_record('local_campusconnect_export', $upd);
+                $this->exportsettings[$setting->id]->status = self::STATUS_UPDATED;
+            }
+            // else - Update already pending, no changes needed.
+        }
+    }
+
+    /**
+     * Update ECS with course deletion if this course was exported
+     */
+    public function deleted() {
+        global $DB;
+
+        foreach ($this->exportsettings as $setting) {
+            if ($setting->status == self::STATUS_CREATED) {
+                // ECS never knew about this course - just delete the record.
+                $DB->delete_records('local_campusconnect_export', array('id' => $setting->id));
+                unset($this->exportsettings[$setting->id]);
+            } else {
+                // Need to inform ECS server about this deletion.
+                $upd = new stdClass();
+                $upd->id = $setting->id;
+                $upd->status = self::STATUS_DELETED;
+                $DB->update_record('local_campusconnect_export', $upd);
+                $this->exportsettings[$setting->id]->status = self::STATUS_DELETED;
+            }
+        }
+    }
+
+    /**
      * Set this course to not be exported to any participants
      */
     public function clear_exports() {
@@ -260,6 +301,24 @@ class campusconnect_export {
             }
             $DB->update_record('local_campusconnect_export', $upd);
         }
+    }
+
+    /**
+     * A course has been updated - inform the ECS, if it is currently exported
+     * @param object $course
+     */
+    public static function course_updated($course) {
+        $export = new campusconnect_export($course->id);
+        $export->updated();
+    }
+
+    /**
+     * A course has been deleted - inform the ECS, if it is currently exported
+     * @param object $course
+     */
+    public static function course_deleted($course) {
+        $export = new campusconnect_export($course->id);
+        $export->deleted();
     }
 
     /**

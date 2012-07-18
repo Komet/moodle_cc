@@ -186,7 +186,11 @@ class campusconnect_metadata {
     public static function list_local_to_remote_fields($remotefieldname, $external = true) {
         $remotefields = $external ? self::$remotefieldsext : self::$remotefields;
         if (!array_key_exists($remotefieldname, $remotefields)) {
-            throw new coding_exception("$remotefieldname is not an available Moodle course field");
+            if ($external) {
+                throw new coding_exception("$remotefieldname is not an available remote external course field");
+            } else {
+                throw new coding_exception("$remotefieldname is not an available remote course field");
+            }
         }
         $type = $remotefields[$remotefieldname];
         $ret = array();
@@ -333,7 +337,7 @@ class campusconnect_metadata {
             }
 
         } else {
-            if (!empty($remotefield) && !in_array($remotefield, self::list_remote_to_local_fields($localfield))) {
+            if (!empty($remotefield) && !in_array($remotefield, self::list_remote_to_local_fields($localfield, $this->external))) {
                 throw new coding_exception("$remotefield is not a suitable field to map onto $localfield");
             }
         }
@@ -594,7 +598,7 @@ class campusconnect_metadata {
             if (empty($localfield)) {
                 continue;
             }
-            if (self::is_remote_text_field($remotefield)) {
+            if (self::is_remote_text_field($remotefield, $this->external)) {
                 $details[$remotefield] = $localfield;
                 if (preg_match_all('/\{([^}]+)\}/', $details[$remotefield], $includedfields)) {
                     foreach ($includedfields[1] as $field) {

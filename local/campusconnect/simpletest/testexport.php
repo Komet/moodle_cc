@@ -285,7 +285,7 @@ class local_campusconnect_export_test extends UnitTestCase {
         $this->assertIsA($result, 'stdClass');
         $this->assertEqual($result->url, $CFG->wwwroot.'/course/view.php?id=-10', "Unexpected URL: {$result->url}");
         $this->assertEqual($result->title, $exportcourse->fullname, 'Exported title does not match the course fullname');
-        $this->assertEqual($result->timePlace->begin, '2012-04-1T12:00:00+0100', "Exported begin timestamp ({$result->timePlace->begin}) does not match");
+        $this->assertEqual($result->firstDate, '2012-04-1T12:00:00+0100', "Exported firstDate timestamp ({$result->firstDate}) does not match");
 
         // Check that removing the course from export works.
         $export = new campusconnect_export(-10); // Need to create a new object, otherwise changes from 'update_ecs' not recorded.

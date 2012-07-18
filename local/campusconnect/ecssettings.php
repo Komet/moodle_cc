@@ -1,4 +1,4 @@
-<?php
+ <?php
 // This file is part of the CampusConnect plugin for Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -96,7 +96,7 @@ class campusconnect_ecssettings {
                 $ecsid = count($unittestecs) + 1;
                 $unittestecs[$ecsid] = $unittest;
             }
-            $this->url = 'http://localhost:3000';
+            $this->url = 'http://172.16.0.51:3000';
             $this->auth = self::AUTH_NONE;
             $this->ecsauth = $unittest;
             $this->recordid = -$ecsid;

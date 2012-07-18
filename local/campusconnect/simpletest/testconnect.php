@@ -55,6 +55,8 @@ class local_campusconnect_connect_test extends UnitTestCase {
 
         // Retrieve the mid values for each participant
         foreach ($this->connect as $key => $connect) {
+        	var_dump($connect);
+        	print '<br />';
             $memberships = $connect->get_memberships();
             foreach ($memberships[0]->participants as $participant) {
                 if ($participant->itsyou) {

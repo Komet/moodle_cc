@@ -146,6 +146,9 @@ class campusconnect_receivequeue {
             case campusconnect_event::RES_COURSELINK:
                 $result = $this->process_courselink_event($event);
                 break;
+            case campusconnect_event::RES_DIRECTORYTREE:
+                $result = $this->process_directorytree_event($event);
+                break;
             default:
                 throw new campusconnect_receivequeue_exception("Unknown event resource: ".$event->get_resource_type());
                 break;
@@ -154,6 +157,9 @@ class campusconnect_receivequeue {
                 $this->remove_event_from_queue($event);
             }
         }
+
+        // Check if any new categories need to be created.
+        campusconnect_directory::process_new_directories();
     }
 
     /**
@@ -192,5 +198,41 @@ class campusconnect_receivequeue {
 
         mtrace("CampusConnect: update courselink: ".$event->get_resource_id()."\n");
         return campusconnect_courselink::update($event->get_resource_id(), $settings, $resource, $details);
+    }
+
+    /**
+     * Process events related to directory trees
+     * @param campusconnect_event $event the event to process
+     * @return bool true if successful
+     */
+    protected function process_directorytree_event(campusconnect_event $event) {
+        $settings = new campusconnect_ecssettings($event->get_ecs_id());
+        $status = $event->get_status();
+
+        // Delete events do not need to retrieve the resource.
+        if ($status == campusconnect_event::STATUS_DESTROYED) {
+            mtrace("CampusConnect: delete directory: ".$event->get_resource_id()."\n");
+            campusconnect_directorytree::delete_directory($event->get_resource_id(), $settings);
+            return true;
+        }
+
+        if ($status != campusconnect_event::STATUS_CREATED &&
+            $status != campusconnect_event::STATUS_UPDATED) {
+            throw new campusconnect_receivequeue_exception("Unknown event status: ".$event->get_status());
+        }
+
+        // Retrieve the resource.
+        $connect = new campusconnect_connect($settings);
+        $resource = $connect->get_resource($event->get_resource_id());
+        $details = new campusconnect_details($connect->get_resource($event->get_resource_id(), true));
+
+        // Process the create/update event.
+        if ($status == campusconnect_event::STATUS_CREATED) {
+            mtrace("CampusConnect: create directorytree: ".$event->get_resource_id()."\n");
+            return campusconnect_directorytree::create_directory($event->get_resource_id(), $settings, $resource, $details);
+        }
+
+        mtrace("CampusConnect: update directorytree: ".$event->get_resource_id()."\n");
+        return campusconnect_directorytree::update_directory($event->get_resource_id(), $settings, $resource, $details);
     }
 }

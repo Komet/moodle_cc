@@ -35,8 +35,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot.'/local/campusconnect/connect.php');
-
-//define('SKIP_CAMPUSCONNECT_CONNECT_TESTS', 1);
+require_once($CFG->dirroot.'/local/campusconnect/simpletest/enabledtests.php');
 
 class local_campusconnect_connect_test extends UnitTestCase {
     protected $connect = array();

@@ -373,4 +373,24 @@ class campusconnect_participantsettings {
         }
         $DB->delete_records('local_campusconnect_part', array('ecsid' => $ecsid));
     }
+
+    /**
+     * Returns the participant that has import type CMS
+     * @return mixed campusconnect_participantsettings | false
+     */
+    public static function get_cms_participant() {
+        global $DB;
+
+        $participant = $DB->get_records('local_campusconnect_part', array('import' => 1, 'importtype' => self::IMPORT_CMS));
+        if (count($participant) > 1) {
+            throw new coding_exception('There should only ever be one participant set to IMPORT_CMS');
+        }
+
+        $participant = reset($participant);
+        if ($participant) {
+            return new campusconnect_participantsettings($participant);
+        }
+
+        return false;
+    }
 }

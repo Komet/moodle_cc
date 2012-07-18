@@ -25,8 +25,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot.'/local/campusconnect/ecssettings.php');
-
-//define('SKIP_CAMPUSCONNECT_ECSSETTINGS_TESTS', 1);
+require_once($CFG->dirroot.'/local/campusconnect/simpletest/enabledtests.php');
 
 class local_campusconnect_ecssettings_test extends UnitTestCase {
 

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/campusconnect/db" VERSION="20120627" COMMENT="XMLDB file for Moodle local/campusconnect"
+<XMLDB PATH="local/campusconnect/db" VERSION="20120718" COMMENT="XMLDB file for Moodle local/campusconnect"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -90,7 +90,7 @@
         <KEY NAME="ecsid" TYPE="foreign" FIELDS="ecsid" REFTABLE="local_campusconnect_ecs" REFFIELDS="id" PREVIOUS="primary"/>
       </KEYS>
     </TABLE>
-    <TABLE NAME="local_campusconnect_export" COMMENT="Details of the courses that are exported via the ECS" PREVIOUS="local_campusconnect_mappings">
+    <TABLE NAME="local_campusconnect_export" COMMENT="Details of the courses that are exported via the ECS" PREVIOUS="local_campusconnect_mappings" NEXT="local_campusconnect_dirroot">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="courseid"/>
         <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="false" UNSIGNED="false" SEQUENCE="false" COMMENT="The course being exported" PREVIOUS="id" NEXT="ecsid"/>
@@ -103,6 +103,41 @@
         <KEY NAME="primary" TYPE="primary" FIELDS="id" NEXT="courseid"/>
         <KEY NAME="courseid" TYPE="foreign" FIELDS="courseid" REFTABLE="course" REFFIELDS="id" PREVIOUS="primary" NEXT="ecsid"/>
         <KEY NAME="ecsid" TYPE="foreign" FIELDS="ecsid" REFTABLE="local_campusconnect_ecs" REFFIELDS="id" PREVIOUS="courseid"/>
+      </KEYS>
+    </TABLE>
+    <TABLE NAME="local_campusconnect_dirroot" COMMENT="Contains the root nodes of the directory trees passed on from the CMS via the ECS server." PREVIOUS="local_campusconnect_export" NEXT="local_campusconnect_dir">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="resourceid"/>
+        <FIELD NAME="resourceid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the resource on the ECS server" PREVIOUS="id" NEXT="rootid"/>
+        <FIELD NAME="rootid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the root node on the CMS" PREVIOUS="resourceid" NEXT="title"/>
+        <FIELD NAME="title" TYPE="text" LENGTH="small" NOTNULL="true" SEQUENCE="false" COMMENT="The name of the directory node from the CMS" PREVIOUS="rootid" NEXT="ecsid"/>
+        <FIELD NAME="ecsid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the ECS that this resource came from" PREVIOUS="title" NEXT="mid"/>
+        <FIELD NAME="mid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The participant this directory tree came from" PREVIOUS="ecsid" NEXT="categoryid"/>
+        <FIELD NAME="categoryid" TYPE="int" LENGTH="10" NOTNULL="false" UNSIGNED="false" SEQUENCE="false" COMMENT="The Moodle category this directory tree is mapped on to (null for none)" PREVIOUS="mid" NEXT="mappingmode"/>
+        <FIELD NAME="mappingmode" TYPE="int" LENGTH="4" NOTNULL="true" UNSIGNED="false" DEFAULT="0" SEQUENCE="false" COMMENT="The mapping mode of this tree (0 - pending, 1 - whole tree, 2 - manual mapping, 3 - deleted)" PREVIOUS="categoryid" NEXT="takeovertitle"/>
+        <FIELD NAME="takeovertitle" TYPE="int" LENGTH="4" NOTNULL="true" UNSIGNED="false" DEFAULT="1" SEQUENCE="false" COMMENT="Should the directory tree take over the category title?" PREVIOUS="mappingmode" NEXT="takeoverposition"/>
+        <FIELD NAME="takeoverposition" TYPE="int" LENGTH="4" NOTNULL="true" UNSIGNED="false" DEFAULT="1" SEQUENCE="false" COMMENT="Should directory tree take over the category sort order?" PREVIOUS="takeovertitle" NEXT="takeoverallocation"/>
+        <FIELD NAME="takeoverallocation" TYPE="int" LENGTH="4" NOTNULL="true" UNSIGNED="false" DEFAULT="1" SEQUENCE="false" COMMENT="Should the tree take over directory allocations?" PREVIOUS="takeoverposition"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id" NEXT="ecsid"/>
+        <KEY NAME="ecsid" TYPE="foreign" FIELDS="ecsid" REFTABLE="local_campusconnect_ecs" REFFIELDS="id" PREVIOUS="primary"/>
+      </KEYS>
+    </TABLE>
+    <TABLE NAME="local_campusconnect_dir" COMMENT="A directory node from the CMS via the ECS server" PREVIOUS="local_campusconnect_dirroot">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="resourceid"/>
+        <FIELD NAME="resourceid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the resource on the ECS server" PREVIOUS="id" NEXT="rootid"/>
+        <FIELD NAME="rootid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the root of the directory tree" PREVIOUS="resourceid" NEXT="directoryid"/>
+        <FIELD NAME="directoryid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the directory on the CMS" PREVIOUS="rootid" NEXT="title"/>
+        <FIELD NAME="title" TYPE="text" LENGTH="small" NOTNULL="true" SEQUENCE="false" COMMENT="The title of the directory, from the CMS" PREVIOUS="directoryid" NEXT="parentid"/>
+        <FIELD NAME="parentid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The directoryid of the parent directory" PREVIOUS="title" NEXT="sortorder"/>
+        <FIELD NAME="sortorder" TYPE="int" LENGTH="10" NOTNULL="false" UNSIGNED="false" DEFAULT="0" SEQUENCE="false" COMMENT="Used to define the order in which directories should be displayed" PREVIOUS="parentid" NEXT="categoryid"/>
+        <FIELD NAME="categoryid" TYPE="int" LENGTH="10" NOTNULL="false" UNSIGNED="false" SEQUENCE="false" COMMENT="The Moodle category this directory is mapped onto (null if not mapped)" PREVIOUS="sortorder" NEXT="mapping"/>
+        <FIELD NAME="mapping" TYPE="int" LENGTH="4" NOTNULL="true" UNSIGNED="false" DEFAULT="0" SEQUENCE="false" COMMENT="The mapping mode (0 - automatic, 1 - manual, 2 - deleted)" PREVIOUS="categoryid"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
       </KEYS>
     </TABLE>
   </TABLES>

@@ -221,5 +221,64 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2012062700, 'local', 'campusconnect');
     }
 
+   if ($oldversion < 2012071800) {
+
+        // Define table local_campusconnect_dirroot to be created
+        $table = new xmldb_table('local_campusconnect_dirroot');
+
+        // Adding fields to table local_campusconnect_dirroot
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', XMLDB_UNSIGNED, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('resourceid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('rootid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('title', XMLDB_TYPE_TEXT, 'small', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('ecsid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('mid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('categoryid', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('mappingmode', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('takeovertitle', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('takeoverposition', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('takeoverallocation', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '1');
+
+        // Adding keys to table local_campusconnect_dirroot
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+        $table->add_key('ecsid', XMLDB_KEY_FOREIGN, array('ecsid'), 'local_campusconnect_ecs', array('id'));
+
+        // Conditionally launch create table for local_campusconnect_dirroot
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012071800, 'local', 'campusconnect');
+    }
+
+    if ($oldversion < 2012071801) {
+
+        // Define table local_campusconnect_dir to be created
+        $table = new xmldb_table('local_campusconnect_dir');
+
+        // Adding fields to table local_campusconnect_dir
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', XMLDB_UNSIGNED, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('resourceid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('rootid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('directoryid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('title', XMLDB_TYPE_TEXT, 'small', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('parentid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('sortorder', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
+        $table->add_field('categoryid', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('mapping', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '0');
+
+        // Adding keys to table local_campusconnect_dir
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+
+        // Conditionally launch create table for local_campusconnect_dir
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012071801, 'local', 'campusconnect');
+    }
+
     return true;
 }

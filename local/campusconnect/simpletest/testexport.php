@@ -35,8 +35,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot.'/local/campusconnect/export.php');
-
-//define('SKIP_CAMPUSCONNECT_EXPORT_TESTS', 1);
+require_once($CFG->dirroot.'/local/campusconnect/simpletest/enabledtests.php');
 
 class local_campusconnect_export_test extends UnitTestCase {
     protected $settings = array();

@@ -37,6 +37,7 @@ $PAGE->set_context(context_system::instance());
 
 global $CFG, $DB;
 
+$function = null;
 if (isset($_GET['fn'])) {
     $function = $_GET['fn'];
     admin_externalpage_setup('allecs');
@@ -55,7 +56,6 @@ if (isset($_GET['id'])) {
 }
 
 if (isset($_POST['addnewecs'])) {
-
     $toadd = array();
     $error = array();
 
@@ -66,8 +66,12 @@ if (isset($_POST['addnewecs'])) {
     if (!empty($_POST['name'])) {
         $toadd['name'] = $_POST['name'];
     }
+    $toadd['url'] = '';
+    if (!empty($_POST['protocol'])) {
+        $toadd['url'] .= $_POST['protocol'].'://';
+    }
     if (!empty($_POST['url'])) {
-        $toadd['url'] = $_POST['url'];
+        $toadd['url'] .= $_POST['url'];
     }
     if (!empty($_POST['port']) && is_numeric($_POST['port'])) {
         $toadd['url'] .= ':'.$_POST['port'];
@@ -170,8 +174,12 @@ if (isset($_POST['saveexistingecs'])) {
     if (!empty($_POST['name'])) {
         $tosave['name'] = $_POST['name'];
     }
+    $tosave['url'] = '';
+    if (!empty($_POST['protocol'])) {
+        $tosave['url'] .= $_POST['protocol'].'://';
+    }
     if (!empty($_POST['url'])) {
-        $tosave['url'] = $_POST['url'];
+        $tosave['url'] .= $_POST['url'];
     }
     if (!empty($_POST['port']) && is_numeric($_POST['port'])) {
         $tosave['url'] .= ':'.$_POST['port'];
@@ -270,7 +278,7 @@ if (isset($deleteid)) {
     exit;
 }
 
-if ((isset($function) && $function == 'add') || isset($_GET['id'])) {
+if (($function == 'add') || isset($_GET['id'])) {
 
 
     $roles = $DB->get_records('role');
@@ -279,8 +287,14 @@ if ((isset($function) && $function == 'add') || isset($_GET['id'])) {
         $settings = $ecssettings->get_settings();
         $post = array();
         $post['name'] = $settings->name;
-        $post['url'] = substr($settings->url, 0, strpos($settings->url, ':'));
-        $post['port'] = substr($settings->url, strpos($settings->url, ':')+1);
+        $urlparts = parse_url($settings->url);
+        if (isset($urlparts['scheme']) && $urlparts['scheme'] == 'http') {
+            $post['protocol'] = 'http';
+        } else {
+            $post['protocol'] = 'https';
+        }
+        $post['url'] = $urlparts['host'].(empty($urlparts['path']) ? '' : $urlparts['path']);
+        $post['port'] = $urlparts['port'];
         if ($settings->auth == 2) {
             $post['cc_auth'] = 'cc_auth_user';
         }
@@ -305,7 +319,7 @@ if ((isset($function) && $function == 'add') || isset($_GET['id'])) {
         $post['coursenotification'] = $settings->notifycourses;
     }
 
-    if ($function=='add' || !empty($error)) {
+    if ($function == 'add' || !empty($error)) {
         $post = $_POST;
     }
 
@@ -316,7 +330,7 @@ if ((isset($function) && $function == 'add') || isset($_GET['id'])) {
                     <legend><?php print get_string('connectionsettings', 'local_campusconnect') ?></legend>
                     <div class="fcontainer clearfix">
                     <?php
-                        if ($error['connection']) {
+                        if (!empty($error['connection'])) {
                             print '<span class="error">'
                                 .get_string('pleasefilloutallrequiredfields', 'local_campusconnect').
                             '</span>';
@@ -354,7 +368,7 @@ if ((isset($function) && $function == 'add') || isset($_GET['id'])) {
                             </div>
                             <div class="felement fselect">
                                 <select id="protocol" name="protocol">
-                                    <?php print_option(array('0'=>'HTTP', '1'=>'HTTPS'), $post['protocol']) ?>
+                                    <?php print_option(array('http'=>'HTTP', 'https'=>'HTTPS'), $post['protocol']) ?>
                                 </select>
                             </div>
                         </div>
@@ -380,7 +394,7 @@ if ((isset($function) && $function == 'add') || isset($_GET['id'])) {
                                     &nbsp;
                                     <input type="radio" onclick="cc_switchAuthCert();"
                                                             <?php
-                                                            if ($post['cc_auth'] == 'cc_auth_cert' || !isset($post['cc_auth'])) {
+                                                            if (!isset($post['cc_auth']) || $post['cc_auth'] == 'cc_auth_cert') {
                                                                 print 'checked';
                                                             }
                                                             ?>
@@ -388,12 +402,12 @@ if ((isset($function) && $function == 'add') || isset($_GET['id'])) {
                                     <?php print get_string('certificatebase', 'local_campusconnect') ?>
                                     <div id="cc_auth_cert"
                                         <?php
-                                            if ($post['cc_auth'] == 'cc_auth_user') {
+                                        if (isset($post['cc_auth']) && $post['cc_auth'] == 'cc_auth_user') {
                                                 print 'style="display: none"';
                                             }
                                         ?> class="clearfix">
                                         <?php
-                                            if ($error['certauth']) {
+                                            if (!empty($error['certauth'])) {
                                                 print '<span class="error">'.
                                                     get_string('pleasefilloutallrequiredfields', 'local_campusconnect').
                                                 '</span>';
@@ -453,19 +467,19 @@ if ((isset($function) && $function == 'add') || isset($_GET['id'])) {
                                     &nbsp;
                                     <input type="radio" onclick="cc_switchAuthUser();"
                                     <?php
-                                        if ($post['cc_auth'] == 'cc_auth_user') {
+                                         if (isset($post['cc_auth']) && $post['cc_auth'] == 'cc_auth_user') {
                                             print 'checked';
                                         }
                                     ?> name="cc_auth" value="cc_auth_user" />
                                     <?php print get_string('usernamepassword', 'local_campusconnect') ?>
                                     <div id="cc_auth_user"
                                         <?php
-                                            if ($post['cc_auth'] == 'cc_auth_cert' || !isset($post['cc_auth'])) {
+                                            if (!isset($post['cc_auth']) || $post['cc_auth'] == 'cc_auth_cert') {
                                                 print 'style="display:none"';
                                             }
                                         ?> class="clearfix">
                                         <?php
-                                            if ($error['userauth']) {
+                                            if (!empty($error['userauth'])) {
                                                 print '<span class="error">'
                                                     .get_string('pleasefilloutallrequiredfields', 'local_campusconnect').
                                                 '</span>';
@@ -516,7 +530,7 @@ if ((isset($function) && $function == 'add') || isset($_GET['id'])) {
                     <legend><?php print get_string('localsettings', 'local_campusconnect') ?></legend>
                     <div class="fcontainer clearfix">
                     <?php
-                        if ($error['category']) {
+                        if (!empty($error['category'])) {
                             print '<span class="error">'
                                 .get_string('pleasefilloutallrequiredfields', 'local_campusconnect').
                             '</span>';
@@ -582,7 +596,7 @@ if ((isset($function) && $function == 'add') || isset($_GET['id'])) {
                                         foreach ($roles as $role) {
                                             $optroles[$role->shortname] = $role->name;
                                         }
-                                        print_option($optroles, $_POST['roleassignment']);
+                                        print_option($optroles, $post['roleassignment']);
                                     ?>
                                 </select>
                             </div>

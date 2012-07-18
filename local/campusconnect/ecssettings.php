@@ -96,7 +96,7 @@ class campusconnect_ecssettings {
                 $ecsid = count($unittestecs) + 1;
                 $unittestecs[$ecsid] = $unittest;
             }
-            $this->url = 'http://172.16.0.51:3000';
+            $this->url = 'http://localhost:3000';
             $this->auth = self::AUTH_NONE;
             $this->ecsauth = $unittest;
             $this->recordid = -$ecsid;
@@ -235,8 +235,15 @@ class campusconnect_ecssettings {
         }
 
         // Check the settings are valid.
-        if (empty($settings->url) && empty($this->url)) {
-            throw new coding_exception("campusconnect_ecssettings - missing 'url' field");
+        if (empty($settings->url)) {
+            if (empty($this->url)) {
+                throw new coding_exception("campusconnect_ecssettings - missing 'url' field");
+            }
+        } else {
+            $scheme = parse_url($settings->url, PHP_URL_SCHEME);
+            if ($scheme != 'http' && $scheme != 'https') {
+                throw new coding_exception("campusconnect_ecssettings - URL must start 'http://' or 'https://'");
+            }
         }
 
         if (isset($settings->auth)) {

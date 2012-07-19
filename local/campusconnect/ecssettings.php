@@ -42,10 +42,10 @@ class campusconnect_ecssettings {
     protected $keypass = '';
 
     // Settings for incoming data
-    protected $crontime = 0;
+    protected $crontime = 60;
     protected $lastcron = 0;
     protected $importcategory = null;
-    protected $importrole = null;
+    protected $importrole = 'student';
     protected $importperiod = 6;
 
     // Notification details

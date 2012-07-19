@@ -37,22 +37,16 @@ $PAGE->set_context(context_system::instance());
 
 global $CFG, $DB;
 
-$function = null;
-if (isset($_GET['fn'])) {
-    $function = $_GET['fn'];
+$function = optional_param('fn', null, PARAM_TEXT);
+$deleteid = optional_param('delete', null, PARAM_INT);
+$ecsid = optional_param('id', $deleteid, PARAM_INT);
+
+$ecssettings = new campusconnect_ecssettings($ecsid);
+
+if ($function) {
     admin_externalpage_setup('allecs');
-}
-
-if (isset($_GET['delete'])) {
-    $deleteid = $_GET['delete'];
-    $ecssettings = new campusconnect_ecssettings($_GET['id']);
-    admin_externalpage_setup('ecs'.$_GET['delete']);
-
-}
-
-if (isset($_GET['id'])) {
-    $ecssettings = new campusconnect_ecssettings($_GET['id']);
-    admin_externalpage_setup('ecs'.$_GET['id']);
+} else if ($ecsid) {
+    admin_externalpage_setup('ecs'.$ecsid);
 }
 
 if (isset($_POST['addnewecs'])) {
@@ -273,53 +267,64 @@ echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('pluginname', 'local_campusconnect'));
 
 if (isset($deleteid)) {
-    print 'TODO';
+
+    echo "TODO - are you sure?";
+
+    //$ecssettings->delete();
+
     echo $OUTPUT->footer();
     exit;
 }
 
 if (($function == 'add') || isset($_GET['id'])) {
 
-
     $roles = $DB->get_records('role');
 
-    if (isset($_GET['id'])) {
-        $settings = $ecssettings->get_settings();
-        $post = array();
-        $post['name'] = $settings->name;
-        $urlparts = parse_url($settings->url);
-        if (isset($urlparts['scheme']) && $urlparts['scheme'] == 'http') {
-            $post['protocol'] = 'http';
-        } else {
-            $post['protocol'] = 'https';
-        }
-        $post['url'] = $urlparts['host'].(empty($urlparts['path']) ? '' : $urlparts['path']);
-        $post['port'] = $urlparts['port'];
-        if ($settings->auth == 2) {
-            $post['cc_auth'] = 'cc_auth_user';
-        }
-        if ($settings->auth == 3) {
-            $post['cc_auth'] = 'cc_auth_cert';
-        }
-        $post['cc_auth_cert']['clientcert'] = $settings->certpath;
-        $post['cc_auth_cert']['certkey'] = $settings->keypath;
-        $post['cc_auth_cert']['keypass'] = $settings->keypass;
-        $post['cc_auth_cert']['cacert'] = $settings->cacertpath;
-        $post['cc_auth_user']['username'] = $settings->httpuser;
-        $post['cc_auth_user']['password'] = $settings->httppass;
-        $minutes = floor($settings->crontime/60);
-        $seconds = $settings->crontime - ($minutes*60);
-        $post['pollingtime']['mm'] = $minutes;
-        $post['pollingtime']['ss'] = $seconds;
-        $post['importid'] = $settings->importcategory;
-        $post['roleassignment'] = $settings->importrole;
-        $post['duration']['MM'] = $settings->importperiod;
-        $post['usernotification'] = $settings->notifyusers;
-        $post['contentnotification'] = $settings->notifycontent;
-        $post['coursenotification'] = $settings->notifycourses;
+    $settings = $ecssettings->get_settings();
+    $post = array();
+    $post['name'] = $settings->name;
+    $urlparts = parse_url($settings->url);
+    if (isset($urlparts['scheme']) && $urlparts['scheme'] == 'http') {
+        $post['protocol'] = 'http';
+    } else {
+        $post['protocol'] = 'https';
     }
+    $post['url'] = '';
+    if (!empty($urlparts['host'])) {
+        $post['url'] .= $urlparts['host'];
+    }
+    if (!empty($urlparts['path'])) {
+        $post['url'] .= $urlparts['path'];
+    }
+    if (!empty($urlparts['port'])) {
+        $post['port'] = $urlparts['port'];
+    } else {
+        $post['port'] = '';
+    }
+    if ($settings->auth == 2) {
+        $post['cc_auth'] = 'cc_auth_user';
+    }
+    if ($settings->auth == 3) {
+        $post['cc_auth'] = 'cc_auth_cert';
+    }
+    $post['cc_auth_cert']['clientcert'] = $settings->certpath;
+    $post['cc_auth_cert']['certkey'] = $settings->keypath;
+    $post['cc_auth_cert']['keypass'] = $settings->keypass;
+    $post['cc_auth_cert']['cacert'] = $settings->cacertpath;
+    $post['cc_auth_user']['username'] = $settings->httpuser;
+    $post['cc_auth_user']['password'] = $settings->httppass;
+    $minutes = floor($settings->crontime/60);
+    $seconds = $settings->crontime - ($minutes*60);
+    $post['pollingtime']['mm'] = $minutes;
+    $post['pollingtime']['ss'] = $seconds;
+    $post['importid'] = $settings->importcategory;
+    $post['roleassignment'] = $settings->importrole;
+    $post['duration']['MM'] = $settings->importperiod;
+    $post['usernotification'] = $settings->notifyusers;
+    $post['contentnotification'] = $settings->notifycontent;
+    $post['coursenotification'] = $settings->notifycourses;
 
-    if ($function == 'add' || !empty($error)) {
+    if (!empty($error)) {
         $post = $_POST;
     }
 

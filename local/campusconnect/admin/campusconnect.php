@@ -22,17 +22,18 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-    require_once('../config.php');
-    require_once($CFG->libdir.'/adminlib.php');
-    require_once($CFG->dirroot.'/local/campusconnect/lib.php');
+require_once(dirname(__FILE__).'/../../../config.php');
 
-    admin_externalpage_setup('campusconnectsettings');
+require_once($CFG->libdir.'/adminlib.php');
+require_once($CFG->dirroot.'/local/campusconnect/lib.php');
 
-    echo $OUTPUT->header();
-    echo $OUTPUT->heading(get_string('pluginname', 'local_campusconnect'));
+admin_externalpage_setup('campusconnectsettings');
 
-    print 'Campus Connect Settings';
+echo $OUTPUT->header();
+echo $OUTPUT->heading(get_string('pluginname', 'local_campusconnect'));
 
-    print '<br /><br />TODO';
+print 'Campus Connect Settings';
 
-    echo $OUTPUT->footer();
+print '<br /><br />TODO';
+
+echo $OUTPUT->footer();

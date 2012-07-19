@@ -22,16 +22,15 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-require_once('../../config.php');
+require_once(dirname(__FILE__).'/../../../config.php');
+
 require_once($CFG->libdir.'/adminlib.php');
 require_once($CFG->dirroot.'/local/campusconnect/connect.php');
-require_once($CFG->dirroot.'/admin/campusconnect/lib.php');
 
-defined('MOODLE_INTERNAL') || die();
 require_login();
 require_capability('moodle/site:config', get_context_instance(CONTEXT_SYSTEM));
 
-$PAGE->set_url('/admin/campusconnect/participants.php');
+$PAGE->set_url(new moodle_url('/local/campusconnect/admin/participants.php'));
 $PAGE->set_context(context_system::instance());
 
 admin_externalpage_setup('campusconnectparticipants');
@@ -41,6 +40,9 @@ $ecslist = campusconnect_ecssettings::list_ecs();
 if (isset($_POST['saveparticipants'])) {
 
     foreach ($ecslist as $ecsid => $ecs) {
+
+        // FIXME - this will try to process every participant against every ECS, rather
+        // than just processing the participants that are related to that ECS
 
         foreach ($_POST['participants'] as $mid => $settings) {
 
@@ -57,7 +59,6 @@ if (isset($_POST['saveparticipants'])) {
             }
             $tosave['importtype'] = $settings['importtype'];
             $psettings->save_settings($tosave);
-
         }
     }
 }
@@ -65,11 +66,14 @@ if (isset($_POST['saveparticipants'])) {
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('pluginname', 'local_campusconnect'));
 
+$importopts = array(campusconnect_participantsettings::IMPORT_LINK => get_string('ecscourselink', 'local_campusconnect'),
+                    campusconnect_participantsettings::IMPORT_COURSE => get_string('course', 'local_campusconnect'),
+                    campusconnect_participantsettings::IMPORT_CMS => get_string('campusmanagement', 'local_campusconnect'));
+
 foreach ($ecslist as $ecsid => $ecs) {
     $settings = new campusconnect_ecssettings($ecsid);
     $connect = new campusconnect_connect($settings);
     $communities = $connect->get_memberships();
-    $resources = $connect->get_resource_list();
     print "<h3>$ecs</h3>";
     print '<hr>';
     print '<form action="" method="POST">';
@@ -114,13 +118,9 @@ foreach ($ecslist as $ecsid => $ecs) {
                 print 'checked';
             }
             print " type='checkbox' value='1' name='participants[$participant->mid][export]' /></td>";
-            print "<td style='text-align: center'>
-                <select name='participants[$participant->mid][importtype]'>";
-                print_option(
-                    array('1'=>get_string('ecscourselink', 'local_campusconnect'),
-                            '2'=>get_string('course', 'local_campusconnect'),
-                            '3'=>get_string('campusmanagement', 'local_campusconnect')), $participant->importtype);
-            print '</select></td>';
+            print "<td style='text-align: center'>";
+            echo html_writer::select($importopts, "participants[$participant->mid][importtype]", $participant->importtype, '');
+            print '</td>';
             print '</tr>';
         }
         print '</tbody></table>';

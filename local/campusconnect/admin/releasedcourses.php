@@ -22,14 +22,12 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-require_once('../../config.php');
+require_once(dirname(__FILE__).'/../../../config.php');
+
 require_once($CFG->libdir.'/adminlib.php');
 require_once($CFG->dirroot.'/local/campusconnect/connect.php');
-require_once($CFG->dirroot.'/admin/campusconnect/lib.php');
 
-defined('MOODLE_INTERNAL') || die();
-
-$PAGE->set_url('/admin/campusconnect/releasedcourses.php');
+$PAGE->set_url(new moodle_url('/local/campusconnect/admin/releasedcourses.php'));
 $PAGE->set_context(context_system::instance());
 
 admin_externalpage_setup('campusconnectreleasedcourses');

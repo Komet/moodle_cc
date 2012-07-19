@@ -22,17 +22,15 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-require_once('../../config.php');
+require_once(dirname(__FILE__).'/../../../config.php');
+
 require_once($CFG->libdir.'/adminlib.php');
 require_once($CFG->dirroot.'/local/campusconnect/connect.php');
-require_once($CFG->dirroot.'/admin/campusconnect/lib.php');
-
-defined('MOODLE_INTERNAL') || die();
 
 require_login();
 require_capability('moodle/site:config', get_context_instance(CONTEXT_SYSTEM));
 
-$PAGE->set_url('/admin/campusconnect/ecs.php');
+$PAGE->set_url(new moodle_url('/local/campusconnect/admin/ecs.php'));
 $PAGE->set_context(context_system::instance());
 
 global $CFG, $DB;
@@ -42,6 +40,20 @@ $deleteid = optional_param('delete', null, PARAM_INT);
 $ecsid = optional_param('id', $deleteid, PARAM_INT);
 
 $ecssettings = new campusconnect_ecssettings($ecsid);
+
+// FIXME - remove this function completely, once all calls replaced with
+// html_writer::select OR (better) moodle_form elements
+function print_option($array, $post, $default = null) {
+    ($post = $post or $post = $default);
+
+    foreach ($array as $value => $display) {
+        print "<option value='$value' ";
+        if ($post==$value) {
+            print 'selected';
+        }
+        print ">$display</option>";
+    }
+}
 
 if ($function) {
     admin_externalpage_setup('allecs');

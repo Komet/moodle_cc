@@ -46,7 +46,7 @@ $string['coursenotificationdesc'] = 'Enter one or more usernames of users (comma
 $string['currentassignments'] = 'Current Assignments';
 $string['daterange'] = 'Date Range';
 $string['ecs'] = 'ECS';
-$string['ecscourselink'] = 'ECS Course Link';
+$string['ecscourselink'] = 'Course Link';
 $string['ecsdatamapping'] = 'ECS Data Mapping';
 $string['ecserror_body'] = 'An error occurred whilst attempting to connect to the ECS server \'{$a->ecsname}\' ({$a->ecsid}). The error was:
 {$a->msg}';

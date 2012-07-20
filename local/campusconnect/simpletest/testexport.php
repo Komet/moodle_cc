@@ -93,10 +93,10 @@ class local_campusconnect_export_test extends UnitTestCase {
     public function tearDown() {
         // Delete all resources (just in case).
         foreach ($this->connect as $connect) {
-            $courselinks = $connect->get_resource_list();
+            $courselinks = $connect->get_resource_list(campusconnect_export::RES_COURSELINK);
             foreach ($courselinks->get_ids() as $eid) {
                 // All courselinks were created by 'unittest1'.
-                $this->connect[1]->delete_resource($eid);
+                $this->connect[1]->delete_resource($eid, campusconnect_event::RES_COURSELINK);
             }
         }
 
@@ -232,12 +232,12 @@ class local_campusconnect_export_test extends UnitTestCase {
 
     public function test_update_ecs_empty() {
         // Check that there are no courses currently exported.
-        $result = $this->connect[2]->get_resource_list();
+        $result = $this->connect[2]->get_resource_list(campusconnect_export::RES_COURSELINK);
         $this->assertFalse($result->get_ids(), 'Expected there to be no exported courses');
 
         // Update the ECS with exported courses - should be nothing to export.
         campusconnect_export::update_ecs($this->connect[1]);
-        $result = $this->connect[2]->get_resource_list();
+        $result = $this->connect[2]->get_resource_list(campusconnect_export::RES_COURSELINK);
         $this->assertFalse($result->get_ids(), 'Expected there to still be no exported courses');
     }
 
@@ -266,21 +266,21 @@ class local_campusconnect_export_test extends UnitTestCase {
         $export->set_export($potential[2]->get_identifier(), true);
 
         // Check there are still no exported courses.
-        $result = $this->connect[2]->get_resource_list();
+        $result = $this->connect[2]->get_resource_list(campusconnect_export::RES_COURSELINK);
         $this->assertFalse($result->get_ids(), 'Expected there to be no exported courses for ECS 2');
-        $result = $this->connect[3]->get_resource_list();
+        $result = $this->connect[3]->get_resource_list(campusconnect_export::RES_COURSELINK);
         $this->assertFalse($result->get_ids(), 'Expected there to be no exported courses for ECS 3');
 
         // Update the ECS.
         campusconnect_export::update_ecs($this->connect[1], $coursedata);
 
         // Check the expected course is now available.
-        $result = $this->connect[3]->get_resource_list();
+        $result = $this->connect[3]->get_resource_list(campusconnect_export::RES_COURSELINK);
         $this->assertFalse($result->get_ids(), 'Expected there to still be no exported courses for ECS 3');
-        $result = $this->connect[2]->get_resource_list();
+        $result = $this->connect[2]->get_resource_list(campusconnect_export::RES_COURSELINK);
         $ids = $result->get_ids();
         $this->assertEqual(count($ids), 1, 'Expected there to now be exported courses for ECS 2');
-        $result = $this->connect[2]->get_resource($ids[0], false);
+        $result = $this->connect[2]->get_resource($ids[0], campusconnect_event::RES_COURSELINK);
 
         $this->assertIsA($result, 'stdClass');
         $this->assertEqual($result->url, $CFG->wwwroot.'/course/view.php?id=-10', "Unexpected URL: {$result->url}");
@@ -293,9 +293,9 @@ class local_campusconnect_export_test extends UnitTestCase {
         campusconnect_export::update_ecs($this->connect[1], $coursedata);
 
         // Check the course is no longer available.
-        $result = $this->connect[2]->get_resource_list();
+        $result = $this->connect[2]->get_resource_list(campusconnect_export::RES_COURSELINK);
         $this->assertFalse($result->get_ids(), 'Expected there to be no exported courses for ECS 2');
-        $result = $this->connect[3]->get_resource_list();
+        $result = $this->connect[3]->get_resource_list(campusconnect_export::RES_COURSELINK);
         $this->assertFalse($result->get_ids(), 'Expected there to be no exported courses for ECS 3');
     }
 }

@@ -348,7 +348,7 @@ class local_campusconnect_directorytree_test extends UnitTestCase {
         );
 
         // Add a directorytree resource
-        $eid = $this->connect[1]->add_resource($dirtree, $this->community, null, campusconnect_event::RES_DIRECTORYTREE);
+        $eid = $this->connect[1]->add_resource(campusconnect_event::RES_DIRECTORYTREE, $dirtree, $this->community, null);
 
         $expecteddata = (object)array(
             'resourceid' => $eid,
@@ -398,7 +398,7 @@ class local_campusconnect_directorytree_test extends UnitTestCase {
         );
 
         // Add a directorytree resource
-        $eid = $this->connect[1]->add_resource($dirtree, $this->community, null, campusconnect_event::RES_DIRECTORYTREE);
+        $eid = $this->connect[1]->add_resource(campusconnect_event::RES_DIRECTORYTREE, $dirtree, $this->community, null);
 
         $treedata = (object)array(
             'id' => -2,

@@ -104,10 +104,10 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
 
         // Delete all resources (just in case).
         foreach ($this->connect as $connect) {
-            $courselinks = $connect->get_resource_list();
+            $courselinks = $connect->get_resource_list(campusconnect_export::RES_COURSELINK);
             foreach ($courselinks->get_ids() as $eid) {
                 // All courselinks were created by 'unittest1'.
-                $this->connect[1]->delete_resource($eid);
+                $this->connect[1]->delete_resource($eid, campusconnect_event::RES_COURSELINK);
             }
         }
 
@@ -135,7 +135,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         global $DB;
 
         // Add a resource to the community
-        $eid = $this->connect[1]->add_resource($this->resources[1], $this->community);
+        $eid = $this->connect[1]->add_resource(campusconnect_event::RES_COURSELINK, $this->resources[1], $this->community);
 
         // Set up the expectations - 3 records inserted, none deleted/updated
         $DB->expectNever('update_record');
@@ -170,7 +170,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         $this->assertEqual($result, false);
 
         // Update the resource.
-        $this->connect[1]->update_resource($eid, $this->resources[2], $this->community);
+        $this->connect[1]->update_resource($eid, campusconnect_event::RES_COURSELINK, $this->resources[2], $this->community);
 
         // Check there is an event in the queue on the server.
         $result = $this->connect[2]->read_event_fifo();
@@ -185,7 +185,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         $this->assertEqual($result, false);
 
         // Delete the resource.
-        $this->connect[1]->delete_resource($eid);
+        $this->connect[1]->delete_resource($eid, campusconnect_event::RES_COURSELINK);
 
         // Check there is an event in the queue on the server.
         $result = $this->connect[2]->read_event_fifo();
@@ -207,8 +207,8 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         $DB->expectNever('delete_records');
 
         // Create two resources.
-        $eid = $this->connect[1]->add_resource($this->resources[1], $this->community);
-        $eid2 = $this->connect[1]->add_resource($this->resources[2], $this->community);
+        $eid = $this->connect[1]->add_resource(campusconnect_event::RES_COURSELINK, $this->resources[1], $this->community);
+        $eid2 = $this->connect[1]->add_resource(campusconnect_event::RES_COURSELINK, $this->resources[2], $this->community);
 
         // Check there is at least one event in the queue on the server.
         $result = $this->connect[2]->read_event_fifo();
@@ -240,7 +240,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         // Send courselink from server 1 to server 2 and check that a course
         // and courselink is correctly created on server 2
 
-        $eid = $this->connect[1]->add_resource($this->resources[1], $this->community);
+        $eid = $this->connect[1]->add_resource(campusconnect_event::RES_COURSELINK, $this->resources[1], $this->community);
 
         // Mock up the event in the queue (adding events already tested above)
         $eventdata = (object)array('id' => 1,
@@ -283,7 +283,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         // Send courselink from server 1 to server 2 and check that a course
         // and courselink is correctly created on server 2
 
-        $eid = $this->connect[1]->add_resource($this->resources[1], $this->community);
+        $eid = $this->connect[1]->add_resource(campusconnect_event::RES_COURSELINK, $this->resources[1], $this->community);
 
         // Mock up the event in the queue (adding events already tested above)
         $eventdata = (object)array('id' => 1,
@@ -312,7 +312,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         // Update a courselink sent by server 1 and received by server 2
         // and check course and courselink are correctly updated
 
-        $eid = $this->connect[1]->add_resource($this->resources[1], $this->community);
+        $eid = $this->connect[1]->add_resource(campusconnect_event::RES_COURSELINK, $this->resources[1], $this->community);
 
         // Mock up the event in the queue (adding events already tested above)
         $eventdata = (object)array('id' => 1,
@@ -389,7 +389,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         // Update a courselink sent by server 1 and received by server 2
         // and check course and courselink are correctly updated
 
-        $eid = $this->connect[1]->add_resource($this->resources[1], $this->community);
+        $eid = $this->connect[1]->add_resource(campusconnect_event::RES_COURSELINK, $this->resources[1], $this->community);
 
         // Mock up the event in the queue (adding events already tested above)
         $eventdata = (object)array('id' => 1,

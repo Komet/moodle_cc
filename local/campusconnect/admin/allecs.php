@@ -64,7 +64,7 @@ foreach ($ecslist as $ecsid => $ecs) {
     print '<tr>';
     $connection = new campusconnect_connect($ecsdetails);
     try {
-        $idtest = $connection->get_resource_list();
+        $idtest = $connection->get_resource_list(campusconnect_event::RES_COURSELINK);
         print "<td style='text-align: center'>YES</td>";
     } catch (Exception $e) {
         print '<td style="text-align: center">NO</td>';

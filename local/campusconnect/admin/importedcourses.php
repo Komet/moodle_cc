@@ -55,14 +55,14 @@ foreach ($ecslist as $ecsid => $ecsname) {
     $ecssettings = new campusconnect_ecssettings($ecsid);
     $connect = new campusconnect_connect($ecssettings);
     try {
-        $resources = $connect->get_resource_list();
+        $resources = $connect->get_resource_list(campusconnect_event::RES_COURSELINK);
     } catch (Exception $e) {
         continue;
     }
     $resources = $resources->get_ids();
 
     foreach ($resources as $id) {
-        $resource = $connect->get_resource($id);
+        $resource = $connect->get_resource($id, campusconnect_event::RES_COURSELINK);
         print '<tr>';
         print "<td>{$resource->title}</td>";
         print "<td>{$resource->url}</td>";

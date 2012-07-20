@@ -167,9 +167,10 @@ class campusconnect_connect {
 
     /**
      * Get a list of available resources on the remote VLEs
+     * @param str $type the type of resource to load (see campusconnect_event for list)
      * @return array of links to get further details about each resource
      */
-    public function get_resource_list($type = campusconnect_event::RES_COURSELINK) {
+    public function get_resource_list($type) {
         if (!campusconnect_event::is_valid_resource($type)) {
             throw new coding_error("get_resource_list: unknown resource type $type");
         }
@@ -186,11 +187,12 @@ class campusconnect_connect {
     /**
      * Get an individual resource
      * @param int $id of the resource to retrieve
+     * @param str $type the type of resource to load (see campusconnect_event for list)
      * @param bool $detailsonly optional - if true then retrieves the delivery
      *                           details for the resource, false for the contents
      * @return object the details retrieved
      */
-    public function get_resource($id, $detailsonly = false, $type = campusconnect_event::RES_COURSELINK) {
+    public function get_resource($id, $type, $detailsonly = false) {
         if (!campusconnect_event::is_valid_resource($type)) {
             throw new coding_error("get_resource: unknown resource type $type");
         }
@@ -214,12 +216,13 @@ class campusconnect_connect {
 
     /**
      * Add a resource that other VLEs can retrieve
+     * @param str $type the type of resource to load (see campusconnect_event for list)
      * @param object $post the details of the resource to create
      * @param string $targetcommunityids a comma-separated list of community IDs that have access to this resource
      * @param string $targetmids a comma-separated list of participant IDs that have access to this resource
      * @result int the id that this resource has been allocated on the ECS
      */
-    public function add_resource($post, $targetcommunityids = null, $targetmids = null, $type = campusconnect_event::RES_COURSELINK) {
+    public function add_resource($type, $post, $targetcommunityids = null, $targetmids = null) {
         if (!campusconnect_event::is_valid_resource($type)) {
             throw new coding_error("add_resource: unknown resource type $type");
         }
@@ -253,12 +256,13 @@ class campusconnect_connect {
     /**
      * Update a previously shared resource
      * @param int $id the id allocated when the resource was first posted
+     * @param str $type the type of resource to load (see campusconnect_event for list)
      * @param object $post the new details
      * @param string $targetcommunityids a comma-separated list of community IDs that have access to this resource
      * @param string $targetmids a comma-separated list of participant IDs that have access to this resource
      * @return object the response from the ECS server
      */
-    public function update_resource($id, $post, $targetcommunityids = null, $targetmids = null, $type = campusconnect_event::RES_COURSELINK) {
+    public function update_resource($id, $type, $post, $targetcommunityids = null, $targetmids = null) {
         if (!campusconnect_event::is_valid_resource($type)) {
             throw new coding_error("update_resource: unknown resource type $type");
         }
@@ -302,9 +306,10 @@ class campusconnect_connect {
     /**
      * Delete a previously shared resource
      * @param int $id the id allocated when the resource was first posted
+     * @param str $type the type of resource to load (see campusconnect_event for list)
      * @return object the response from the server
      */
-    public function delete_resource($id, $type = campusconnect_event::RES_COURSELINK) {
+    public function delete_resource($id, $type) {
         if (!campusconnect_event::is_valid_resource($type)) {
             throw new coding_error("delete_resource: unknown resource type $type");
         }

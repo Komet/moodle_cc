@@ -188,8 +188,8 @@ class campusconnect_receivequeue {
 
         // Retrieve the resource.
         $connect = new campusconnect_connect($settings);
-        $resource = $connect->get_resource($event->get_resource_id());
-        $details = new campusconnect_details($connect->get_resource($event->get_resource_id(), true));
+        $resource = $connect->get_resource($event->get_resource_id(), campusconnect_event::RES_COURSELINK);
+        $details = new campusconnect_details($connect->get_resource($event->get_resource_id(), campusconnect_event::RES_COURSELINK, true));
 
         // Process the create/update event.
         if ($status == campusconnect_event::STATUS_CREATED) {
@@ -228,8 +228,8 @@ class campusconnect_receivequeue {
 
         // Retrieve the resource.
         $connect = new campusconnect_connect($settings);
-        $resource = $connect->get_resource($event->get_resource_id(), false, campusconnect_event::RES_DIRECTORYTREE);
-        $details = new campusconnect_details($connect->get_resource($event->get_resource_id(), true, campusconnect_event::RES_DIRECTORYTREE));
+        $resource = $connect->get_resource($event->get_resource_id(), campusconnect_event::RES_DIRECTORYTREE);
+        $details = new campusconnect_details($connect->get_resource($event->get_resource_id(), campusconnect_event::RES_DIRECTORYTREE, true));
 
         // Process the create/update event.
         if ($status == campusconnect_event::STATUS_CREATED) {

@@ -350,7 +350,7 @@ class campusconnect_directorytree {
         $connect = new campusconnect_connect($ecssettings);
         $resources = $connect->get_resource_list(campusconnect_event::RES_DIRECTORYTREE);
         foreach ($resources->get_ids() as $resourceid) {
-            $directory = $connect->get_resource($resourceid, false, campusconnect_event::RES_DIRECTORYTREE);
+            $directory = $connect->get_resource($resourceid, campusconnect_event::RES_DIRECTORYTREE);
             if ($directory->parent->id) {
                 // Not a root directory.
                 campusconnect_directory::check_update_directory($resourceid, $directory);

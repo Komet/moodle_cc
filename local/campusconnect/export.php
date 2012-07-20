@@ -268,7 +268,7 @@ class campusconnect_export {
         foreach ($updated as $export) {
             if ($export->status == self::STATUS_DELETED) {
                 // Delete from ECS server, then delete local record.
-                $connect->delete_resource($export->resourceid);
+                $connect->delete_resource($export->resourceid, campusconnect_event::RES_COURSELINK);
                 $DB->delete_records('local_campusconnect_export', array('id' => $export->id));
                 continue;
             }
@@ -286,10 +286,10 @@ class campusconnect_export {
 
             // Update ECS server.
             if ($export->status == self::STATUS_CREATED) {
-                $resourceid = $connect->add_resource($data, null, $export->mids);
+                $resourceid = $connect->add_resource(campusconnect_event::RES_COURSELINK, $data, null, $export->mids);
             }
             if ($export->status == self::STATUS_UPDATED) {
-                $connect->update_resource($export->resourceid, $data, null, $export->mids);
+                $connect->update_resource($export->resourceid, campusconnect_event::RES_COURSELINK, $data, null, $export->mids);
             }
 
             // Update local export record.
@@ -356,7 +356,7 @@ class campusconnect_export {
         $metadata = new campusconnect_metadata($connect->get_settings());
 
         // Check all the resources on the server against our local list.
-        $resources = $connect->get_resource_list();
+        $resources = $connect->get_resource_list(campusconnect_export::RES_COURSELINK);
         foreach ($resources->get_ids() as $resourceid) {
             $details = $connect->get_resouce($resourceid, true);
             if (!in_array($details->senders[0]->mid, $mymids)) {
@@ -366,7 +366,7 @@ class campusconnect_export {
             if (!array_key_exists($resourceid, $exportedresourceids)) {
                 // This VLE does not have that course - need remove from ECS.
                 // (Not that this should ever happen).
-                $connect->delete_resource($resourceid);
+                $connect->delete_resource($resourceid, campusconnect_event::RES_COURSELINK);
                 $ret->deleted[] = $resourceid;
             } else {
                 // Course is present in VLE and on ECS - update with latest details.
@@ -384,7 +384,7 @@ class campusconnect_export {
                 if (!$mids) {
                     // None of the recipients are in the same community any more
                     // => delete the resource from ECS and local export list.
-                    $connect->delete_resource($resourceid);
+                    $connect->delete_resource($resourceid, campusconnect_event::RES_COURSELINK);
                     $DB->delete_record('local_campusconnect_export', array('id' => $exportedcourses[$resourceid]->id));
                     unset($exportedcourses[$resourceid]);
                     $ret->deleted[] = $resourceid;
@@ -394,7 +394,7 @@ class campusconnect_export {
                     $url = new moodle_url('/course/view.php', array('id' => $course->id));
                     $data->url = $url->out();
 
-                    $connect->update_resource($resourceid, $data, null, $mids);
+                    $connect->update_resource($resourceid, campusconnect_event::RES_COURSELINK, $data, null, $mids);
 
                     $exportedcourses[$resourceid]->updated = true;
                     $ret->updated[] = $resourceid;
@@ -417,7 +417,7 @@ class campusconnect_export {
             $url = new moodle_url('/course/view.php', array('id' => $course->id));
             $data->url = $url->out();
 
-            $resourceid = $connect->add_resource($data, null, $mids);
+            $resourceid = $connect->add_resource(campusconnect_event::RES_COURSELINK, $data, null, $mids);
 
             $upd = new stdClass();
             $upd->id = $exportedcourse->id;
@@ -444,7 +444,7 @@ class campusconnect_export {
             foreach ($exports as $export) {
                 if ($export->status != self::STATUS_CREATED) {
                     try {
-                        $connect->delete_resource($export->resourceid);
+                        $connect->delete_resource($export->resourceid, campusconnect_event::RES_COURSELINK);
                         $DB->delete_record('local_campusconnect_export', array('id' => $export->id));
                     } catch (Exception $e) {
                         if (!$force) {

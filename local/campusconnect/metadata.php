@@ -36,7 +36,7 @@ class campusconnect_metadata {
                                            'startdate' => 'date', 'lang' => 'lang',
                                            'timecreated' => 'date', 'timemodified' => 'date');
 
-    protected static $remotefieldsext = array('url' => 'url', 'destinationForDisplay' => 'string',
+    protected static $remotefieldsext = array('destinationForDisplay' => 'string',
                                               'lang' => 'lang', 'hoursPerWeek' => 'string',
                                               'id' => 'string', 'number' => 'string',
                                               'term' => 'string', 'credits' => 'string',
@@ -77,6 +77,33 @@ class campusconnect_metadata {
 
     // Default export mappings
     protected $exportmappings = array(
+        'organisation' => '',
+        'id' => '',
+        'term' => '',
+        'number' => '',
+        'title' => '{fullname}',
+        'courseType' => '',
+        'hoursPerWeek' => '',
+        'maxParticipants' => '',
+        'parallelGroupScenario' => '',
+        'lecturers' => '',
+        'degreeProgrammes' => '',
+        'comment1' => '',
+        'comment2' => '',
+        'comment3' => '',
+        'recommendedReading' => '',
+        'prerequisites' => '',
+        'courseAssessmentMethod' => '',
+        'courseTopics' => '',
+        'linkToCurriculum' => '',
+        'targetAudience' => '',
+        'links' => '',
+        'linkToCourse' => '',
+        'modules' => ''
+    );
+
+    // Default external export mappings
+    protected $exportmappingsext = array(
         'destinationForDisplay' => '',
         'lang' => 'lang',
         'hoursPerWeek' => '',
@@ -247,6 +274,8 @@ class campusconnect_metadata {
             // Clear the defaults for these, as no suitable fields for 'internal course' mapping.
             $this->importmappings['startdate'] = '';
             $this->importmappings['lang'] = '';
+        } else {
+            $this->exportmappings = $this->exportmappingsext;
         }
 
         $remotefields = $this->external ? self::$remotefieldsext : self::$remotefields;

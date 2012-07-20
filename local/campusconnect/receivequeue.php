@@ -27,6 +27,7 @@ defined('MOODLE_INTERNAL') || die();
 require_once($CFG->dirroot.'/local/campusconnect/connect.php');
 require_once($CFG->dirroot.'/local/campusconnect/event.php');
 require_once($CFG->dirroot.'/local/campusconnect/courselink.php');
+require_once($CFG->dirroot.'/local/campusconnect/directorytree.php');
 require_once($CFG->dirroot.'/local/campusconnect/details.php');
 
 class campusconnect_receivequeue_exception extends moodle_exception {
@@ -206,6 +207,10 @@ class campusconnect_receivequeue {
      * @return bool true if successful
      */
     protected function process_directorytree_event(campusconnect_event $event) {
+        if (!campusconnect_directorytree::enabled()) {
+            return true; // Mapping disabled.
+        }
+
         $settings = new campusconnect_ecssettings($event->get_ecs_id());
         $status = $event->get_status();
 
@@ -223,8 +228,8 @@ class campusconnect_receivequeue {
 
         // Retrieve the resource.
         $connect = new campusconnect_connect($settings);
-        $resource = $connect->get_resource($event->get_resource_id());
-        $details = new campusconnect_details($connect->get_resource($event->get_resource_id(), true));
+        $resource = $connect->get_resource($event->get_resource_id(), false, campusconnect_event::RES_DIRECTORYTREE);
+        $details = new campusconnect_details($connect->get_resource($event->get_resource_id(), true, campusconnect_event::RES_DIRECTORYTREE));
 
         // Process the create/update event.
         if ($status == campusconnect_event::STATUS_CREATED) {

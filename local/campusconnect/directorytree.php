@@ -27,7 +27,6 @@ defined('MOODLE_INTERNAL') || die();
 class campusconnect_directorytree_exception extends moodle_exception {
     function __construct($msg) {
         parent::__construct('error', 'local_campusconnect', '', $msg);
-        $this->email_admin($msg);
     }
 }
 
@@ -56,6 +55,7 @@ class campusconnect_directorytree {
     protected static $dbfields = array('resourceid', 'rootid', 'title', 'ecsid', 'mid', 'categoryid', 'mappingmode',
                                        'takeovertitle', 'takeoverposition', 'takeoverallocation');
     protected static $createemptycategories = null;
+    protected static $enabled = null;
 
     public function __construct($data = null) {
         if ($data) {
@@ -277,9 +277,26 @@ class campusconnect_directorytree {
 
     public static function should_create_empty_categories() {
         if (is_null(self::$createemptycategories)) {
-            self::$createemptycategories = get_config('createemptycategories', 'local_campusconnect');
+            self::$createemptycategories = get_config('local_campusconnect', 'createemptycategories');
         }
         return self::$createemptycategories;
+    }
+
+    public static function enabled() {
+        if (is_null(self::$enabled)) {
+            self::$enabled = get_config('local_campusconnect', 'directorymappingenabled');
+        }
+        return self::$enabled;
+    }
+
+    public static function set_enabled($enabled) {
+        set_config('directorymappingenabled', $enabled, 'local_campusconnect');
+        self::$enabled = $enabled;
+    }
+
+    public static function set_create_empty_categories($enabled) {
+        set_config('createemptycategories', $enabled, 'local_campusconnect');
+        self::$createemptycategories = $enabled;
     }
 
     /**
@@ -295,11 +312,27 @@ class campusconnect_directorytree {
     }
 
     /**
+     * Get a single directory tree, identified by its rootid
+     * @param int $rootid
+     * @return campusconnect_directorytree
+     */
+    public static function get_by_root_id($rootid) {
+        global $DB;
+
+        $tree = $DB->get_record('local_campusconnect_dirroot', array('rootid' => $rootid), '*', MUST_EXIST);
+        return new campusconnect_directorytree($tree);
+    }
+
+    /**
      * Full update of all directory trees from ECS
      * @return void
      */
     public static function refresh_from_ecs() {
         global $DB;
+
+        if (!self::enabled()) {
+            return; // Mapping disabled.
+        }
 
         if (! $cms = campusconnect_participantsettings::get_cms_participant()) {
             return;
@@ -369,7 +402,7 @@ class campusconnect_directorytree {
         $mid = $details->get_sender_mid();
         $ecsid = $ecssettings->get_id();
         $cms = campusconnect_participantsettings::get_cms_participant();
-        if ($cms->get_mid() != $mid || $cms->get_ecs_id() != $ecsid) {
+        if (!$cms || $cms->get_mid() != $mid || $cms->get_ecs_id() != $ecsid) {
             throw new campusconnect_directorytree_exception("Received create directory event from non-CMS participant");
         }
 
@@ -405,7 +438,7 @@ class campusconnect_directorytree {
         $mid = $details->get_sender_mid();
         $ecsid = $ecssettings->get_id();
         $cms = campusconnect_participantsettings::get_cms_participant();
-        if ($cms->get_mid() != $mid || $cms->get_ecs_id() != $ecsid) {
+        if (!$cms || $cms->get_mid() != $mid || $cms->get_ecs_id() != $ecsid) {
             throw new campusconnect_directorytree_exception("Received update directory event from non-CMS participant");
         }
 

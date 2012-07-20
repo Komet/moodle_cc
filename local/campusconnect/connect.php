@@ -206,7 +206,7 @@ class campusconnect_connect {
 
         $result = $this->call();
         if (!$this->check_status(self::HTTP_CODE_OK)) {
-            throw new campusconnect_connect_exception('get_resource - bad response: '.$this->get_status());
+            throw new campusconnect_connect_exception('get_resource - bad response: '.$this->get_status()." ($resourcepath)");
         }
 
         return $this->parse_json($result);

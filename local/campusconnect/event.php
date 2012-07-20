@@ -117,6 +117,6 @@ class campusconnect_event {
     }
 
     public static function is_valid_status($status) {
-        return in_array($type, self::$validstatus);
+        return in_array($status, self::$validstatus);
     }
 }

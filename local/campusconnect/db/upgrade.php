@@ -280,5 +280,18 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2012071801, 'local', 'campusconnect');
     }
 
+    if ($oldversion < 2012071900) {
+
+        // Changing precision of field type on table local_campusconnect_eventin to (50)
+        $table = new xmldb_table('local_campusconnect_eventin');
+        $field = new xmldb_field('type', XMLDB_TYPE_CHAR, '50', null, null, null, null, 'id');
+
+        // Launch change of precision for field type
+        $dbman->change_field_precision($table, $field);
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012071900, 'local', 'campusconnect');
+    }
+
     return true;
 }

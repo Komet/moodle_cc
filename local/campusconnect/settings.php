@@ -66,4 +66,7 @@ if ($hassiteconfig) {
                                                         get_string('releasedcourses', 'local_campusconnect'),
                                                         new moodle_url('/local/campusconnect/admin/releasedcourses.php')));
 
+    $ADMIN->add('campusconnect', new admin_externalpage('campusconnectdirectorymapping',
+                                                        get_string('directorymapping', 'local_campusconnect'),
+                                                        new moodle_url('/local/campusconnect/admin/directorytree.php')));
 }

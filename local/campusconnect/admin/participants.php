@@ -49,6 +49,8 @@ foreach ($ecslist as $ecsid => $ecsname) {
 }
 
 if (optional_param('saveparticipants', false, PARAM_TEXT)) {
+    require_sesskey();
+
     // Array of participant identifiers that were included in this update.
     $updateparticipants = required_param_array('updateparticipants', PARAM_TEXT);
     // Array of participant identifiers to export to.
@@ -150,6 +152,9 @@ if ($error) {
                 echo html_writer::empty_tag('input', array('type' => 'hidden',
                                                            'name' => 'updateparticipants[]',
                                                            'value' => $participant->get_identifier()));
+                echo html_writer::empty_tag('input', array('type' => 'hidden',
+                                                           'name' => 'sesskey',
+                                                           'value' => sesskey()));
                 print '</td>';
                 print '</tr>';
             }

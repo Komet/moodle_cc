@@ -30,19 +30,34 @@ require_once($CFG->dirroot.'/local/campusconnect/directorytree.php');
 class campusconnect_directorymapping_form extends moodleform {
     public function definition() {
         $mform = $this->_form;
+        $dirtree = $this->_customdata['dirtree'];
 
-        $enabled = campusconnect_directorytree::enabled();
-        $createemptycategories = campusconnect_directorytree::should_create_empty_categories();
+        $statuses = array(
+            campusconnect_directorytree::MODE_PENDING => get_string('modepending', 'local_campusconnect'),
+            campusconnect_directorytree::MODE_WHOLE => get_string('modewhole', 'local_campusconnect'),
+            campusconnect_directorytree::MODE_MANUAL => get_string('modemanual', 'local_campusconnect'),
+            campusconnect_directorytree::MODE_DELETED => get_string('modedeleted', 'local_campusconnect')
+        );
+        $mode = $dirtree->get_mode();
 
         $mform->addElement('header', 'general', get_string('directorytreesettings', 'local_campusconnect'));
 
-        $mform->addElement('static', 'warning', '', 'TODO - replace this with the correct form');
+        $mform->addElement('static', 'staticrootid', get_string('cmsrootid', 'local_campusconnect'), $dirtree->get_root_id());
+        $mform->addElement('static', 'staticstatus', get_string('treestatus', 'local_campusconnect'), $statuses[$mode]);
 
-        $mform->addElement('selectyesno', 'enabled', get_string('activatenodemapping', 'local_campusconnect'));
-        $mform->setDefault('enabled', $enabled);
-        $mform->addElement('selectyesno', 'createemptycategories', get_string('createemptycategories', 'local_campusconnect'));
-        $mform->setDefault('createemptycategories', $createemptycategories);
-        $mform->addHelpButton('createemptycategories', 'createemptycategories', 'local_campusconnect');
+        $mform->addElement('selectyesno', 'takeovertitle', get_string('takeovertitle', 'local_campusconnect'));
+        $mform->setDefault('takeovertitle', $dirtree->should_take_over_title());
+
+        if ($mode == campusconnect_directorytree::MODE_PENDING ||
+            $mode == campusconnect_directorytree::MODE_WHOLE) {
+            $mform->addElement('selectyesno', 'takeoverposition', get_string('takeoverposition', 'local_campusconnect'));
+            $mform->setDefault('takeoverposition', $dirtree->should_take_over_position());
+
+            $mform->addElement('selectyesno', 'takeoverallocation', get_string('takeoverallocation', 'local_campusconnect'));
+            $mform->setDefault('takeoverallocation', $dirtree->should_take_over_allocation());
+        }
+
+        $mform->addElement('hidden', 'rootid', $dirtree->get_root_id());
 
         $this->add_action_buttons();
     }

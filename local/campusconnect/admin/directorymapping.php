@@ -41,17 +41,15 @@ require_once($CFG->dirroot.'/local/campusconnect/admin/directorymapping_form.php
 $rootid = required_param('rootid', PARAM_INT);
 $dirtree = campusconnect_directorytree::get_by_root_id($rootid);
 
+admin_externalpage_setup('campusconnectdirectorymapping');
 $PAGE->set_url(new moodle_url('/local/campusconnect/admin/directorymapping.php', array('rootid' => $rootid)));
 
-admin_externalpage_setup('campusconnectdirectorymapping');
-
-$form = new campusconnect_directorymapping_form();
+$form = new campusconnect_directorymapping_form(null, array('dirtree' => $dirtree));
 if ($form->is_cancelled()) {
     redirect($PAGE->url); // Will clear the settings back to their previous values.
 }
 if ($data = $form->get_data()) {
-    campusconnect_directorytree::set_enabled($data->enabled);
-    campusconnect_directorytree::set_create_empty_categories($data->createemptycategories);
+    $dirtree->update_settings($data);
     redirect($PAGE->url); // To remove the POST params from the page load.
 }
 
@@ -82,7 +80,7 @@ $table->data = array($row);
 echo $OUTPUT->header();
 
 $form->display();
-echo $OUTPUT->heading(get_string('directorytrees', 'local_campusconnect'));
+echo $OUTPUT->heading(get_string('directorymapping', 'local_campusconnect'));
 echo html_writer::table($table);
 
 echo $OUTPUT->footer();

@@ -293,5 +293,28 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2012071900, 'local', 'campusconnect');
     }
 
+   if ($oldversion < 2012072000) {
+        // Define index rootid (unique) to be added to local_campusconnect_dirroot
+        $table = new xmldb_table('local_campusconnect_dirroot');
+        $index = new xmldb_index('rootid', XMLDB_INDEX_UNIQUE, array('rootid'));
+
+        // Conditionally launch add index rootid
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Define index rootid (not unique) to be added to local_campusconnect_dir
+        $table = new xmldb_table('local_campusconnect_dir');
+        $index = new xmldb_index('rootid', XMLDB_INDEX_NOTUNIQUE, array('rootid'));
+
+        // Conditionally launch add index rootid
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012072000, 'local', 'campusconnect');
+    }
+
     return true;
 }

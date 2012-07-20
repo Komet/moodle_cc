@@ -35,30 +35,43 @@ $PAGE->set_context(context_system::instance());
 
 admin_externalpage_setup('campusconnectparticipants');
 
+$error = array();
 $ecslist = campusconnect_ecssettings::list_ecs();
+$allcommunities = array();
+foreach ($ecslist as $ecsid => $ecsname) {
+    $settings = new campusconnect_ecssettings($ecsid);
+    try {
+        $allcommunities[$ecsname] = campusconnect_participantsettings::load_communities($settings);
+    } catch (campusconnect_connect_exception $e) {
+        $ecslist = array();
+        $error[$ecsname] = $e->getMessage();
+    }
+}
 
-if (isset($_POST['saveparticipants'])) {
+if (optional_param('saveparticipants', false, PARAM_TEXT)) {
+    // Array of participant identifiers that were included in this update.
+    $updateparticipants = required_param_array('updateparticipants', PARAM_TEXT);
+    // Array of participant identifiers to export to.
+    $export = optional_param_array('export', array(), PARAM_TEXT);
+    // Array of participant identifiers to import from.
+    $import = optional_param_array('import', array(), PARAM_TEXT);
+    // Array of import types (indexed by participant identifiers).
+    $importtypes = required_param_array('importtype', PARAM_TEXT);
 
-    foreach ($ecslist as $ecsid => $ecs) {
+    foreach ($allcommunities as $communities) {
+        foreach ($communities as $community) {
+            foreach ($community->participants as $identifier => $participant) {
+                if (!in_array($identifier, $updateparticipants)) {
+                    continue; // This participant was not in the list being updated.
+                }
 
-        // FIXME - this will try to process every participant against every ECS, rather
-        // than just processing the participants that are related to that ECS
+                $tosave = new stdClass;
+                $tosave->import = in_array($identifier, $import);
+                $tosave->export = in_array($identifier, $export);
+                $tosave->importtype = $importtypes[$identifier];
 
-        foreach ($_POST['participants'] as $mid => $settings) {
-
-            $psettings = new campusconnect_participantsettings($ecsid, $mid);
-            if (isset($settings['import'])) {
-                $tosave['import'] = 1;
-            } else {
-                $tosave['import'] = 0;
+                $participant->save_settings($tosave);
             }
-            if (isset($settings['export'])) {
-                $tosave['export'] = 1;
-            } else {
-                $tosave['export'] = 0;
-            }
-            $tosave['importtype'] = $settings['importtype'];
-            $psettings->save_settings($tosave);
         }
     }
 }
@@ -70,68 +83,84 @@ $importopts = array(campusconnect_participantsettings::IMPORT_LINK => get_string
                     campusconnect_participantsettings::IMPORT_COURSE => get_string('course', 'local_campusconnect'),
                     campusconnect_participantsettings::IMPORT_CMS => get_string('campusmanagement', 'local_campusconnect'));
 
-foreach ($ecslist as $ecsid => $ecs) {
-    $settings = new campusconnect_ecssettings($ecsid);
-    $connect = new campusconnect_connect($settings);
-    $communities = $connect->get_memberships();
-    print "<h3>$ecs</h3>";
-    print '<hr>';
-    print '<form action="" method="POST">';
-    foreach ($communities as $community) {
-        print "<h4>{$community->community->name}</h4>";
-        print '<table class="generaltable" width="100%">
+$strparticipants = get_string('participants', 'local_campusconnect');
+$strfurtherinformation = get_string('furtherinformation', 'local_campusconnect');
+$strexport = get_string('export', 'local_campusconnect');
+$strimport = get_string('import', 'local_campusconnect');
+$strimporttype = get_string('importtype', 'local_campusconnect');
+
+$strprovider = get_string('provider', 'local_campusconnect');
+$strdomain = get_string('domainname', 'local_campusconnect');
+$stremail = get_string('email', 'local_campusconnect');
+$strabbr = get_string('abbr', 'local_campusconnect');
+$strpartid = get_string('partid', 'local_campusconnect');
+
+$strsavechanges = get_string('savechanges');
+$strcancel = get_string('cancel');
+
+if ($error) {
+    foreach ($error as $ecsname => $errormessage) {
+        echo $OUTPUT->notification($ecsname.': '.get_string('errorparticipants', 'local_campusconnect', $errormessage));
+    }
+
+} else {
+    foreach ($allcommunities as $ecs => $communities) {
+        print "<h3>$ecs</h3>";
+        print '<hr>';
+        print '<form action="" method="POST">';
+        foreach ($communities as $community) {
+            print "<h4>{$community->name}</h4>";
+            print '<table class="generaltable" width="100%">
         <thead>
             <tr>
-                <th class="header c0">Participants</th>
-                <th class="header c1">Further Information</th>
-                <th class="header c2">Export</th>
-                <th class="header c3">Import</th>
-                <th class="header c4 lastcol">Import Type</th>
+                <th class="header c0">'.$strparticipants.'</th>
+                <th class="header c1">'.$strfurtherinformation.'</th>
+                <th class="header c2">'.$strexport.'</th>
+                <th class="header c3">'.$strimport.'</th>
+                <th class="header c4 lastcol">'.$strimporttype.'</th>
             </tr>
         </thead>
         <tbody>';
-        foreach ($community->participants as $participant) {
-            $psettings = new campusconnect_participantsettings($ecsid, $participant->mid);
-            $participant->import = $psettings->is_import_enabled();
-            $participant->export = $psettings->is_export_enabled();
-            $participant->importtype = $psettings->get_import_type();
-            print '<tr><td><h4';
-            if ($participant->itsyou == 1) {
-                print ' style="color: blue"';
+            foreach ($community->participants as $participant) {
+                print '<tr><td><h4';
+                if ($participant->is_me()) {
+                    print ' class="itsme"';
+                }
+                print '>';
+                print s($participant->get_name());
+                print '</h4></td><td>';
+                print "<strong>{$strprovider}:</strong> ".$participant->get_organisation()."<br />";
+                print "<strong>{$strdomain}:</strong> ".$participant->get_domain()."<br />";
+                print "<strong>{$stremail}:</strong> ".$participant->get_email()."<br />";
+                print "<strong>{$strabbr}:</strong> ".$participant->get_organisation_abbr()."<br />";
+                print "<strong>{$strpartid}:</strong> ".$participant->get_identifier();
+                print '</td>';
+                print "<td style='text-align: center'>";
+                echo html_writer::checkbox('export[]', $participant->get_identifier(),
+                                           $participant->is_export_enabled());
+                echo '</td>';
+                print "<td style='text-align: center'>";
+                echo html_writer::checkbox('import[]', $participant->get_identifier(),
+                                           $participant->is_import_enabled());
+                echo '</td>';
+                print "<td style='text-align: center'>";
+                echo html_writer::select($importopts, 'importtype['.$participant->get_identifier().']',
+                                         $participant->get_import_type(), '');
+
+                echo html_writer::empty_tag('input', array('type' => 'hidden',
+                                                           'name' => 'updateparticipants[]',
+                                                           'value' => $participant->get_identifier()));
+                print '</td>';
+                print '</tr>';
             }
-            print '>';
-            print $participant->name;
-            print '</h4></td><td>';
-                print "<strong>Provider:</strong> {$participant->org->name}<br />";
-                print "<strong>Domainname:</strong> {$participant->dns}<br />";
-                print "<strong>E-Mail:</strong> {$participant->email}<br />";
-                print "<strong>Abbreviation:</strong> {$participant->org->abbr}<br />";
-                print "<strong>Participant ID:</strong> {$ecsid}_{$participant->mid}";
-            print '</td>';
-            print "<td style='text-align: center'><input ";
-            if ($participant->import) {
-                print 'checked';
-            }
-            print " type='checkbox' value='1' name='participants[$participant->mid][import]' /></td>";
-            print "<td style='text-align: center'><input ";
-            if ($participant->export) {
-                print 'checked';
-            }
-            print " type='checkbox' value='1' name='participants[$participant->mid][export]' /></td>";
-            print "<td style='text-align: center'>";
-            echo html_writer::select($importopts, "participants[$participant->mid][importtype]", $participant->importtype, '');
-            print '</td>';
-            print '</tr>';
+            print '</tbody></table>';
         }
-        print '</tbody></table>';
-    }
-    print '<div style="float: right;">
-        <input type="submit" name="saveparticipants" value="'.get_string('savechanges').'" />
-        <input onclick="window.location.reload( true );" type="button" value="'.get_string('cancel').'" />
+        print '<div style="float: right;">
+        <input type="submit" name="saveparticipants" value="'.$strsavechanges.'" />
+        <input onclick="window.location.reload( true );" type="button" value="'.$strcancel.'" />
     </div>';
-    print '</form>';
-
+        print '</form>';
+    }
 }
-
 
 echo $OUTPUT->footer();

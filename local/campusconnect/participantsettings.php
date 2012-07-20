@@ -51,12 +51,13 @@ class campusconnect_participantsettings {
     protected $email = null;
     protected $org = null;
     protected $orgabbr = null;
+    protected $itsyou = null;
 
     // Flagged as being exported in the current course.
     protected $exported = null;
 
     protected static $validsettings = array('export', 'import', 'importtype');
-    protected static $ecssettings = array('name', 'description', 'dns', 'email', 'org', 'orgabbr', 'communityname');
+    protected static $ecssettings = array('name', 'description', 'dns', 'email', 'org', 'orgabbr', 'communityname', 'itsyou');
 
     /**
      * @param mixed $ecsidordata either the ID of the ECS or an object containing
@@ -141,6 +142,10 @@ class campusconnect_participantsettings {
 
     public function get_organisation_abbr() {
         return $this->orgabbr;
+    }
+
+    public function is_me() {
+        return ($this->itsyou == true);
     }
 
     public function is_exported() {
@@ -350,7 +355,7 @@ class campusconnect_participantsettings {
                 $mid = $participant->mid;
                 $participant->communityname = $comm->name;
                 $part = new campusconnect_participantsettings($ecsid, $mid, $participant);
-                $comm->participants[$mid] = $part;
+                $comm->participants[$part->get_identifier()] = $part;
             }
 
             $resp[$community->community->cid] = $comm;

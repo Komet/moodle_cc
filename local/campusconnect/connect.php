@@ -190,7 +190,7 @@ class campusconnect_connect {
      * @param str $type the type of resource to load (see campusconnect_event for list)
      * @param bool $detailsonly optional - if true then retrieves the delivery
      *                           details for the resource, false for the contents
-     * @return object the details retrieved
+     * @return mix object | false the details retrieved
      */
     public function get_resource($id, $type, $detailsonly = false) {
         if (!campusconnect_event::is_valid_resource($type)) {
@@ -208,7 +208,8 @@ class campusconnect_connect {
 
         $result = $this->call();
         if (!$this->check_status(self::HTTP_CODE_OK)) {
-            throw new campusconnect_connect_exception('get_resource - bad response: '.$this->get_status()." ($resourcepath)");
+            //throw new campusconnect_connect_exception('get_resource - bad response: '.$this->get_status()." ($resourcepath)");
+            return false; // Resource does not exist on the server.
         }
 
         return $this->parse_json($result);

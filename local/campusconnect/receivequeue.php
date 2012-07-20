@@ -142,25 +142,31 @@ class campusconnect_receivequeue {
      * @param campusconnect_ecssettings $ecsid optional - if provided, only process events from the specified ECS server
      */
     public function process_queue(campusconnect_ecssettings $ecssettings = null) {
+        $fixcourses = false;
+
         while ($event = $this->get_event_from_queue($ecssettings)) {
             switch ($event->get_resource_type()) {
             case campusconnect_event::RES_COURSELINK:
-                $result = $this->process_courselink_event($event);
+                $this->process_courselink_event($event);
+                $fixcourses = true;
                 break;
             case campusconnect_event::RES_DIRECTORYTREE:
-                $result = $this->process_directorytree_event($event);
+                $this->process_directorytree_event($event);
                 break;
             default:
                 throw new campusconnect_receivequeue_exception("Unknown event resource: ".$event->get_resource_type());
                 break;
             }
-            if ($result) {
-                $this->remove_event_from_queue($event);
-            }
+
+            $this->remove_event_from_queue($event);
         }
 
         // Check if any new categories need to be created.
         campusconnect_directory::process_new_directories();
+
+        if ($fixcourses) {
+            rebuild_course_sortorder();
+        }
     }
 
     /**
@@ -229,7 +235,11 @@ class campusconnect_receivequeue {
         // Retrieve the resource.
         $connect = new campusconnect_connect($settings);
         $resource = $connect->get_resource($event->get_resource_id(), campusconnect_event::RES_DIRECTORYTREE);
-        $details = new campusconnect_details($connect->get_resource($event->get_resource_id(), campusconnect_event::RES_DIRECTORYTREE, true));
+        if ($resource) {
+            $details = new campusconnect_details($connect->get_resource($event->get_resource_id(), campusconnect_event::RES_DIRECTORYTREE, true));
+        } else {
+            return true; // The resource no longer exists - assume we will process the 'delete' event in a moment.
+        }
 
         // Process the create/update event.
         if ($status == campusconnect_event::STATUS_CREATED) {

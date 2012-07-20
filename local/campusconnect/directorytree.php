@@ -92,6 +92,28 @@ class campusconnect_directorytree {
         return $this->takeoverallocation;
     }
 
+    public function update_settings($newsettings) {
+        global $DB;
+
+        $newsettings = (array)$newsettings;
+        $newsettings = (object)$newsettings;
+
+        if (isset($newsettings->takeovertitle) && $newsettings->takeovertitle != $this->takeovertitle) {
+            $this->update_field('takeovertitle', $newsettings->takeovertitle);
+            if ($this->takeovertitle && $this->categoryid) {
+                $DB->set_field('course_categories', 'name', $this->title, array('id' => $this->categoryid));
+            }
+        }
+
+        if (isset($newsettings->takeoverposition) && $newsettings->takeoverposition != $this->takeoverposition) {
+            $this->update_field('takeoverposition', $newsettings->takeoverposition);
+        }
+
+        if (isset($newsettings->takeoverallocation) && $newsettings->takeoverallocation != $this->takeoverallocation) {
+            $this->update_field('takeoverallocation', $newsettings->takeoverallocation);
+        }
+    }
+
     /**
      * Used during ECS updates to track any trees that no longer
      * exist on the ECS server
@@ -164,16 +186,18 @@ class campusconnect_directorytree {
             throw new coding_exception("Cannot change the title of deleted directory trees");
         }
 
+        if (empty($title)) {
+            throw new coding_exception("Directory tree title cannot be empty");
+        }
+
         if ($title == $this->title) {
             return;
         }
 
         $this->update_field('title', $title);
 
-        if ($this->categoryid) {
-            if ($this->takeovertitle) {
-                $DB->set_field('course_categories', 'name', $title, array('id' => $this->categoryid));
-            }
+        if ($this->categoryid && $this->takeovertitle) {
+            $DB->set_field('course_categories', 'name', $title, array('id' => $this->categoryid));
         }
     }
 
@@ -409,7 +433,8 @@ class campusconnect_directorytree {
         $isdirectorytree = $directory->parent->id ? false : true;
         if ($isdirectorytree) {
             if ($DB->record_exists('local_campusconnect_dirroot', array('rootid' => $directory->rootID))) {
-                throw new campusconnect_directorytree_exception("Cannot create a directory tree root node {$directory->rootID} - it already exists.");
+                return self::update_directory($resourceid, $ecssettings, $directory, $details);
+                //throw new campusconnect_directorytree_exception("Cannot create a directory tree root node {$directory->rootID} - it already exists.");
             }
 
             $tree = new campusconnect_directorytree();
@@ -417,12 +442,15 @@ class campusconnect_directorytree {
 
         } else {
             if ($DB->record_exists('local_campusconnect_dir', array('directoryid' => $directory->id))) {
-                throw new campusconnect_directorytree_exception("Cannot create a directory tree {$directory->id} - it already exists.");
+                return self::update_directory($resourceid, $ecssettings, $directory, $details);
+                //throw new campusconnect_directorytree_exception("Cannot create a directory tree {$directory->id} - it already exists.");
             }
 
             $dir = new campusconnect_directory();
             $dir->create($resourceid, $directory->rootID, $directory->id, $directory->parent->id, $directory->title, $directory->order);
         }
+
+        return true;
     }
 
     /**
@@ -461,6 +489,8 @@ class campusconnect_directorytree {
             $dir->set_title($directory->title);
             $dir->set_order($directory->order);
         }
+
+        return true;
     }
 
     /**
@@ -475,17 +505,18 @@ class campusconnect_directorytree {
         if ($dirtree) {
             $dirtree = new campusconnect_directorytree($dirtree);
             $dirtree->delete();
-            return;
+            return true;
         }
 
         $dir = $DB->get_record('local_campusconnect_dir', array('resourceid' => $resourceid));
         if ($dir) {
             $dir = new campusconnect_directory($dir);
             $dir->delete();
-            return;
+            return true;
         }
 
         // Not found - but don't worry about it.
+        return true;
     }
 }
 
@@ -568,6 +599,51 @@ class campusconnect_directory {
             }
         }
         throw new coding_exception("get_parent - parent {$this->parentid} not found for directory {$this->directoryid}");
+    }
+
+    /**
+     * Get the child directories below this one
+     * @return array of campusconnect_directory
+     */
+    public function get_children() {
+        $children = array();
+        $dirs = self::get_directories($this->rootid);
+        foreach ($dirs as $dir) {
+            if ($dir->parentid == $this->directoryid) {
+                $children[] = $dir;
+            }
+        }
+        return $children;
+    }
+
+    /**
+     * Build an unordered list element for this directory and it's children
+     * @return str HTML fragment
+     */
+    public function output_directory_tree_node($radioname, $selecteddir = null) {
+        $childnodes = '';
+        if ($children = $this->get_children()) {
+            foreach ($children as $child) {
+                $childnodes .= $child->output_directory_tree_node($radioname);
+            }
+            $childnodes = html_writer::tag('ul', $childnodes);
+        }
+        $ret = s($this->title);
+        if ($radioname) {
+            $elid = $radioname.$this->directoryid;
+            $label = html_writer::tag('label', $ret, array('for' => $elid));
+            $radioparams = array('type' => 'radio',
+                                 'name' => $radioname,
+                                 'id' => $elid,
+                                 'value' => $this->directoryid);
+            if ($selecteddir == $this->directoryid) {
+                $radioparams['checked'] = 'checked';
+            }
+            $ret = html_writer::empty_tag('input', $radioparams);
+            $ret .= ' '.$label;
+        }
+        $ret .= $childnodes;
+        return html_writer::tag('li', $ret);
     }
 
     /**
@@ -827,6 +903,84 @@ class campusconnect_directory {
     }
 
     /**
+     * Get the first level of directories for the given directory tree
+     * @param int $rootid
+     * @return array of campusconnect_directory objects
+     */
+    public static function get_toplevel_directories($rootid) {
+        $dirs = self::get_directories($rootid);
+        $tldirs = array();
+        foreach ($dirs as $dir) {
+            if ($dir->parentid == $rootid) {
+                $tldirs[] = $dir;
+            }
+        }
+        return $tldirs;
+    }
+
+    /**
+     * Output the directory tree as nested unordered lists (ready for use with YUI treeview).
+     * @param int $rootid - the tree to output
+     * @param str $radioname - optional - if set, creates radio input elements for each item
+     * @return str HTML of the lists
+     */
+    public static function output_directory_tree($dirtree, $radioname, $selecteddir = null) {
+        $childdirs = '';
+        if ($dirs = self::get_toplevel_directories($dirtree->get_root_id())) {
+            foreach ($dirs as $dir) {
+                $childdirs .= $dir->output_directory_tree_node($radioname, $selecteddir);
+            }
+            $childdirs = html_writer::tag('ul', $childdirs);
+        }
+        $elid = $radioname.$dirtree->get_root_id();
+        $label = html_writer::tag('label', s($dirtree->get_title()), array('for' => $elid));
+        $radioparams = array('type' => 'radio',
+                             'name' => $radioname,
+                             'id' => $elid,
+                             'value' => $dirtree->get_root_id(),
+                             'checked' => 'checked');
+        $ret = html_writer::empty_tag('input', $radioparams);
+        $ret .= ' '.$label;
+        $ret .= $childdirs;
+        return html_writer::tag('ul', html_writer::tag('li', $ret));
+    }
+
+    public static function output_category_tree($radioname, $selectedcategory = null) {
+        $ret = '';
+
+        $cats = get_child_categories(0);
+        foreach ($cats as $cat) {
+            $ret .= self::output_category_and_children($cat, $radioname, $selectedcategory);
+        }
+
+        return html_writer::tag('ul', $ret);
+    }
+
+    public static function output_category_and_children($category, $radioname, $selectedcategory = null) {
+        $childcats = '';
+        if ($cats = get_child_categories($category->id)) {
+            foreach ($cats as $cat) {
+                $childcats .= self::output_category_and_children($cat, $radioname, $selectedcategory);
+            }
+            $childcats = html_writer::tag('ul', $childcats);
+        }
+        $ret = s($category->name);
+        $elid = $radioname.$category->id;
+        $label = html_writer::tag('label', $ret, array('for' => $elid));
+        $radioparams = array('type' => 'radio',
+                             'name' => $radioname,
+                             'id' => $elid,
+                             'value' => $category->id);
+        if ($selectedcategory == $category->id) {
+            $radioparams['checked'] = 'checked';
+        }
+        $ret = html_writer::empty_tag('input', $radioparams);
+        $ret .= ' '.$label;
+        $ret .= $childcats;
+        return html_writer::tag('li', $ret);
+    }
+
+    /**
      * Add a newly-created directory to the cached list of directories
      * @param int $rootid
      * @param int $recordid - db id for the directory
@@ -836,7 +990,7 @@ class campusconnect_directory {
         if (isset(self::$dirs[$rootid])) {
             self::$dirs[$rootid][$recordid] = $directory;
         }
-        if (!isset($self::$newdirs[$rootid])) {
+        if (!isset(self::$newdirs[$rootid])) {
             $newdirs[$rootid] = array();
         }
         $newdirs[$rootid][$recordid] = $directory;

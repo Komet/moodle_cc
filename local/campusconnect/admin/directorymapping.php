@@ -28,15 +28,9 @@ require_once($CFG->libdir.'/adminlib.php');
 require_once($CFG->dirroot.'/local/campusconnect/directorytree.php');
 require_once($CFG->dirroot.'/local/campusconnect/admin/directorymapping_form.php');
 
-//TODO - correct settings at top of form
-
-//TODO - add form / save button / processing for mapping tree nodes
-
 //TODO - add YUI treeview
-
 //TODO - add javascript code to display mappings as they are selected
-
-//TODO - add classes to show directory tree status
+//TODO - add unmap option (preferably with non-js version)
 
 $rootid = required_param('rootid', PARAM_INT);
 $dirtree = campusconnect_directorytree::get_by_root_id($rootid);
@@ -44,6 +38,7 @@ $dirtree = campusconnect_directorytree::get_by_root_id($rootid);
 admin_externalpage_setup('campusconnectdirectorymapping');
 $PAGE->set_url(new moodle_url('/local/campusconnect/admin/directorymapping.php', array('rootid' => $rootid)));
 
+// Process the general settings form.
 $form = new campusconnect_directorymapping_form(null, array('dirtree' => $dirtree));
 if ($form->is_cancelled()) {
     redirect($PAGE->url); // Will clear the settings back to their previous values.
@@ -53,6 +48,64 @@ if ($data = $form->get_data()) {
     redirect($PAGE->url); // To remove the POST params from the page load.
 }
 
+// Process the directory mapping.
+$mappingerror = null;
+if (optional_param('mapdirectory', false, PARAM_TEXT)) {
+    require_sesskey();
+
+    $categoryid = optional_param('category', null, PARAM_INT);
+    $directoryid = optional_param('directory', null, PARAM_INT);
+
+    if (!$categoryid) {
+        $mappingerror = get_string('nocategoryselected', 'local_campusconnect');
+    } else if (!$directoryid) {
+        $mappingerror = get_string('nodirectoryselected', 'local_campusconnect');
+    } else {
+        if ($directoryid == $dirtree->get_root_id()) {
+            // Mapping the root node.
+            $dirtree->map_category($categoryid);
+
+        } else {
+            // Mapping a directory.
+            $mapdir = null;
+            $dirs = campusconnect_directory::get_directories($dirtree->get_root_id());
+            foreach ($dirs as $dir) {
+                if ($dir->get_directory_id() == $directoryid) {
+                    $mapdir = $dir;
+                    break;
+                }
+            }
+            if (!$mapdir) {
+                throw new moodle_exception('invaliddirectory', 'local_campusconnect', '', $directoryid);
+            }
+
+            $mode = $dirtree->get_mode();
+            if ($mode == campusconnect_directorytree::MODE_PENDING ||
+                $mode == campusconnect_directorytree::MODE_WHOLE) {
+
+                if (!optional_param('mappingconfirm', false, PARAM_BOOL)) {
+                    $continue = new moodle_url($PAGE->url, array('sesskey' => sesskey(),
+                                                                 'category' => $categoryid,
+                                                                 'directory' => $directoryid,
+                                                                 'mapdirectory' => 1,
+                                                                 'mappingconfirm' => 1));
+                    $cancel = $PAGE->url;
+
+                    echo $OUTPUT->header();
+                    echo $OUTPUT->confirm(get_string('manualmappingwarning', 'local_campusconnect'), $continue, $cancel);
+                    echo $OUTPUT->footer();
+                    die();
+                }
+            }
+
+            $mapdir->map_category($categoryid);
+            $dirtree->set_mode(campusconnect_directorytree::MODE_MANUAL);
+            redirect($PAGE->url);
+        }
+    }
+}
+
+// Generate the category & directory trees.
 $table = new html_table();
 $table->head = array(
     get_string('localcategories', 'local_campusconnect'),
@@ -64,7 +117,7 @@ $table->size = array(
 );
 $table->attributes = array('style' => 'width: 90%;');
 
-$categorytree = campusconnect_directory::output_category_tree('category');
+$categorytree = campusconnect_directory::output_category_tree('category', $dirtree->get_category_id());
 $categorytree = html_writer::tag('div', $categorytree, array('id' => 'campusconnect_categorytree'));
 if ($dirtree = campusconnect_directory::output_directory_tree($dirtree, 'directory')) {
     $dirtree = html_writer::tag('div', $dirtree, array('id' => 'campusconnect_dirtree'));
@@ -77,10 +130,24 @@ $row = array(
 );
 $table->data = array($row);
 
+$mappingurl = new moodle_url($PAGE->url, array('sesskey' => sesskey()));
+
+// Output everything.
 echo $OUTPUT->header();
 
 $form->display();
 echo $OUTPUT->heading(get_string('directorymapping', 'local_campusconnect'));
+
+echo html_writer::start_tag('form', array('method' => 'POST',
+                                          'action' => $mappingurl->out_omit_querystring()));
+echo html_writer::input_hidden_params($mappingurl);
+echo html_writer::empty_tag('input', array('type' => 'submit',
+                                           'name' => 'mapdirectory',
+                                           'value' => get_string('mapdirectory', 'local_campusconnect')));
+if ($mappingerror) {
+    echo ' '.$OUTPUT->error_text($mappingerror);
+}
 echo html_writer::table($table);
+echo html_writer::end_tag('form');
 
 echo $OUTPUT->footer();

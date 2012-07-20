@@ -236,6 +236,10 @@ class campusconnect_directorytree {
                 $this->create_all_categories();
             }
         }
+
+        if ($this->mappingmode == self::MODE_PENDING) {
+            $this->set_mode(self::MODE_WHOLE);
+        }
     }
 
     /**
@@ -523,7 +527,8 @@ class campusconnect_directorytree {
 class campusconnect_directory {
 
     const MAPPING_AUTOMATIC = 0;
-    const MAPPING_MANUAL = 1;
+    const MAPPING_MANUAL_PENDING = 1; // No courses within it yet.
+    const MAPPING_MANUAL = 3; // Courses now exist within it.
     const MAPPING_DELETED = 2;
 
     const STATUS_PENDING_UNMAPPED = 1000;
@@ -544,6 +549,7 @@ class campusconnect_directory {
     protected $mapping = self::MAPPING_AUTOMATIC;
 
     protected $stillexists = false; // Flag used during updates from ECS
+    protected $parent = null;
 
     protected static $dbfields = array('resourceid', 'rootid', 'directoryid', 'title', 'parentid', 'sortorder', 'categoryid', 'mapping');
 
@@ -570,15 +576,15 @@ class campusconnect_directory {
     }
 
     public function get_root_id() {
-        return $rootid;
+        return $this->rootid;
     }
 
     public function get_directory_id() {
-        return $directoryid;
+        return $this->directoryid;
     }
 
     public function get_title() {
-        return $title;
+        return $this->title;
     }
 
     /**
@@ -592,10 +598,14 @@ class campusconnect_directory {
         if ($this->parentid == $this->rootid) {
             return null;
         }
+        if ($this->parent != null) {
+            return $this->parent;
+        }
         $dirs = self::get_directories($this->rootid);
         foreach ($dirs as $dir) {
             if ($dir->get_directory_id() == $this->parentid) {
-                return $dir;
+                $this->parent = $dir;
+                return $this->parent;
             }
         }
         throw new coding_exception("get_parent - parent {$this->parentid} not found for directory {$this->directoryid}");
@@ -621,6 +631,15 @@ class campusconnect_directory {
      * @return str HTML fragment
      */
     public function output_directory_tree_node($radioname, $selecteddir = null) {
+        static $classes = array(
+            self::STATUS_PENDING_UNMAPPED => 'status_pending_unmapped',
+            self::STATUS_PENDING_AUTOMATIC => 'status_pending_automatic',
+            self::STATUS_PENDING_MANUAL => 'status_pending_manual',
+            self::STATUS_MAPPED_MANUAL => 'status_mapped_manual',
+            self::STATUS_MAPPED_AUTOMATIC => 'status_mapped_automatic',
+            self::STATUS_DELETED => 'status_deleted'
+        );
+
         $childnodes = '';
         if ($children = $this->get_children()) {
             foreach ($children as $child) {
@@ -628,7 +647,9 @@ class campusconnect_directory {
             }
             $childnodes = html_writer::tag('ul', $childnodes);
         }
-        $ret = s($this->title);
+        $status = $this->get_status();
+        $class = $classes[$status];
+        $ret = html_writer::tag('span', s($this->title), array('class' => $class));
         if ($radioname) {
             $elid = $radioname.$this->directoryid;
             $label = html_writer::tag('label', $ret, array('for' => $elid));
@@ -638,6 +659,11 @@ class campusconnect_directory {
                                  'value' => $this->directoryid);
             if ($selecteddir == $this->directoryid) {
                 $radioparams['checked'] = 'checked';
+            }
+            if ($status == self::STATUS_MAPPED_AUTOMATIC ||
+                $status == self::STATUS_DELETED ||
+                $status == self::STATUS_PENDING_AUTOMATIC) {
+                $radioparams['disabled'] = 'disabled';
             }
             $ret = html_writer::empty_tag('input', $radioparams);
             $ret .= ' '.$label;
@@ -656,11 +682,11 @@ class campusconnect_directory {
         }
 
         if ($this->mapping == self::MAPPING_MANUAL) {
-            if ($this->categoryid) {
-                return self::STATUS_MAPPED_MANUAL;
-            } else {
-                return self::STATUS_PENDING_MANUAL;
-            }
+            return self::STATUS_MAPPED_MANUAL;
+        }
+
+        if ($this->mapping == self::MAPPING_MANUAL_PENDING) {
+            return self::STATUS_PENDING_MANUAL;
         }
 
         if (! $parent = $this->get_parent()) {
@@ -675,7 +701,7 @@ class campusconnect_directory {
         if ($this->categoryid) {
             return self::STATUS_MAPPED_AUTOMATIC;
         } else {
-            return self::STATUS_MAPPED_MANUAL;
+            return self::STATUS_PENDING_AUTOMATIC;
         }
     }
 
@@ -774,9 +800,6 @@ class campusconnect_directory {
      * @param int $categoryid
      */
     public function map_category($categoryid) {
-
-        // TODO - change the dirroot mode.
-
         if ($this->categoryid && $this->mapping == self::MAPPING_AUTOMATIC) {
             throw new campusconnect_directory_exception("Cannot map directory {$this->directoryid} as it is already mapped automatically");
         }
@@ -787,6 +810,10 @@ class campusconnect_directory {
         if ($oldcategoryid) {
             // Need to move all contained courses & directories.
             self::move_category($this, $oldcategory, $newcategory);
+        }
+
+        if ($this->mapping == self::MAPPING_AUTOMATIC) {
+            $this->set_field('mapping', self::MAPPING_MANUAL_PENDING);
         }
     }
 
@@ -802,6 +829,10 @@ class campusconnect_directory {
 
         if ($this->categoryid) {
             // Directory already has an associated category - return it.
+            if ($this->mapping == self::MAPPING_MANUAL_PENDING) {
+                // Time to fix this mapping in place.
+                $this->set_field('mapping', self::MAPPING_MANUAL);
+            }
             return $this->categoryid;
         }
 
@@ -966,14 +997,17 @@ class campusconnect_directory {
         }
         $ret = s($category->name);
         $elid = $radioname.$category->id;
-        $label = html_writer::tag('label', $ret, array('for' => $elid));
+        $labelparams = array('for' => $elid,
+                             'id' => 'label'.$elid);
         $radioparams = array('type' => 'radio',
                              'name' => $radioname,
                              'id' => $elid,
                              'value' => $category->id);
         if ($selectedcategory == $category->id) {
             $radioparams['checked'] = 'checked';
+            $labelparams['class'] = 'mapped_category';
         }
+        $label = html_writer::tag('label', $ret, $labelparams);
         $ret = html_writer::empty_tag('input', $radioparams);
         $ret .= ' '.$label;
         $ret .= $childcats;
@@ -1026,11 +1060,11 @@ class campusconnect_directory {
         global $DB;
 
         // Find all directories at the top level of this tree that have not been manually mapped.
-        $dirstomove = $DB->get_records('local_campusconnect_dir', array('parent' => $directoryid,
+        $dirstomove = $DB->get_records('local_campusconnect_dir', array('parentid' => $directoryid,
                                                                         'mapping' => self::MAPPING_AUTOMATIC));
 
         // Move the category parents, as needed (checking the old parents were 'oldcategoryid').
-        foreach ($distomove as $dirtomove) {
+        foreach ($dirstomove as $dirtomove) {
             if (!$dirtomove->categoryid) {
                 continue; // Not yet mapped - nothing to do.
             }

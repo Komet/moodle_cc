@@ -1,3 +1,34 @@
 .itsme {
     color: blue;
 }
+
+#campusconnect_dirtree li,
+#campusconnect_categorytree li {
+    list-style: none;
+}
+
+#campusconnect_dirtree .status_pending_unmapped {
+    font-weight: bold;
+}
+#campusconnect_dirtree .status_pending_manual {
+    font-weight: bold;
+    font-style: italic;
+    color: #ccc;
+}
+#campusconnect_dirtree .status_pending_automatic {
+    font-style: italic;
+    color: #ccc;
+}
+#campusconnect_dirtree .status_mapped_manual {
+}
+#campusconnect_dirtree .status_mapped_automatic {
+}
+#campusconnect_dirtree .status_deleted {
+    color: red;
+    text-decoration: line-through;
+}
+
+#campusconnect_categorytree .mapped_category {
+    border: dashed green 1px;
+    padding: 0 3px;
+}

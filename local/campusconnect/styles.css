@@ -29,6 +29,13 @@
 }
 
 #campusconnect_categorytree .mapped_category {
-    border: dashed green 1px;
+    border: dashed green 2px;
     padding: 0 3px;
+}
+
+.path-admin-local-campusconnect input.submit {
+    margin-right: 5px;
+    margin-bottom: 5px;
+    padding-left: 2px;
+    padding-right: 2px;
 }

@@ -30,13 +30,28 @@ require_once($CFG->dirroot.'/local/campusconnect/admin/directorymapping_form.php
 
 //TODO - add YUI treeview
 //TODO - add javascript code to display mappings as they are selected
-//TODO - add unmap option (preferably with non-js version)
 
 $rootid = required_param('rootid', PARAM_INT);
 $dirtree = campusconnect_directorytree::get_by_root_id($rootid);
 
+$mapdirectory = optional_param('mapdirectory', false, PARAM_TEXT);
+$unmapdirectory = optional_param('unmapdirectory', false, PARAM_TEXT);
+$showmapping = optional_param('showmapping', false, PARAM_TEXT);
+$categoryid = optional_param('category', null, PARAM_INT);
+$directoryid = optional_param('directory', null, PARAM_INT);
+$showdirectory = optional_param('showdirectory', null, PARAM_INT);
+
+$url = new moodle_url('/local/campusconnect/admin/directorymapping.php', array('rootid' => $rootid));
+if ($showmapping && $directoryid) {
+    $url->param('showdirectory', $directoryid);
+    redirect($url);
+
+} else if ($showdirectory) {
+    $url->param('showdirectory', $showdirectory);
+}
 admin_externalpage_setup('campusconnectdirectorymapping');
-$PAGE->set_url(new moodle_url('/local/campusconnect/admin/directorymapping.php', array('rootid' => $rootid)));
+
+$PAGE->set_url($url);
 
 // Process the general settings form.
 $form = new campusconnect_directorymapping_form(null, array('dirtree' => $dirtree));
@@ -50,58 +65,75 @@ if ($data = $form->get_data()) {
 
 // Process the directory mapping.
 $mappingerror = null;
-if (optional_param('mapdirectory', false, PARAM_TEXT)) {
+if ($mapdirectory || $unmapdirectory) {
     require_sesskey();
 
-    $categoryid = optional_param('category', null, PARAM_INT);
-    $directoryid = optional_param('directory', null, PARAM_INT);
-
-    if (!$categoryid) {
+    if ($mapdirectory && !$categoryid) {
         $mappingerror = get_string('nocategoryselected', 'local_campusconnect');
     } else if (!$directoryid) {
         $mappingerror = get_string('nodirectoryselected', 'local_campusconnect');
     } else {
         if ($directoryid == $dirtree->get_root_id()) {
-            // Mapping the root node.
-            $dirtree->map_category($categoryid);
+            // Root node selected.
+            if ($mapdirectory) {
+                // Map.
+                $dirtree->map_category($categoryid);
+            } else {
+                // Unmap.
+                $dirtree->unmap_category();
+            }
 
         } else {
-            // Mapping a directory.
-            $mapdir = null;
-            $dirs = campusconnect_directory::get_directories($dirtree->get_root_id());
-            foreach ($dirs as $dir) {
-                if ($dir->get_directory_id() == $directoryid) {
-                    $mapdir = $dir;
-                    break;
-                }
-            }
-            if (!$mapdir) {
+            // Directory selected.
+            if (! $mapdir = $dirtree->get_directory($directoryid) ) {
                 throw new moodle_exception('invaliddirectory', 'local_campusconnect', '', $directoryid);
             }
 
-            $mode = $dirtree->get_mode();
-            if ($mode == campusconnect_directorytree::MODE_PENDING ||
-                $mode == campusconnect_directorytree::MODE_WHOLE) {
+            if ($mapdirectory) {
+                // Map.
+                $mode = $dirtree->get_mode();
+                if ($mode == campusconnect_directorytree::MODE_PENDING ||
+                    $mode == campusconnect_directorytree::MODE_WHOLE) {
 
-                if (!optional_param('mappingconfirm', false, PARAM_BOOL)) {
-                    $continue = new moodle_url($PAGE->url, array('sesskey' => sesskey(),
-                                                                 'category' => $categoryid,
-                                                                 'directory' => $directoryid,
-                                                                 'mapdirectory' => 1,
-                                                                 'mappingconfirm' => 1));
-                    $cancel = $PAGE->url;
+                    if (!optional_param('mappingconfirm', false, PARAM_BOOL)) {
+                        $continue = new moodle_url($PAGE->url, array('sesskey' => sesskey(),
+                                                                     'category' => $categoryid,
+                                                                     'directory' => $directoryid,
+                                                                     'mapdirectory' => 1,
+                                                                     'mappingconfirm' => 1));
+                        $cancel = $PAGE->url;
 
-                    echo $OUTPUT->header();
-                    echo $OUTPUT->confirm(get_string('manualmappingwarning', 'local_campusconnect'), $continue, $cancel);
-                    echo $OUTPUT->footer();
-                    die();
+                        echo $OUTPUT->header();
+                        echo $OUTPUT->confirm(get_string('manualmappingwarning', 'local_campusconnect'), $continue, $cancel);
+                        echo $OUTPUT->footer();
+                        die();
+                    }
                 }
+
+                $mapdir->map_category($categoryid);
+                $dirtree->set_mode(campusconnect_directorytree::MODE_MANUAL);
+            } else {
+                // Unmap.
+                $mapdir->unmap_category();
             }
 
-            $mapdir->map_category($categoryid);
-            $dirtree->set_mode(campusconnect_directorytree::MODE_MANUAL);
-            redirect($PAGE->url);
+            $redir = $PAGE->url;
+            $redir->param('showdirectory', $directoryid);
+            redirect($redir);
         }
+    }
+}
+
+$selecteddir = $dirtree->get_root_id();
+$selectedcat = $dirtree->get_category_id();
+if ($showdirectory) {
+    if ($showdirectory != $dirtree->get_root_id()) {
+        if (! $showdir = $dirtree->get_directory($showdirectory) ) {
+            throw new moodle_exception('invaliddirectory', 'local_campusconnect', '', $directoryid);
+        }
+
+        $selecteddir = $showdirectory;
+        $selectedcat = $showdir->get_category_id();
     }
 }
 
@@ -117,9 +149,9 @@ $table->size = array(
 );
 $table->attributes = array('style' => 'width: 90%;');
 
-$categorytree = campusconnect_directory::output_category_tree('category', $dirtree->get_category_id());
+$categorytree = campusconnect_directory::output_category_tree('category', $selectedcat);
 $categorytree = html_writer::tag('div', $categorytree, array('id' => 'campusconnect_categorytree'));
-if ($dirtree = campusconnect_directory::output_directory_tree($dirtree, 'directory')) {
+if ($dirtree = campusconnect_directory::output_directory_tree($dirtree, 'directory', $selecteddir)) {
     $dirtree = html_writer::tag('div', $dirtree, array('id' => 'campusconnect_dirtree'));
 } else {
     $dirtree = get_string('nodirectories', 'local_campusconnect');
@@ -143,7 +175,19 @@ echo html_writer::start_tag('form', array('method' => 'POST',
 echo html_writer::input_hidden_params($mappingurl);
 echo html_writer::empty_tag('input', array('type' => 'submit',
                                            'name' => 'mapdirectory',
+                                           'id' => 'mapdirectorybutton',
+                                           'class' => 'submit',
                                            'value' => get_string('mapdirectory', 'local_campusconnect')));
+echo html_writer::empty_tag('input', array('type' => 'submit',
+                                           'name' => 'unmapdirectory',
+                                           'id' => 'unmapdirectorybutton',
+                                           'class' => 'submit',
+                                           'value' => get_string('unmapdirectory', 'local_campusconnect')));
+echo html_writer::empty_tag('input', array('type' => 'submit',
+                                           'name' => 'showmapping',
+                                           'id' => 'showmappingbutton',
+                                           'class' => 'submit',
+                                           'value' => get_string('showmapping', 'local_campusconnect')));
 if ($mappingerror) {
     echo ' '.$OUTPUT->error_text($mappingerror);
 }

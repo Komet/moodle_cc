@@ -243,6 +243,23 @@ class campusconnect_directorytree {
     }
 
     /**
+     * Remove the category mapping.
+     */
+    public function unmap_category() {
+        global $DB;
+
+        if ($this->mappingmode == self::MODE_DELETED) {
+            throw new coding_exception("Cannot map deleted directory trees");
+        }
+
+        if (empty($this->categoryid)) {
+            return; // Nothing to do.
+        }
+
+        $this->update_field('categoryid', null);
+    }
+
+    /**
      * Set the mapping mode for this directory tree
      * @param int $mode - self::MODE_PENDING, self::MODE_WHOLE, self::MODE_MANUAL
      */
@@ -294,6 +311,21 @@ class campusconnect_directorytree {
 
         campusconnect_directory::delete_root_directory($this->rootid);
         $this->update_field('mappingmode', self::MODE_DELETED);
+    }
+
+    /**
+     * Retrieve a directory from within this tree
+     * @param int $directoryid
+     * @return mixed campusconnect_directory | bool - false if not found
+     */
+    public function get_directory($directoryid) {
+        $dirs = campusconnect_directory::get_directories($this->rootid);
+        foreach ($dirs as $dir) {
+            if ($dir->get_directory_id() == $directoryid) {
+                return $dir;
+            }
+        }
+        return false;
     }
 
     /**
@@ -587,6 +619,10 @@ class campusconnect_directory {
         return $this->title;
     }
 
+    public function get_category_id() {
+        return $this->categoryid;
+    }
+
     /**
      * Get the parent directory
      * @return mixed campusconnect_directory | null (if the parent is the root directory)
@@ -643,7 +679,7 @@ class campusconnect_directory {
         $childnodes = '';
         if ($children = $this->get_children()) {
             foreach ($children as $child) {
-                $childnodes .= $child->output_directory_tree_node($radioname);
+                $childnodes .= $child->output_directory_tree_node($radioname, $selecteddir);
             }
             $childnodes = html_writer::tag('ul', $childnodes);
         }
@@ -809,12 +845,24 @@ class campusconnect_directory {
 
         if ($oldcategoryid) {
             // Need to move all contained courses & directories.
-            self::move_category($this, $oldcategory, $newcategory);
+            self::move_category($this->directoryid, $oldcategoryid, $categoryid);
         }
 
         if ($this->mapping == self::MAPPING_AUTOMATIC) {
             $this->set_field('mapping', self::MAPPING_MANUAL_PENDING);
         }
+    }
+
+    /**
+     * Unmap this directory from the category.
+     */
+    public function unmap_category() {
+        if ($this->mapping != self::MAPPING_MANUAL_PENDING) {
+            throw new campusconnect_directory_exception("Unmapping of directories can only be done when mapping is pending - current mapping status: {$this->mapping}");
+        }
+
+        $this->set_field('categoryid', null);
+        $this->set_field('mapping', self::MAPPING_AUTOMATIC);
     }
 
     /**
@@ -968,8 +1016,10 @@ class campusconnect_directory {
         $radioparams = array('type' => 'radio',
                              'name' => $radioname,
                              'id' => $elid,
-                             'value' => $dirtree->get_root_id(),
-                             'checked' => 'checked');
+                             'value' => $dirtree->get_root_id());
+        if (is_null($selecteddir) || $dirtree->get_root_id() == $selecteddir) {
+            $radioparams['checked'] = 'checked';
+        }
         $ret = html_writer::empty_tag('input', $radioparams);
         $ret .= ' '.$label;
         $ret .= $childdirs;

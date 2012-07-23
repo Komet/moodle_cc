@@ -124,6 +124,7 @@ if ($mapdirectory || $unmapdirectory) {
     }
 }
 
+// Show the mapping that has been selected.
 $selecteddir = $dirtree->get_root_id();
 $selectedcat = $dirtree->get_category_id();
 if ($showdirectory) {
@@ -136,6 +137,19 @@ if ($showdirectory) {
         $selectedcat = $showdir->get_category_id();
     }
 }
+
+// Initialise the page javascript.
+$opts = array('mappings' => $dirtree->list_all_mappings());
+$jsmodule = array(
+    'name' => 'campusconnect_directorymapping',
+    'fullpath' => new moodle_url('/local/campusconnect/admin/directorymapping.js'),
+    'strings' => array(
+        array('mapdirectory', 'local_campusconnect'),
+        array('remapdirectory', 'local_campusconnect')
+    ),
+    'requires' => array('node', 'event')
+);
+$PAGE->requires->js_init_call('M.campusconnect_directorymapping.init', array($opts), true, $jsmodule);
 
 // Generate the category & directory trees.
 $table = new html_table();

@@ -329,6 +329,20 @@ class campusconnect_directorytree {
     }
 
     /**
+     * Lists all current directory => category mappings
+     * (used by the javascript front end)
+     * @return array of directoryid => categoryid
+     */
+    public function list_all_mappings() {
+        $ret = array($this->rootid => $this->categoryid);
+        $dirs = campusconnect_directory::get_directories($this->rootid);
+        foreach ($dirs as $dir) {
+            $ret[$dir->get_directory_id()] = $dir->get_category_id();
+        }
+        return $ret;
+    }
+
+    /**
      * Called if 'create empty categories' is set, to create all categories for this tree.
      */
     protected function create_all_categories() {
@@ -687,11 +701,12 @@ class campusconnect_directory {
         $class = $classes[$status];
         $ret = html_writer::tag('span', s($this->title), array('class' => $class));
         if ($radioname) {
-            $elid = $radioname.$this->directoryid;
+            $elid = $radioname.'-'.$this->directoryid;
             $label = html_writer::tag('label', $ret, array('for' => $elid));
             $radioparams = array('type' => 'radio',
                                  'name' => $radioname,
                                  'id' => $elid,
+                                 'class' => 'directoryradio',
                                  'value' => $this->directoryid);
             if ($selecteddir == $this->directoryid) {
                 $radioparams['checked'] = 'checked';
@@ -1011,11 +1026,12 @@ class campusconnect_directory {
             }
             $childdirs = html_writer::tag('ul', $childdirs);
         }
-        $elid = $radioname.$dirtree->get_root_id();
+        $elid = $radioname.'-'.$dirtree->get_root_id();
         $label = html_writer::tag('label', s($dirtree->get_title()), array('for' => $elid));
         $radioparams = array('type' => 'radio',
                              'name' => $radioname,
                              'id' => $elid,
+                             'class' => 'directoryradio',
                              'value' => $dirtree->get_root_id());
         if (is_null($selecteddir) || $dirtree->get_root_id() == $selecteddir) {
             $radioparams['checked'] = 'checked';
@@ -1046,16 +1062,18 @@ class campusconnect_directory {
             $childcats = html_writer::tag('ul', $childcats);
         }
         $ret = s($category->name);
-        $elid = $radioname.$category->id;
+        $elid = $radioname.'-'.$category->id;
         $labelparams = array('for' => $elid,
-                             'id' => 'label'.$elid);
+                             'id' => 'label'.$elid,
+                             'class' => 'categorylabel');
         $radioparams = array('type' => 'radio',
                              'name' => $radioname,
                              'id' => $elid,
+                             'class' => 'categoryradio',
                              'value' => $category->id);
         if ($selectedcategory == $category->id) {
             $radioparams['checked'] = 'checked';
-            $labelparams['class'] = 'mapped_category';
+            $labelparams['class'] .= ' mapped_category';
         }
         $label = html_writer::tag('label', $ret, $labelparams);
         $ret = html_writer::empty_tag('input', $radioparams);

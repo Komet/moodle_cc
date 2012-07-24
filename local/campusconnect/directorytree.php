@@ -690,10 +690,13 @@ class campusconnect_directory {
             self::STATUS_DELETED => 'status_deleted'
         );
 
+        $expand = false;
         $childnodes = '';
         if ($children = $this->get_children()) {
             foreach ($children as $child) {
-                $childnodes .= $child->output_directory_tree_node($radioname, $selecteddir);
+                list($childnode, $childexpand) = $child->output_directory_tree_node($radioname, $selecteddir);
+                $childnodes .= $childnode;
+                $expand = $expand || $childexpand;
             }
             $childnodes = html_writer::tag('ul', $childnodes);
         }
@@ -710,17 +713,27 @@ class campusconnect_directory {
                                  'value' => $this->directoryid);
             if ($selecteddir == $this->directoryid) {
                 $radioparams['checked'] = 'checked';
+                $expand = true;
             }
             if ($status == self::STATUS_MAPPED_AUTOMATIC ||
                 $status == self::STATUS_DELETED ||
                 $status == self::STATUS_PENDING_AUTOMATIC) {
                 $radioparams['disabled'] = 'disabled';
+            } else if ($status == self::STATUS_MAPPED_MANUAL ||
+                       $status == self::STATUS_PENDING_MANUAL) {
+                $expand = true;
             }
             $ret = html_writer::empty_tag('input', $radioparams);
             $ret .= ' '.$label;
+            $ret = html_writer::tag('span', $ret); // To stop YUI treeview getting upset.
         }
         $ret .= $childnodes;
-        return html_writer::tag('li', $ret);
+        if ($expand) {
+            $params = array('class' => 'expanded');
+        } else {
+            $params = array();
+        }
+        return array(html_writer::tag('li', $ret, $params), $expand);
     }
 
     /**
@@ -1019,10 +1032,13 @@ class campusconnect_directory {
      * @return str HTML of the lists
      */
     public static function output_directory_tree($dirtree, $radioname, $selecteddir = null) {
+        $expand = false;
         $childdirs = '';
         if ($dirs = self::get_toplevel_directories($dirtree->get_root_id())) {
             foreach ($dirs as $dir) {
-                $childdirs .= $dir->output_directory_tree_node($radioname, $selecteddir);
+                list($childdir, $childexpand) = $dir->output_directory_tree_node($radioname, $selecteddir);
+                $childdirs .= $childdir;
+                $expand = $expand || $childexpand;
             }
             $childdirs = html_writer::tag('ul', $childdirs);
         }
@@ -1038,8 +1054,13 @@ class campusconnect_directory {
         }
         $ret = html_writer::empty_tag('input', $radioparams);
         $ret .= ' '.$label;
-        $ret .= $childdirs;
-        return html_writer::tag('ul', html_writer::tag('li', $ret));
+        $ret = html_writer::tag('span', $ret).$childdirs;
+        if ($expand) {
+            $params = array('class' => 'expanded');
+        } else {
+            $params = array();
+        }
+        return html_writer::tag('ul', html_writer::tag('li', $ret, $params));
     }
 
     public static function output_category_tree($radioname, $selectedcategory = null) {

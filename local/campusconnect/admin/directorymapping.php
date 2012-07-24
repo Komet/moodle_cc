@@ -29,7 +29,6 @@ require_once($CFG->dirroot.'/local/campusconnect/directorytree.php');
 require_once($CFG->dirroot.'/local/campusconnect/admin/directorymapping_form.php');
 
 //TODO - add YUI treeview
-//TODO - add javascript code to display mappings as they are selected
 
 $rootid = required_param('rootid', PARAM_INT);
 $dirtree = campusconnect_directorytree::get_by_root_id($rootid);
@@ -52,6 +51,7 @@ if ($showmapping && $directoryid) {
 admin_externalpage_setup('campusconnectdirectorymapping');
 
 $PAGE->set_url($url);
+$PAGE->navbar->add(s($dirtree->get_title()), $PAGE->url);
 
 // Process the general settings form.
 $form = new campusconnect_directorymapping_form(null, array('dirtree' => $dirtree));
@@ -68,10 +68,11 @@ $mappingerror = null;
 if ($mapdirectory || $unmapdirectory) {
     require_sesskey();
 
-    if ($mapdirectory && !$categoryid) {
-        $mappingerror = get_string('nocategoryselected', 'local_campusconnect');
-    } else if (!$directoryid) {
+    if (!$directoryid) {
         $mappingerror = get_string('nodirectoryselected', 'local_campusconnect');
+    } else if ($mapdirectory && !$categoryid) {
+        $mappingerror = get_string('nocategoryselected', 'local_campusconnect');
+        $showdirectory = $directoryid;
     } else {
         if ($directoryid == $dirtree->get_root_id()) {
             // Root node selected.
@@ -149,6 +150,7 @@ $jsmodule = array(
     ),
     'requires' => array('node', 'event')
 );
+$PAGE->requires->yui2_lib('treeview');
 $PAGE->requires->js_init_call('M.campusconnect_directorymapping.init', array($opts), true, $jsmodule);
 
 // Generate the category & directory trees.

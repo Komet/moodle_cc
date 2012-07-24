@@ -15,6 +15,11 @@ M.campusconnect_directorymapping = {
         this.mapbutton = this.Y.one('#mapdirectorybutton');
         this.unmapbutton = this.Y.one('#unmapdirectorybutton');
 
+        // Add the treeviews
+        // Treeview and radio buttons do not play nicely together - disabling.
+        //var dirtree = new YAHOO.widget.TreeView('campusconnect_dirtree');
+        //dirtree.render();
+
         // Change mapping display when a directory is selected.
         var dirs = this.Y.one('#campusconnect_dirtree');
         dirs.all('.directoryradio').each( function(radio) {
@@ -26,10 +31,13 @@ M.campusconnect_directorymapping = {
     },
 
     radioclicked: function(e) {
+        e.stopPropagation();
+        e.stopImmediatePropagation();
         this.selectdir(e.currentTarget);
     },
 
     selectdir: function(radio) {
+        radio.set('checked', true);
         // Find the currently mapped category (if any).
         var id = radio.get('id');
         var directoryid = id.split('-')[1];

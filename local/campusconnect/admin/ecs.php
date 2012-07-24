@@ -173,7 +173,7 @@ if (isset($_POST['saveexistingecs'])) {
     $tosave = array();
     $error = array();
 
-    if (empty($_POST['name']) || empty($_POST['url']) || empty($_POST['port']) || !is_numeric($_POST['port'])) {
+    if (empty($_POST['name']) || empty($_POST['url'])) {
         $error['connection'] = 1;
     }
 

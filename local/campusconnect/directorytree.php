@@ -204,6 +204,7 @@ class campusconnect_directorytree {
     /**
      * Map this directory tree onto a course category
      * @param int $categoryid
+     * @return mixed str | null - error string if there is a problem
      */
     public function map_category($categoryid) {
         global $DB;
@@ -227,6 +228,10 @@ class campusconnect_directorytree {
             $DB->set_field('course_categories', 'name', $this->title, array('id' => $this->categoryid));
         }
 
+        if ($this->mappingmode == self::MODE_PENDING) {
+            $this->set_mode(self::MODE_WHOLE);
+        }
+
         if ($oldcategoryid) {
             // Move directories within this directory tree.
             campusconnect_directory::move_category($this->rootid, $oldcategoryid, $this->categoryid);
@@ -237,9 +242,7 @@ class campusconnect_directorytree {
             }
         }
 
-        if ($this->mappingmode == self::MODE_PENDING) {
-            $this->set_mode(self::MODE_WHOLE);
-        }
+        return null;
     }
 
     /**
@@ -342,10 +345,19 @@ class campusconnect_directorytree {
         return $ret;
     }
 
+    public function locked_mappings() {
+        $ret = array($this->rootid => false);
+        $dirs = campusconnect_directory::get_directories($this->rootid);
+        foreach ($dirs as $dir) {
+            $ret[$dir->get_directory_id()] = $dir->is_mapping_locked();
+        }
+        return $ret;
+    }
+
     /**
      * Called if 'create empty categories' is set, to create all categories for this tree.
      */
-    protected function create_all_categories() {
+    public function create_all_categories() {
         campusconnect_directory::create_all_categories($this->rootid, $this->categoryid);
     }
 
@@ -371,6 +383,13 @@ class campusconnect_directorytree {
     public static function set_create_empty_categories($enabled) {
         set_config('createemptycategories', $enabled, 'local_campusconnect');
         self::$createemptycategories = $enabled;
+        if ($enabled) {
+            $trees = self::list_directory_trees();
+            foreach ($trees as $tree) {
+                $catid = $tree->get_category_id();
+                campusconnect_directory::create_all_categories($tree->get_root_id(), $catid);
+            }
+        }
     }
 
     /**
@@ -637,6 +656,14 @@ class campusconnect_directory {
         return $this->categoryid;
     }
 
+    public function get_directory_tree() {
+        return campusconnect_directorytree::get_by_root_id($this->rootid);
+    }
+
+    public function is_mapping_locked() {
+        return ($this->mapping == self::MAPPING_MANUAL);
+    }
+
     /**
      * Get the parent directory
      * @return mixed campusconnect_directory | null (if the parent is the root directory)
@@ -674,6 +701,18 @@ class campusconnect_directory {
             }
         }
         return $children;
+    }
+
+    public function check_categoryid_mapped_by_child($categoryid) {
+        if ($this->categoryid == $categoryid) {
+            return true;
+        }
+        foreach ($this->get_children() as $child) {
+            if ($child->check_categoryid_mapped_by_child($categoryid)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -864,20 +903,41 @@ class campusconnect_directory {
      * @param int $categoryid
      */
     public function map_category($categoryid) {
+        global $DB;
+
         if ($this->categoryid && $this->mapping == self::MAPPING_AUTOMATIC) {
-            throw new campusconnect_directory_exception("Cannot map directory {$this->directoryid} as it is already mapped automatically");
+            throw new campusconnect_directorytree_exception("Cannot map directory {$this->directoryid} as it is already mapped automatically");
+        }
+
+        if ($this->categoryid == $categoryid) {
+            return; // No change.
+        }
+
+        if (! $newcategory = $DB->get_record('course_categories', array('id' => $categoryid))) {
+            throw new coding_exception("Directory tree - attempting to map onto non-existent category $categoryid");
+        }
+
+        if ($this->categoryid) {
+            if ($this->check_categoryid_mapped_by_child($categoryid)) {
+                return get_string('cannotmapsubcategory', 'local_campusconnect');
+            }
         }
 
         $oldcategoryid = $this->categoryid;
         $this->set_field('categoryid', $categoryid);
 
+        if ($this->mapping == self::MAPPING_AUTOMATIC) {
+            $this->set_field('mapping', self::MAPPING_MANUAL_PENDING);
+        }
+
         if ($oldcategoryid) {
             // Need to move all contained courses & directories.
             self::move_category($this->directoryid, $oldcategoryid, $categoryid);
-        }
-
-        if ($this->mapping == self::MAPPING_AUTOMATIC) {
-            $this->set_field('mapping', self::MAPPING_MANUAL_PENDING);
+        } else {
+            if (campusconnect_directorytree::should_create_empty_categories()) {
+                $tree = $this->get_directory_tree();
+                $tree->create_all_categories();
+            }
         }
     }
 
@@ -886,7 +946,7 @@ class campusconnect_directory {
      */
     public function unmap_category() {
         if ($this->mapping != self::MAPPING_MANUAL_PENDING) {
-            throw new campusconnect_directory_exception("Unmapping of directories can only be done when mapping is pending - current mapping status: {$this->mapping}");
+            throw new campusconnect_directorytree_exception("Unmapping of directories can only be done when mapping is pending - current mapping status: {$this->mapping}");
         }
 
         $this->set_field('categoryid', null);
@@ -903,6 +963,8 @@ class campusconnect_directory {
     public function create_category($rootcategoryid, $fixsortorder = true) {
         global $DB;
 
+        echo $this->get_title();
+
         if ($this->categoryid) {
             // Directory already has an associated category - return it.
             if ($this->mapping == self::MAPPING_MANUAL_PENDING) {
@@ -912,16 +974,17 @@ class campusconnect_directory {
             return $this->categoryid;
         }
 
-        if ($this->parent == $this->rootid) {
+        if ($this->parentid == $this->rootid) {
             // Reached the directory tree root - return the mapped category.
-            if (!$rootcategoryid) {
-                throw new coding_exception("create_category: root node ({$this->rootid}) not mapped, cannot create sub-categories");
-            }
             $parentcat = $rootcategoryid;
         } else {
             // Make sure the parent category has been created.
             $parent = $this->get_parent();
-            $parentcat = $parentcat->create_category($rootcategoryid, false);
+            $parentcat = $parent->create_category($rootcategoryid, false);
+        }
+
+        if (!$parentcat) {
+            return null; // Will happen if the root node is unmapped.
         }
 
         // Create a new category for this directory.
@@ -1130,8 +1193,8 @@ class campusconnect_directory {
 
         $dirs = self::get_directories($rootid);
         foreach ($dirs as $dir) {
-            if (!$directory->get_category_id()) {
-                $directory->create_category($rootcategoryid, false);
+            if (!$dir->get_category_id()) {
+                $dir->create_category($rootcategoryid, false);
             }
         }
 

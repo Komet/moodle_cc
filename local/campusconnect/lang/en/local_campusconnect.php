@@ -35,6 +35,7 @@ $string['authenticationtype'] = 'Authentication Type';
 $string['cacertificate'] = 'CA Certificate';
 $string['campusmanagement'] = 'Campus Management';
 $string['cannotbeempty'] = 'The field {$a} cannot be empty';
+$string['cannotmapsubcategory'] = 'You cannot map a directory onto a sub-category of the current category';
 $string['categoryassignment'] = 'Category Assignment';
 $string['categoryid'] = 'Category ID';
 $string['categoryiddesc'] = 'Please enter the ID of the category where new Course Links will be created';

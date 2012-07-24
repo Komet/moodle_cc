@@ -3,10 +3,12 @@ M.campusconnect_directorymapping = {
     mappings: null,
     mapbutton: null,
     unmapbutton: null,
+    mappinglocked: null,
 
     init: function(Y, opts) {
         this.Y = Y;
         this.mappings = opts.mappings;
+        this.mappinglocked = opts.mappinglocked;
 
         var self = this;
 
@@ -53,7 +55,11 @@ M.campusconnect_directorymapping = {
             cats.one('#category-'+categoryid).set('checked', true);
             cats.one('#labelcategory-'+categoryid).addClass('mapped_category');
             this.mapbutton.set('value', M.util.get_string('remapdirectory', 'local_campusconnect'));
-            this.unmapbutton.removeAttribute('disabled');
+            if (this.mappinglocked[directoryid]) {
+                this.unmapbutton.set('disabled', 'disabled');
+            } else {
+                this.unmapbutton.removeAttribute('disabled');
+            }
         } else {
             this.mapbutton.set('value', M.util.get_string('mapdirectory', 'local_campusconnect'));
             this.unmapbutton.set('disabled', 'disabled');

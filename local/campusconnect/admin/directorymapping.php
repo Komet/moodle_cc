@@ -28,8 +28,6 @@ require_once($CFG->libdir.'/adminlib.php');
 require_once($CFG->dirroot.'/local/campusconnect/directorytree.php');
 require_once($CFG->dirroot.'/local/campusconnect/admin/directorymapping_form.php');
 
-//TODO - add YUI treeview
-
 $rootid = required_param('rootid', PARAM_INT);
 $dirtree = campusconnect_directorytree::get_by_root_id($rootid);
 
@@ -111,16 +109,18 @@ if ($mapdirectory || $unmapdirectory) {
                     }
                 }
 
-                $mapdir->map_category($categoryid);
+                $mappingerror = $mapdir->map_category($categoryid);
                 $dirtree->set_mode(campusconnect_directorytree::MODE_MANUAL);
             } else {
                 // Unmap.
                 $mapdir->unmap_category();
             }
 
-            $redir = $PAGE->url;
-            $redir->param('showdirectory', $directoryid);
-            redirect($redir);
+            if (!$mappingerror) {
+                $redir = $PAGE->url;
+                $redir->param('showdirectory', $directoryid);
+                redirect($redir);
+            }
         }
     }
 }
@@ -140,7 +140,9 @@ if ($showdirectory) {
 }
 
 // Initialise the page javascript.
-$opts = array('mappings' => $dirtree->list_all_mappings());
+$opts = array(
+    'mappings' => $dirtree->list_all_mappings(),
+    'mappinglocked' => $dirtree->locked_mappings());
 $jsmodule = array(
     'name' => 'campusconnect_directorymapping',
     'fullpath' => new moodle_url('/local/campusconnect/admin/directorymapping.js'),

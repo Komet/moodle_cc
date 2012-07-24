@@ -65,7 +65,7 @@ if (isset($_POST['addnewecs'])) {
     $toadd = array();
     $error = array();
 
-    if (empty($_POST['name']) || empty($_POST['url']) || empty($_POST['port']) || !is_numeric($_POST['port'])) {
+    if (empty($_POST['name']) || empty($_POST['url'])) {
         $error['connection'] = 1;
     }
 
@@ -393,7 +393,6 @@ if (($function == 'add') || isset($_GET['id'])) {
                             <div class="fitemtitle">
                                 <label for="port">
                                     <?php print get_string('port', 'local_campusconnect') ?>
-                                    <?php print "<img src='".$OUTPUT->pix_url('req')."' alt='req' />" ?>
                                 </label>
                             </div>
                             <div class="felement ftext">

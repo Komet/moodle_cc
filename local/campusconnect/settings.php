@@ -31,9 +31,12 @@ if ($hassiteconfig) {
 
     $ecslist = campusconnect_ecssettings::list_ecs();
      // Web service test clients DO NOT COMMIT : THE EXTERNAL WEB PAGE IS NOT AN ADMIN PAGE !!!!!
+    /*
     $ADMIN->add('campusconnect', new admin_externalpage('campusconnectsettings',
                                                         get_string('settings', 'local_campusconnect'),
                                                         new moodle_url('/local/campusconnect/admin/campusconnect.php')));
+    */
+
     $ADMIN->add('campusconnect', new admin_category('ecs', get_string('ecs', 'local_campusconnect')));
 
     $ADMIN->add('ecs', new admin_externalpage('allecs',
@@ -54,13 +57,17 @@ if ($hassiteconfig) {
                                                         get_string('ecsdatamapping', 'local_campusconnect'),
                                                         new moodle_url('/local/campusconnect/admin/datamapping.php')));
 
+    /*
     $ADMIN->add('campusconnect', new admin_externalpage('campusconnectcategoryassignment',
                                                         get_string('assignmenttocategories', 'local_campusconnect'),
                                                         new moodle_url('/local/campusconnect/admin/categoryassignment.php')));
+    */
 
+    /*
     $ADMIN->add('campusconnect', new admin_externalpage('campusconnectimportedcourses',
                                                         get_string('importedcourses', 'local_campusconnect'),
                                                         new moodle_url('/local/campusconnect/admin/importedcourses.php')));
+    */
 
     $ADMIN->add('campusconnect', new admin_externalpage('campusconnectreleasedcourses',
                                                         get_string('releasedcourses', 'local_campusconnect'),

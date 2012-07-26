@@ -105,6 +105,7 @@ $string['notificationaboutnewecontent'] = 'Notifications about new E-Content';
 $string['notifications'] = 'Notifications';
 $string['nodirectories'] = 'No directores have been created by the Campus Management System';
 $string['notrees'] = 'No directory trees have been created by the Campus Management System';
+$string['offline'] = 'Offline';
 $string['participants'] = 'Participants';
 $string['partid'] = 'Participant ID';
 $string['password'] = 'Password';

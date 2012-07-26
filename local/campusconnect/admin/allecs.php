@@ -54,7 +54,7 @@ echo $OUTPUT->heading(get_string('pluginname', 'local_campusconnect'));
 
 print '<a href="ecs.php?fn=add"><h3>Add New ECS</h3></a><br />';
 print '<h4>Available ECS</h4>';
-$ecslist = campusconnect_ecssettings::list_ecs();
+$ecslist = campusconnect_ecssettings::list_ecs(false);
 print '<table class="generaltable" width="100%">
         <thead><tr><th class="header c0">Active</th><th class="header c1">Name</th>
         <th class="header c2 lastcol">Actions</th></tr></thead><tbody>';
@@ -62,12 +62,17 @@ foreach ($ecslist as $ecsid => $ecs) {
     $ecsdetails = new campusconnect_ecssettings($ecsid);
     $url = $ecsdetails->get_url();
     print '<tr>';
-    $connection = new campusconnect_connect($ecsdetails);
-    try {
-        $idtest = $connection->get_resource_list(campusconnect_event::RES_COURSELINK);
-        print "<td style='text-align: center'>YES</td>";
-    } catch (Exception $e) {
-        print '<td style="text-align: center">NO</td>';
+    if ($ecsdetails->is_enabled()) {
+        $connection = new campusconnect_connect($ecsdetails);
+        $offline = '';
+        try {
+            $idtest = $connection->get_resource_list(campusconnect_event::RES_COURSELINK);
+        } catch (Exception $e) {
+            $offline = ' ('.get_string('offline', 'local_campusconnect').')';
+        }
+        print "<td style='text-align: center'>".get_string('yes')."$offline</td>";
+    } else {
+        print '<td style="text-align: center">'.get_string('no').'</td>';
     }
     print "<td><div class='info'>
         <strong><a href='ecs.php?id=$ecsid'>$ecs</a></strong><br />

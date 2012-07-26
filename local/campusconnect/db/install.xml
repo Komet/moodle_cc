@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/campusconnect/db" VERSION="20120720" COMMENT="XMLDB file for Moodle local/campusconnect"
+<XMLDB PATH="local/campusconnect/db" VERSION="20120726" COMMENT="XMLDB file for Moodle local/campusconnect"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
   <TABLES>
     <TABLE NAME="local_campusconnect_ecs" COMMENT="Settings for connecting to different ECS" NEXT="local_campusconnect_eventin">
       <FIELDS>
-        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="name"/>
-        <FIELD NAME="name" TYPE="text" LENGTH="small" NOTNULL="false" SEQUENCE="false" COMMENT="The local name used to identify this ECS" PREVIOUS="id" NEXT="url"/>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="enabled"/>
+        <FIELD NAME="enabled" TYPE="int" LENGTH="4" NOTNULL="false" UNSIGNED="false" DEFAULT="1" SEQUENCE="false" COMMENT="Is this ECS currently active?" PREVIOUS="id" NEXT="name"/>
+        <FIELD NAME="name" TYPE="text" LENGTH="small" NOTNULL="false" SEQUENCE="false" COMMENT="The local name used to identify this ECS" PREVIOUS="enabled" NEXT="url"/>
         <FIELD NAME="url" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The URL of the ECS" PREVIOUS="name" NEXT="auth"/>
         <FIELD NAME="auth" TYPE="int" LENGTH="3" NOTNULL="false" UNSIGNED="false" DEFAULT="2" SEQUENCE="false" COMMENT="The type of authentication to use (1 = none, 2 = http, 3 = certificate)" PREVIOUS="url" NEXT="ecsauth"/>
         <FIELD NAME="ecsauth" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The ecsauth name to add to the header when using no authentication" PREVIOUS="auth" NEXT="httpuser"/>

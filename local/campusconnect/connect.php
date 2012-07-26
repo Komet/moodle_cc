@@ -534,6 +534,10 @@ class campusconnect_connect {
      * @return string the result of the request
      */
     protected function call() {
+        if (!$this->settings->is_enabled()) {
+            throw new coding_exception('campusconnect_connect: call() - should not be attempting to connect to disabled ECS ('.$this->get_ecs_id().')');
+        }
+
         $this->set_option(CURLOPT_HTTPHEADER, $this->get_headers());
         $this->set_option(CURLOPT_HEADERFUNCTION, array($this, 'parse_response_header'));
         $this->responseheaders = array();

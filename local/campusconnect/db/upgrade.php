@@ -314,7 +314,23 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
 
         // campusconnect savepoint reached
         upgrade_plugin_savepoint(true, 2012072000, 'local', 'campusconnect');
+   }
+
+   if ($oldversion < 2012072600) {
+
+        // Define field enabled to be added to local_campusconnect_ecs
+        $table = new xmldb_table('local_campusconnect_ecs');
+        $field = new xmldb_field('enabled', XMLDB_TYPE_INTEGER, '4', null, null, null, '1', 'id');
+
+        // Conditionally launch add field enabled
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012072600, 'local', 'campusconnect');
     }
+
 
     return true;
 }

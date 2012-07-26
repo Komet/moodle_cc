@@ -440,6 +440,10 @@ class campusconnect_directorytree {
 
         // Gather directory changes from the ECS server.
         $ecssettings = new campusconnect_ecssettings($cms->get_ecs_id());
+        if (!$ecssettings->is_enabled()) {
+            return; // Ignore disabled ECS.
+        }
+
         $connect = new campusconnect_connect($ecssettings);
         $resources = $connect->get_resource_list(campusconnect_event::RES_DIRECTORYTREE);
         foreach ($resources->get_ids() as $resourceid) {

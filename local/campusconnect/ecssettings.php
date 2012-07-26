@@ -59,6 +59,7 @@ class campusconnect_ecssettings {
 
     // Used to validate incoming settings
     protected $validsettings = array('recordid' => 'id',
+                                     'enabled' => 'enabled',
                                      'name' => 'name',
                                      'url' => 'url',
                                      'auth' => 'auth',
@@ -109,13 +110,21 @@ class campusconnect_ecssettings {
         }
     }
 
-    public static function list_ecs() {
+    public static function list_ecs($onlyenabled = true) {
         global $DB;
-        return $DB->get_records_menu('local_campusconnect_ecs', array(), 'name, id', 'id, name');
+        $params = array();
+        if ($onlyenabled) {
+            $params['enabled'] = 1;
+        }
+        return $DB->get_records_menu('local_campusconnect_ecs', $params, 'name, id', 'id, name');
     }
 
     public function get_id() {
         return $this->recordid;
+    }
+
+    public function is_enabled() {
+        return $this->enabled;
     }
 
     public function get_name() {

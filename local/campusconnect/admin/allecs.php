@@ -52,7 +52,7 @@ require_capability('moodle/site:config', get_context_instance(CONTEXT_SYSTEM));
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('pluginname', 'local_campusconnect'));
 
-print '<a href="ecs.php?fn=add"><h3>Add New ECS</h3></a><br />';
+print '<a href="ecs.php"><h3>Add New ECS</h3></a><br />';
 print '<h4>Available ECS</h4>';
 $ecslist = campusconnect_ecssettings::list_ecs();
 print '<table class="generaltable" width="100%">

@@ -130,6 +130,7 @@ $string['treename'] = 'Directory tree name';
 $string['treestatus'] = 'Status';
 $string['unmapdirectory'] = 'Detatch directory';
 $string['url'] = 'URL';
+$string['urldesc'] = 'You do not need to include the http:// or https:// part';
 $string['useraccountsettings'] = 'User Account Settings';
 $string['username'] = 'Username';
 $string['usernamepassword'] = 'Username/Password';

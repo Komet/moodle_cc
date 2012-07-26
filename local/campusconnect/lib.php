@@ -87,3 +87,23 @@ function local_campusconnect_ecs_error_notification($ecssettings, $msg) {
         message_send($eventdata);
     }
 }
+
+/**
+ * Refresh all imports / exports for the given ECS
+ */
+function local_campusconnect_refresh_ecs(campusconnect_ecssettings $ecssettings) {
+    if (!$ecssettings->is_enabled()) {
+        return false;
+    }
+
+    $connect = new campusconnect_connect($ecssettings);
+
+    // Resync all exported courses
+    campusconnect_export::refresh_ecs($connect);
+
+    // Resync all imported directory trees
+    campusconnect_directorytree::refresh_from_ecs();
+
+    // Resync all imported course links
+    //campusconnect_courselink::refresh_from_ecs($connect);
+}

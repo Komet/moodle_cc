@@ -351,6 +351,7 @@ class campusconnect_participantsettings {
             $comm->name = $community->community->name;
             $comm->description = $community->community->description;
             $comm->participants = array();
+            $comm->ecsid = $ecsid;
             foreach ($community->participants as $participant) {
                 $mid = $participant->mid;
                 $participant->communityname = $comm->name;

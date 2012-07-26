@@ -35,6 +35,9 @@ $PAGE->set_context(context_system::instance());
 
 admin_externalpage_setup('campusconnectparticipants');
 
+$refreshdone = optional_param('refreshdone', null, PARAM_INT);
+$refreshmsg = null;
+
 $error = array();
 $ecslist = campusconnect_ecssettings::list_ecs();
 $allcommunities = array();
@@ -43,8 +46,12 @@ foreach ($ecslist as $ecsid => $ecsname) {
     try {
         $allcommunities[$ecsname] = campusconnect_participantsettings::load_communities($settings);
     } catch (campusconnect_connect_exception $e) {
-        $ecslist = array();
         $error[$ecsname] = $e->getMessage();
+    }
+
+    if ($refreshdone == $ecsid) {
+        $refreshmsg = get_string('refreshdone', 'local_campusconnect', $ecsname);
+        $refreshmsg = $OUTPUT->notification($refreshmsg, 'campusconnect_refreshdone');
     }
 }
 
@@ -78,19 +85,34 @@ if (optional_param('saveparticipants', false, PARAM_TEXT)) {
     }
 }
 
+if ($ecsid = optional_param('refresh', null, PARAM_INT)) {
+    require_sesskey();
+
+    require_once($CFG->dirroot.'/local/campusconnect/lib.php');
+    $ecssettings = new campusconnect_ecssettings($ecsid);
+    local_campusconnect_refresh_ecs($ecssettings);
+
+    $redir = new moodle_url($PAGE->url, array('refreshdone' => $ecsid));
+    redirect($redir);
+}
+
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('pluginname', 'local_campusconnect'));
+
+echo $refreshmsg;
 
 $importopts = array(campusconnect_participantsettings::IMPORT_LINK => get_string('ecscourselink', 'local_campusconnect'),
                     campusconnect_participantsettings::IMPORT_COURSE => get_string('course', 'local_campusconnect'),
                     campusconnect_participantsettings::IMPORT_CMS => get_string('campusmanagement', 'local_campusconnect'));
 
+$strrefresh = get_string('refreshecs', 'local_campusconnect');
 $strparticipants = get_string('participants', 'local_campusconnect');
 $strfurtherinformation = get_string('furtherinformation', 'local_campusconnect');
 $strexport = get_string('export', 'local_campusconnect');
 $strimport = get_string('import', 'local_campusconnect');
 $strimporttype = get_string('importtype', 'local_campusconnect');
 
+$strthisvle = get_string('thisvle', 'local_campusconnect');
 $strprovider = get_string('provider', 'local_campusconnect');
 $strdomain = get_string('domainname', 'local_campusconnect');
 $stremail = get_string('email', 'local_campusconnect');
@@ -100,14 +122,24 @@ $strpartid = get_string('partid', 'local_campusconnect');
 $strsavechanges = get_string('savechanges');
 $strcancel = get_string('cancel');
 
+
 if ($error) {
     foreach ($error as $ecsname => $errormessage) {
         echo $OUTPUT->notification($ecsname.': '.get_string('errorparticipants', 'local_campusconnect', $errormessage));
     }
 }
 
-foreach ($allcommunities as $ecs => $communities) {
-    print "<h3>$ecs</h3>";
+foreach ($allcommunities as $ecsname => $communities) {
+    $firstcommunity = reset($communities);
+    if ($firstcommunity) {
+        $url = new moodle_url('/local/campusconnect/admin/participants.php', array('refresh' => $firstcommunity->ecsid,
+                                                                                   'sesskey' => sesskey()));
+        $refreshlink = $OUTPUT->single_button($url, $strrefresh, 'POST');
+        $refreshlink = html_writer::tag('span', $refreshlink, array('class' => 'campusconnect_refresh'));
+    }  else {
+        $refreshlink = '';
+    }
+    print "<h3>{$ecsname}{$refreshlink}</h3>";
     print '<hr>';
     print '<form action="" method="POST">';
     foreach ($communities as $community) {
@@ -123,40 +155,48 @@ foreach ($allcommunities as $ecs => $communities) {
             </tr>
         </thead>
         <tbody>';
-        foreach ($community->participants as $participant) {
-            print '<tr><td><h4';
-            if ($participant->is_me()) {
-                print ' class="itsme"';
-            }
-            print '>';
-            print s($participant->get_name());
-            print '</h4></td><td>';
-            print "<strong>{$strprovider}:</strong> ".$participant->get_organisation()."<br />";
-            print "<strong>{$strdomain}:</strong> ".$participant->get_domain()."<br />";
-            print "<strong>{$stremail}:</strong> ".$participant->get_email()."<br />";
-            print "<strong>{$strabbr}:</strong> ".$participant->get_organisation_abbr()."<br />";
-            print "<strong>{$strpartid}:</strong> ".$participant->get_identifier();
-            print '</td>';
-            print "<td style='text-align: center'>";
-            echo html_writer::checkbox('export[]', $participant->get_identifier(),
-                                       $participant->is_export_enabled());
-            echo '</td>';
-            print "<td style='text-align: center'>";
-            echo html_writer::checkbox('import[]', $participant->get_identifier(),
-                                       $participant->is_import_enabled());
-            echo '</td>';
-            print "<td style='text-align: center'>";
-            echo html_writer::select($importopts, 'importtype['.$participant->get_identifier().']',
-                                     $participant->get_import_type(), '');
+        if (empty($community->participants)) {
+            echo '<tr><td colspan="5">';
+            echo get_string('noparticipants', 'local_campusconnect');
+            echo '</tr>';
+        } else {
+            foreach ($community->participants as $participant) {
+                $name = s($participant->get_name());
+                print '<tr><td><h4';
+                if ($participant->is_me()) {
+                    print ' class="itsme"';
+                    $name .= " ({$strthisvle})";
+                }
+                print '>';
+                print $name;
+                print '</h4></td><td>';
+                print "<strong>{$strprovider}:</strong> ".$participant->get_organisation()."<br />";
+                print "<strong>{$strdomain}:</strong> ".$participant->get_domain()."<br />";
+                print "<strong>{$stremail}:</strong> ".$participant->get_email()."<br />";
+                print "<strong>{$strabbr}:</strong> ".$participant->get_organisation_abbr()."<br />";
+                print "<strong>{$strpartid}:</strong> ".$participant->get_identifier();
+                print '</td>';
+                print "<td style='text-align: center'>";
+                echo html_writer::checkbox('export[]', $participant->get_identifier(),
+                                           $participant->is_export_enabled());
+                echo '</td>';
+                print "<td style='text-align: center'>";
+                echo html_writer::checkbox('import[]', $participant->get_identifier(),
+                                           $participant->is_import_enabled());
+                echo '</td>';
+                print "<td style='text-align: center'>";
+                echo html_writer::select($importopts, 'importtype['.$participant->get_identifier().']',
+                                         $participant->get_import_type(), '');
 
-            echo html_writer::empty_tag('input', array('type' => 'hidden',
-                                                       'name' => 'updateparticipants[]',
-                                                       'value' => $participant->get_identifier()));
-            echo html_writer::empty_tag('input', array('type' => 'hidden',
-                                                       'name' => 'sesskey',
-                                                       'value' => sesskey()));
-            print '</td>';
-            print '</tr>';
+                echo html_writer::empty_tag('input', array('type' => 'hidden',
+                                                           'name' => 'updateparticipants[]',
+                                                           'value' => $participant->get_identifier()));
+                echo html_writer::empty_tag('input', array('type' => 'hidden',
+                                                           'name' => 'sesskey',
+                                                           'value' => sesskey()));
+                print '</td>';
+                print '</tr>';
+            }
         }
         print '</tbody></table>';
     }
@@ -165,6 +205,7 @@ foreach ($allcommunities as $ecs => $communities) {
         <input onclick="window.location.reload( true );" type="button" value="'.$strcancel.'" />
     </div>';
     print '</form>';
+    echo '<br style="clear:both;" /><br />';
 }
 
 echo $OUTPUT->footer();

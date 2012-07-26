@@ -356,9 +356,9 @@ class campusconnect_export {
         $metadata = new campusconnect_metadata($connect->get_settings());
 
         // Check all the resources on the server against our local list.
-        $resources = $connect->get_resource_list(campusconnect_export::RES_COURSELINK);
+        $resources = $connect->get_resource_list(campusconnect_event::RES_COURSELINK);
         foreach ($resources->get_ids() as $resourceid) {
-            $details = $connect->get_resouce($resourceid, true);
+            $details = $connect->get_resource($resourceid, campusconnect_event::RES_COURSELINK, true);
             if (!in_array($details->senders[0]->mid, $mymids)) {
                 continue; // Not one of this VLE's resources.
             }
@@ -403,7 +403,7 @@ class campusconnect_export {
         }
 
         // Check for any courses that were not found on the ECS.
-        foreach ($exportedcourses as $exporedcourse) {
+        foreach ($exportedcourses as $exportedcourse) {
             if (!empty($exportedcourse->updated)) {
                 continue; // Already updated.
             }

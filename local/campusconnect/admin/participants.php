@@ -104,15 +104,15 @@ if ($error) {
     foreach ($error as $ecsname => $errormessage) {
         echo $OUTPUT->notification($ecsname.': '.get_string('errorparticipants', 'local_campusconnect', $errormessage));
     }
+}
 
-} else {
-    foreach ($allcommunities as $ecs => $communities) {
-        print "<h3>$ecs</h3>";
-        print '<hr>';
-        print '<form action="" method="POST">';
-        foreach ($communities as $community) {
-            print "<h4>{$community->name}</h4>";
-            print '<table class="generaltable" width="100%">
+foreach ($allcommunities as $ecs => $communities) {
+    print "<h3>$ecs</h3>";
+    print '<hr>';
+    print '<form action="" method="POST">';
+    foreach ($communities as $community) {
+        print "<h4>{$community->name}</h4>";
+        print '<table class="generaltable" width="100%">
         <thead>
             <tr>
                 <th class="header c0">'.$strparticipants.'</th>
@@ -123,49 +123,48 @@ if ($error) {
             </tr>
         </thead>
         <tbody>';
-            foreach ($community->participants as $participant) {
-                print '<tr><td><h4';
-                if ($participant->is_me()) {
-                    print ' class="itsme"';
-                }
-                print '>';
-                print s($participant->get_name());
-                print '</h4></td><td>';
-                print "<strong>{$strprovider}:</strong> ".$participant->get_organisation()."<br />";
-                print "<strong>{$strdomain}:</strong> ".$participant->get_domain()."<br />";
-                print "<strong>{$stremail}:</strong> ".$participant->get_email()."<br />";
-                print "<strong>{$strabbr}:</strong> ".$participant->get_organisation_abbr()."<br />";
-                print "<strong>{$strpartid}:</strong> ".$participant->get_identifier();
-                print '</td>';
-                print "<td style='text-align: center'>";
-                echo html_writer::checkbox('export[]', $participant->get_identifier(),
-                                           $participant->is_export_enabled());
-                echo '</td>';
-                print "<td style='text-align: center'>";
-                echo html_writer::checkbox('import[]', $participant->get_identifier(),
-                                           $participant->is_import_enabled());
-                echo '</td>';
-                print "<td style='text-align: center'>";
-                echo html_writer::select($importopts, 'importtype['.$participant->get_identifier().']',
-                                         $participant->get_import_type(), '');
-
-                echo html_writer::empty_tag('input', array('type' => 'hidden',
-                                                           'name' => 'updateparticipants[]',
-                                                           'value' => $participant->get_identifier()));
-                echo html_writer::empty_tag('input', array('type' => 'hidden',
-                                                           'name' => 'sesskey',
-                                                           'value' => sesskey()));
-                print '</td>';
-                print '</tr>';
+        foreach ($community->participants as $participant) {
+            print '<tr><td><h4';
+            if ($participant->is_me()) {
+                print ' class="itsme"';
             }
-            print '</tbody></table>';
+            print '>';
+            print s($participant->get_name());
+            print '</h4></td><td>';
+            print "<strong>{$strprovider}:</strong> ".$participant->get_organisation()."<br />";
+            print "<strong>{$strdomain}:</strong> ".$participant->get_domain()."<br />";
+            print "<strong>{$stremail}:</strong> ".$participant->get_email()."<br />";
+            print "<strong>{$strabbr}:</strong> ".$participant->get_organisation_abbr()."<br />";
+            print "<strong>{$strpartid}:</strong> ".$participant->get_identifier();
+            print '</td>';
+            print "<td style='text-align: center'>";
+            echo html_writer::checkbox('export[]', $participant->get_identifier(),
+                                       $participant->is_export_enabled());
+            echo '</td>';
+            print "<td style='text-align: center'>";
+            echo html_writer::checkbox('import[]', $participant->get_identifier(),
+                                       $participant->is_import_enabled());
+            echo '</td>';
+            print "<td style='text-align: center'>";
+            echo html_writer::select($importopts, 'importtype['.$participant->get_identifier().']',
+                                     $participant->get_import_type(), '');
+
+            echo html_writer::empty_tag('input', array('type' => 'hidden',
+                                                       'name' => 'updateparticipants[]',
+                                                       'value' => $participant->get_identifier()));
+            echo html_writer::empty_tag('input', array('type' => 'hidden',
+                                                       'name' => 'sesskey',
+                                                       'value' => sesskey()));
+            print '</td>';
+            print '</tr>';
         }
-        print '<div style="float: right;">
+        print '</tbody></table>';
+    }
+    print '<div style="float: right;">
         <input type="submit" name="saveparticipants" value="'.$strsavechanges.'" />
         <input onclick="window.location.reload( true );" type="button" value="'.$strcancel.'" />
     </div>';
-        print '</form>';
-    }
+    print '</form>';
 }
 
 echo $OUTPUT->footer();

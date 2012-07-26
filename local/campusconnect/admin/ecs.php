@@ -36,13 +36,39 @@ $PAGE->set_context(context_system::instance());
 
 global $CFG, $DB;
 
-$function = optional_param('fn', null, PARAM_TEXT);
 $deleteid = optional_param('delete', null, PARAM_INT);
 $ecsid = optional_param('id', $deleteid, PARAM_INT);
 
 $ecssettings = new campusconnect_ecssettings($ecsid);
 
-$form = new campusconnect_ecs_form('', $ecssettings->get_settings());
+if (isset($deleteid)){
+    $ecssettings->delete();
+
+    redirect(new moodle_url('/local/campusconnect/admin/allecs.php'));
+}
+
+$currentsettings = $ecssettings->get_settings();
+
+$form = new campusconnect_ecs_form('', $currentsettings);
+
+$url_parts = parse_url($currentsettings->url);
+if (!empty($url_parts['scheme'])) {
+    $currentsettings->protocol = $url_parts['scheme'];
+}
+if (!empty($url_parts['host'])) {
+    $currentsettings->url = $url_parts['host'];
+}
+if (!empty($url_parts['port'])) {
+    $currentsettings->port = $url_parts['port'];
+}
+
+$minutes = floor($currentsettings->crontime / 60);
+$seconds = $currentsettings->crontime % 60;
+$currentsettings->pollingtime['mm'] = $minutes;
+$currentsettings->pollingtime['ss'] = $seconds;
+
+$form->set_data($currentsettings);
+
 if ($form->is_cancelled()) {
     redirect($PAGE->url); // Will clear the settings back to their previous values.
 }
@@ -50,9 +76,10 @@ if ($data = $form->get_data()) {
 
     $data->crontime = ($data->pollingtime['mm'] * 60) + $data->pollingtime['ss'];
     $data->url = $data->protocol.'://'.$data->url.':'.$data->port;
-    $data = (object)(array_merge((array)$ecssettings->get_settings(),(array)$data));
 
     $ecssettings->save_settings($data);
+
+    redirect(new moodle_url('/local/campusconnect/admin/allecs.php'));
 
 }
 

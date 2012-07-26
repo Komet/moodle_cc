@@ -23,6 +23,7 @@
  */
 
 require_once($CFG->libdir."/formslib.php");
+require_once($CFG->dirroot.'/local/campusconnect/ecssettings.php'); // For AUTH_xx definitions
 
 class campusconnect_ecs_form extends moodleform {
 
@@ -35,8 +36,11 @@ class campusconnect_ecs_form extends moodleform {
 
         $mform = $this->_form;
 
+        $mform->addElement('hidden', 'id', null);
+
         $mform->addElement('header', 'connectionsettings', get_string('connectionsettings', 'local_campusconnect'));
 
+        $mform->addElement('selectyesno', 'enabled', get_string('ecsenabled', 'local_campusconnect'));
         $mform->addElement('text', 'name', get_string('name', 'local_campusconnect'));
         $mform->addRule('name', $strrequired, 'required', null, 'client');
         $mform->addElement('text', 'url', get_string('url', 'local_campusconnect'));
@@ -45,35 +49,41 @@ class campusconnect_ecs_form extends moodleform {
         $mform->addElement('select', 'protocol', get_string('protocol', 'local_campusconnect'), array('http'=>'HTTP', 'https'=>'HTTPS'));
         $mform->addRule('protocol', $strrequired, 'required', null, 'client');
         $mform->addElement('text', 'port', get_string('port', 'local_campusconnect'));
+        $mform->setType('port', PARAM_INT);
 
-        $mform->addElement('select', 'cc_auth', get_string('authenticationtype', 'local_campusconnect'), array('2'=>get_string('certificatebase', 'local_campusconnect'), '3'=>get_string('usernamepassword', 'local_campusconnect')));
+        $auth = array(
+            campusconnect_ecssettings::AUTH_CERTIFICATE => get_string('certificatebase', 'local_campusconnect'),
+            campusconnect_ecssettings::AUTH_HTTP => get_string('usernamepassword', 'local_campusconnect')
+        );
+        $mform->addElement('select', 'auth', get_string('authenticationtype', 'local_campusconnect'),  $auth);
 
         $mform->addElement('text', 'certpath', get_string('clientcertificate', 'local_campusconnect'));
-        $mform->disabledIf('certpath', 'cc_auth', 'eq', '3');
+        $mform->disabledIf('certpath', 'auth', 'neq', campusconnect_ecssettings::AUTH_CERTIFICATE);
         $mform->addElement('text', 'keypath', get_string('certificatekey', 'local_campusconnect'));
-        $mform->disabledIf('keypath', 'cc_auth', 'eq', '3');
+        $mform->disabledIf('keypath', 'auth', 'neq', campusconnect_ecssettings::AUTH_CERTIFICATE);
         $mform->addElement('text', 'keypass', get_string('keypassword', 'local_campusconnect'));
-        $mform->disabledIf('keypass', 'cc_auth', 'eq', '3');
+        $mform->disabledIf('keypass', 'auth', 'neq', campusconnect_ecssettings::AUTH_CERTIFICATE);
         $mform->addElement('text', 'cacertpath', get_string('cacertificate', 'local_campusconnect'));
-        $mform->disabledIf('cacertpath', 'cc_auth', 'eq', '3');
+        $mform->disabledIf('cacertpath', 'auth', 'neq', campusconnect_ecssettings::AUTH_CERTIFICATE);
 
         $mform->addElement('text', 'httpuser', get_string('username', 'local_campusconnect'));
-        $mform->disabledIf('httpuser', 'cc_auth', 'eq', '2');
+        $mform->disabledIf('httpuser', 'auth', 'neq', campusconnect_ecssettings::AUTH_HTTP);
         $mform->addElement('text', 'httppass', get_string('password', 'local_campusconnect'));
-        $mform->disabledIf('httppass', 'cc_auth', 'eq', '2');
+        $mform->disabledIf('httppass', 'auth', 'neq', campusconnect_ecssettings::AUTH_HTTP);
 
         $mform->addElement('header', 'localsettings', get_string('localsettings', 'local_campusconnect'));
 
         $selectarray=array();
-        $selectarray[] = &MoodleQuickForm::createElement('select', 'pollingtime[mm]', '', range(0, 59));
-        $selectarray[] = &MoodleQuickForm::createElement('static', 'pollingmins', '', get_string('minutes', 'local_campusconnect'));
-        $selectarray[] = &MoodleQuickForm::createElement('select', 'pollingtime[ss]', '', range(0, 59));
-        $selectarray[] = &MoodleQuickForm::createElement('static', 'pollingsecs', '', get_string('seconds', 'local_campusconnect'));
+        $selectarray[] = MoodleQuickForm::createElement('select', 'pollingtimemin', '', range(0, 59));
+        $selectarray[] = MoodleQuickForm::createElement('static', 'pollingmins', '', get_string('minutes', 'local_campusconnect'));
+        $selectarray[] = MoodleQuickForm::createElement('select', 'pollingtimesec', '', range(0, 59));
+        $selectarray[] = MoodleQuickForm::createElement('static', 'pollingsecs', '', get_string('seconds', 'local_campusconnect'));
         $mform->addGroup($selectarray, 'pollingtime', get_string('pollingtime', 'local_campusconnect'), array(' '), false);
 
         $mform->addElement('text', 'importcategory', get_string('categoryid', 'local_campusconnect'));
         $mform->addElement('static', 'categoryiddesc', '', get_string('categoryiddesc', 'local_campusconnect'));
         $mform->addRule('importcategory', $strrequired, 'required', null, 'client');
+        $mform->setType('importcategory', PARAM_INT);
 
         $mform->addElement('header', 'useraccountsettings', get_string('useraccountsettings', 'local_campusconnect'));
 
@@ -102,7 +112,7 @@ class campusconnect_ecs_form extends moodleform {
 
     public function validation($data, $files) {
         $errors = parent::validation($data, $files);
-        if ($data['cc_auth'] == '2') {
+        if ($data['auth'] == campusconnect_ecssettings::AUTH_CERTIFICATE) {
             if (empty($data['certpath'])) {
                 $errors['certpath'] = get_string('required');
             }
@@ -116,7 +126,7 @@ class campusconnect_ecs_form extends moodleform {
                 $errors['cacertpath'] = get_string('required');
             }
         }
-        if ($data['cc_auth'] == '3') {
+        if ($data['auth'] == campusconnect_ecssettings::AUTH_HTTP) {
             if (empty($data['httpuser'])) {
                 $errors['httpuser'] = get_string('required');
             }

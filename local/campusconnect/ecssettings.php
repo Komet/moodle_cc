@@ -55,6 +55,7 @@ class campusconnect_ecssettings {
 
     // Misc settings
     protected $recordid = null;
+    protected $enabled = true;
     protected $name = '';
 
     // Used to validate incoming settings

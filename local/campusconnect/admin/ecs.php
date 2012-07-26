@@ -28,16 +28,20 @@ require_once($CFG->libdir.'/adminlib.php');
 require_once($CFG->dirroot.'/local/campusconnect/connect.php');
 require_once($CFG->dirroot.'/local/campusconnect/admin/ecs_form.php');
 
+$deleteid = optional_param('delete', null, PARAM_INT);
+$ecsid = optional_param('id', $deleteid, PARAM_INT);
+
 require_login();
 require_capability('moodle/site:config', get_context_instance(CONTEXT_SYSTEM));
 
+if ($ecsid) {
+    admin_externalpage_setup('ecs'.$ecsid);
+} else {
+    admin_externalpage_setup('allecs');
+}
+
 $PAGE->set_url(new moodle_url('/local/campusconnect/admin/ecs.php'));
 $PAGE->set_context(context_system::instance());
-
-global $CFG, $DB;
-
-$deleteid = optional_param('delete', null, PARAM_INT);
-$ecsid = optional_param('id', $deleteid, PARAM_INT);
 
 $ecssettings = new campusconnect_ecssettings($ecsid);
 
@@ -64,8 +68,9 @@ if (!empty($url_parts['port'])) {
 
 $minutes = floor($currentsettings->crontime / 60);
 $seconds = $currentsettings->crontime % 60;
-$currentsettings->pollingtime['mm'] = $minutes;
-$currentsettings->pollingtime['ss'] = $seconds;
+$currentsettings->pollingtimemin = $minutes;
+$currentsettings->pollingtimesec = $seconds;
+$currentsettings->id = $ecsid;
 
 $form->set_data($currentsettings);
 
@@ -74,13 +79,12 @@ if ($form->is_cancelled()) {
 }
 if ($data = $form->get_data()) {
 
-    $data->crontime = ($data->pollingtime['mm'] * 60) + $data->pollingtime['ss'];
+    $data->crontime = ($data->pollingtimemin * 60) + $data->pollingtimesec;
     $data->url = $data->protocol.'://'.$data->url.':'.$data->port;
 
     $ecssettings->save_settings($data);
 
     redirect(new moodle_url('/local/campusconnect/admin/allecs.php'));
-
 }
 
 echo $OUTPUT->header();

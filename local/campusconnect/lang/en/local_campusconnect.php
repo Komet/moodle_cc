@@ -59,6 +59,7 @@ $string['domainname'] = 'Domain name';
 $string['ecs'] = 'ECS';
 $string['ecscourselink'] = 'Course Link';
 $string['ecsdatamapping'] = 'ECS Data Mapping';
+$string['ecsenabled'] = 'ECS Enabled';
 $string['ecserror_body'] = 'An error occurred whilst attempting to connect to the ECS server \'{$a->ecsname}\' ({$a->ecsid}). The error was:
 {$a->msg}';
 $string['ecserror_subject'] = 'Error connecting to the ECS server';

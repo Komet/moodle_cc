@@ -87,8 +87,8 @@ if ($mform->is_cancelled()) {
     }
 }
 
-print '<div class="controls"><strong><a href="?type=import">Import</a></strong> |
-            <a href="?type=export">Export</a></div>';
+print '<div class="controls"><strong><a href="?type=import">'.get_string('import', 'local_campusconnect').'</a></strong> |
+            <a href="?type=export">'.get_string('export', 'local_campusconnect').'</a></div>';
 
 $remotefields = campusconnect_metadata::list_remote_fields(false);
 $helpcontent = '';

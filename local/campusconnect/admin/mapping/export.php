@@ -30,39 +30,77 @@ $mform = new campusconnect_export_form();
 
 $redir = new moodle_url('/local/campusconnect/admin/datamapping.php', array('type' => 'export'));
 
+$errors = array();
+$ecslist = campusconnect_ecssettings::list_ecs();
 if ($mform->is_cancelled()) {
 
     redirect($redir);
 
 } else if ($post=$mform->get_data()) {
 
+    $internaldata = array();
+    $externaldata = array();
     foreach ($post as $key => $value) {
         $bits = explode('_', $key, 3);
-        if ($bits[0] > 0) {
-            if ($bits[2] == 'external') {
-                $newarray[$bits[0].'_external'][$bits[1]] = $value;
+        if (count($bits) == 3 && $bits[0] > 0) {
+            list($ecsid, $field, $type) = $bits;
+            if ($type == 'external') {
+                if (!isset($externaldata[$ecsid])) {
+                    $externaldata[$ecsid] = array();
+                }
+                $externaldata[$ecsid][$field] = $value;
             } else {
-                $newarray[$bits[0]][$bits[1]] = $value;
+                if (!isset($internaldata[$ecsid])) {
+                    $internaldata[$ecsid] = array();
+                }
+                $internaldata[$ecsid][$field] = $value;
             }
         }
     }
 
-    foreach ($newarray as $id => $details) {
-        $id = explode('_', $id, 3);
-        $ecssettings = new campusconnect_ecssettings($id[0]);
-        $savemetadata = new campusconnect_metadata($ecssettings, (isset($id[1]) && $id[1] == 'external'));
-        $savemetadata->set_export_mappings($details);
+    foreach ($ecslist as $ecsid => $ecsname) {
+        if (isset($internaldata[$ecsid]) || isset($externaldata[$ecsid])) {
+            $ecssettings = new campusconnect_ecssettings($ecsid);
+            if (isset($internaldata[$ecsid])) {
+                $metadata = new campusconnect_metadata($ecssettings, false);
+                if (!$metadata->set_export_mappings($internaldata[$ecsid])) {
+                    list ($errmsg, $errfield) = $metadata->get_last_error();
+                    $errors[$ecsid.'_'.$errfield.'_internal'] = $errmsg;
+                }
+            }
+            if (isset($externaldata[$ecsid])) {
+                $metadata = new campusconnect_metadata($ecssettings, true);
+                if (!$metadata->set_export_mappings($externaldata[$ecsid])) {
+                    list ($errmsg, $errfield) = $metadata->get_last_error();
+                    $errors[$ecsid.'_'.$errfield.'_external'] = $errmsg;
+                }
+            }
+
+        }
     }
 
-    redirect($redir);
-
-} else {
-
-    print '<div class="controls"><a href="?type=import">Import</a> |
-            <strong><a href="?type=export">Export</a></strong></div><br /><br />';
-
-    $mform->display();
+    if (empty($errors)) {
+        redirect($redir);
+    }
 }
+
+print '<div class="controls"><a href="?type=import">'.get_string('import', 'local_campusconnect').'</a> |
+            <strong><a href="?type=export">'.get_string('export', 'local_campusconnect').'</a></strong></div>';
+
+$remotefields = campusconnect_metadata::list_local_fields();
+$helpcontent = '';
+foreach ($remotefields as $remotefield) {
+    $helpcontent .= '{'.$remotefield.'}<br />';
+}
+print "<div style='float: left; width: 45%; border: 1px solid #000; background: #ddd; margin: 10px 5px; padding: 5px;'><strong>"
+.get_string('courseavailablefields', 'local_campusconnect').':</strong><br />'.$helpcontent."</div>";
+
+if (!empty($errors)) {
+    $mform->set_errors($errors);
+}
+
+$mform->display();
+
 
 
 
@@ -148,5 +186,12 @@ class campusconnect_export_form extends moodleform {
 
         $this->add_action_buttons();
 
+    }
+
+    public function set_errors($errors) {
+        $form = $this->_form;
+        foreach ($errors as $element => $message) {
+            $form->setElementError($element, $message);
+        }
     }
 }

@@ -37,9 +37,9 @@ class campusconnect_event {
     const STATUS_NEW_EXPORT = 'new_export'; // Not quite sure when this is sent.
 
     const RES_COURSELINK = 'campusconnect/courselinks';
-    const RES_DIRECTORYTREE = 'campusconnect/cms_directorytree';
-    const RES_COURSE = 'campusconnect/cms_courses';
-    const RES_COURSE_MEMBERS = 'campusconnect/cmd_course_members';
+    const RES_DIRECTORYTREE = 'campusconnect/directory_trees';
+    const RES_COURSE = 'campusconnect/courses';
+    const RES_COURSE_MEMBERS = 'campusconnect/course_members';
 
     protected static $validstatus = array(self::STATUS_CREATED, self::STATUS_UPDATED, self::STATUS_DESTROYED);
     protected static $validresources = array(self::RES_COURSELINK, self::RES_DIRECTORYTREE, self::RES_COURSE, self::RES_COURSE_MEMBERS);

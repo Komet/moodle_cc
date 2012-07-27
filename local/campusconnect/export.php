@@ -54,6 +54,7 @@ class campusconnect_export {
                 $mids[$setting->ecsid] = explode(',', $setting->mids);
             }
         }
+
         $this->exportparticipants = campusconnect_participantsettings::list_potential_export_participants();
 
         foreach ($this->exportparticipants as $part) {
@@ -69,6 +70,25 @@ class campusconnect_export {
      */
     function get_courseid() {
         return $this->courseid;
+    }
+
+    /**
+     * Returns the update status of a particular participant
+     * @param str $partidentifier
+     * @param int the current status
+     */
+    function get_status($partidentifier) {
+        if (!array_key_exists($partidentifier, $this->exportparticipants)) {
+            throw new coding_exception("Attempting to get the status of a participant ($partidentifier) not in the available to export to list");
+        }
+        $ecsid = $this->exportparticipants[$partidentifier]->get_ecs_id();
+        foreach ($this->exportsettings as $setting) {
+            if ($setting->ecsid == $ecsid) {
+                return $setting->status;
+            }
+        }
+
+        throw new coding_exception("Attempting to get the status of a participant ($partidentifier) not currently being exported to");
     }
 
     /**
@@ -324,6 +344,24 @@ class campusconnect_export {
     }
 
     /**
+     * Resync the exported courses with the ECS
+     */
+    public static function refresh_all_ecs() {
+        $errors = array();
+        $ecslist = campusconnect_ecssettings::list_ecs();
+        foreach ($ecslist as $ecsid => $ecs) {
+            $settings = new campusconnect_ecssettings($ecsid);
+            $connect = new campusconnect_connect($settings);
+            try {
+                self::refresh_ecs($connect);
+            } catch (Exception $e) {
+                $errors[] = $ecs.': '.$e->getMessage();
+            }
+        }
+        return $errors;
+    }
+
+    /**
      * Get list of exported courses from ECS - delete any that should not be there any more, create
      * any that should be there and update all others
      * @param campusconnect_connect $connect connection to the ECS to update
@@ -458,5 +496,20 @@ class campusconnect_export {
             // Final clean-up.
             $DB->delete_records('local_campusconnect_export', array('ecsid' => $ecsid));
         }
+    }
+
+    /**
+     * List all courses exported by this VLE
+     * @return array campusconnect_export objects
+     */
+    public static function list_all_exports() {
+        global $DB;
+
+        $courseids = $DB->get_fieldset_select('local_campusconnect_export', 'DISTINCT courseid', '');
+        $exports = array();
+        foreach ($courseids as $courseid) {
+            $exports[] = new campusconnect_export($courseid);
+        }
+        return $exports;
     }
 }

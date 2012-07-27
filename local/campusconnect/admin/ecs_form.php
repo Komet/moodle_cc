@@ -83,7 +83,7 @@ class campusconnect_ecs_form extends moodleform {
         $mform->addElement('text', 'importcategory', get_string('categoryid', 'local_campusconnect'));
         $mform->addElement('static', 'categoryiddesc', '', get_string('categoryiddesc', 'local_campusconnect'));
         $mform->addRule('importcategory', $strrequired, 'required', null, 'client');
-        $mform->setType('importcategory', PARAM_INT);
+        //$mform->setType('importcategory', PARAM_INT);
 
         $mform->addElement('header', 'useraccountsettings', get_string('useraccountsettings', 'local_campusconnect'));
 
@@ -134,6 +134,11 @@ class campusconnect_ecs_form extends moodleform {
                 $errors['httppass'] = get_string('required');
             }
         }
+
+        if (!is_numeric($data['importcategory'])) {
+            $errors['importcategory'] = get_string('mustbevalidcategory', 'local_campusconnect');
+        }
+
         return $errors;
     }
 

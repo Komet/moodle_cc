@@ -61,26 +61,23 @@ if ($mform->is_cancelled()) {
 } else {
 
     print '<div class="controls"><strong><a href="?type=import">Import</a></strong> |
-            <a href="?type=export">Export</a></div><br /><br />';
-    print '<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>';
-    print '<script type="text/javascript">
+            <a href="?type=export">Export</a></div>';
 
-        $(document).ready(function() {
+    $remotefields = campusconnect_metadata::list_remote_fields(false);
+    $helpcontent = '';
+    foreach ($remotefields as $remotefield) {
+        $helpcontent .= '{'.$remotefield.'}<br />';
+    }
+    print "<div style='float: left; width: 45%; border: 1px solid #000; background: #ddd; margin: 10px 5px; padding: 5px;'><strong>"
+        .get_string('courseavailablefields', 'local_campusconnect').':</strong><br />'.$helpcontent."</div>";
 
-          var allPanels = $(".meta_accordion > div.meta_content").hide();
-
-          $(".meta_accordion > .meta_title > h3 > a").click(function() {
-                allPanels.slideUp();
-            if ( $(this).parent().siblings() > 0 || $(this).parent().parent().next().css("display") == "none") {
-                $(this).parent().parent().next().slideDown();
-            }
-            return false;
-          });
-
-        });
-
-        </script>';
-
+    $remotefields = campusconnect_metadata::list_remote_fields(true);
+    $helpcontent = '';
+    foreach ($remotefields as $remotefield) {
+        $helpcontent .= '{'.$remotefield.'}<br />';
+    }
+    print "<div style='float: right; width: 45%; border: 1px solid #000; background: #ddd; margin: 10px 5px; padding: 5px'><strong>"
+        .get_string('courseextavailablefields', 'local_campusconnect').':</strong><br />'.$helpcontent."</div>";
 
     $mform->display();
 }
@@ -98,19 +95,15 @@ class campusconnect_import_form extends moodleform {
 
             $mform = $this->_form;
 
-            $mform->addElement('html', "<h2><a href='javascript://'>$ecsname</a></h2>");
             $mform->addElement('header');
+            $mform->addElement('html', "<h2>$ecsname</h2>");
 
-            $mform->addElement('html', '<div class="meta_accordion">');
-
-            $mform->addElement('html', '<div class="meta_title">');
-            $mform->addElement('html', "<h3><a href='javascript://'>Kurse</a></h35>");
-            $mform->addElement('html', '</div>');
-            $mform->addElement('html', '<div class="meta_content">');
+            $mform->addElement('html', "<h3>".get_string('course')."</h3>");
 
             $ecssettings = new campusconnect_ecssettings($ecsid);
             $metadata = new campusconnect_metadata($ecssettings, false);
             $localfields = $metadata->list_local_fields();
+            $remotefields = $metadata->list_remote_fields(false);
             $currentmappings = $metadata->get_import_mappings();
 
             $strunmapped = get_string('unmapped', 'local_campusconnect');
@@ -140,14 +133,8 @@ class campusconnect_import_form extends moodleform {
                 }
             }
 
-            $mform->addElement('html', '</div>');
+            $mform->addElement('html', "<h3>".get_string('externalcourse', 'local_campusconnect')."</h3>");
 
-            $mform->addElement('html', '<div class="meta_title">');
-            $mform->addElement('html', "<h3><a href='javascript://'>External Kurse</a></h3>");
-            $mform->addElement('html', '</div>');
-            $mform->addElement('html', '<div class="meta_content">');
-
-            $ecssettings = new campusconnect_ecssettings($ecsid);
             $metadata = new campusconnect_metadata($ecssettings, true);
             $localfields = $metadata->list_local_fields();
             $currentmappings = $metadata->get_import_mappings();
@@ -175,10 +162,6 @@ class campusconnect_import_form extends moodleform {
                     $mform->setDefault($elname, $currentmappings[$localmap]);
                 }
             }
-
-            $mform->addElement('html', '</div>');
-
-            $mform->addElement('html', '</div>');
         }
 
         $this->add_action_buttons();

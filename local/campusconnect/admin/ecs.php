@@ -30,6 +30,7 @@ require_once($CFG->dirroot.'/local/campusconnect/admin/ecs_form.php');
 
 $deleteid = optional_param('delete', null, PARAM_INT);
 $ecsid = optional_param('id', $deleteid, PARAM_INT);
+$confirm = optional_param('confirm', null, PARAM_INT);
 
 require_login();
 require_capability('moodle/site:config', get_context_instance(CONTEXT_SYSTEM));
@@ -46,9 +47,22 @@ $PAGE->set_context(context_system::instance());
 $ecssettings = new campusconnect_ecssettings($ecsid);
 
 if (isset($deleteid)){
-    $ecssettings->delete();
+    require_sesskey();
 
-    redirect(new moodle_url('/local/campusconnect/admin/allecs.php'));
+    if ($confirm & confirm_sesskey()) {
+        $ecssettings->delete();
+        redirect(new moodle_url('/local/campusconnect/admin/allecs.php'));
+    }
+
+    echo $OUTPUT->header();
+    echo $OUTPUT->heading(get_string('deleteecsareyousure', 'local_campusconnect'));
+    echo $OUTPUT->confirm(
+            get_string('deleteecsareyousuremessage', 'local_campusconnect'),
+            new moodle_url($PAGE->url, array('delete' => $deleteid, 'confirm' => 1)),
+            new moodle_url('/local/campusconnect/admin/allecs.php'));
+    echo $OUTPUT->footer();
+    exit;
+
 }
 
 $currentsettings = $ecssettings->get_settings();

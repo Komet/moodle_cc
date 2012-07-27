@@ -1,0 +1,58 @@
+
+/* menu container */
+#moodlemenu{clear:both;border:none;background:#000; height:37px; margin:0 auto; padding:0;}
+
+/* hide yui3 */
+.yui3-skin-sam #page .yui3-menu-horizontal .yui3-menu-content{ background-position: -10000px -10000px; }
+.yui3-skin-sam #page .yui3-menu-horizontal .yui3-menu-label{ background-position: -10000px -10000px; }
+.yui3-skin-sam #page .yui3-menu-horizontal .yui3-menu-label-active,.yui3-skin-sam #page .yui3-menu-horizontal .yui3-menuitem-active .yui3-menuitem-content,.yui3-skin-sam #page .yui3-menu-horizontal .yui3-menu-label-menuvisible{ background-position: -10000px -10000px; }
+.yui3-skin-sam #page .yui3-menu-label,
+.yui3-skin-sam #page .yui3-menu .yui3-menu .yui3-menu-label { background-position: right center; }
+.yui3-skin-sam #page .yui3-menubuttonnav .yui3-menu-label em { background-position: right center; }
+.yui3-skin-sam #page .yui3-splitbuttonnav .yui3-menu-label .yui3-menu-toggle { background-position: 3px center;     }
+.yui3-skin-sam #page .yui3-splitbuttonnav .yui3-menu-label-menuvisible .yui3-menu-toggle { background-position: 0% 50%; }
+
+/* top level */
+#moodlemenu #custommenu{float:left;text-align:left; background:none !important; font-size:1.2em;}
+#moodlemenu #custommenu .yui3-menu li{height:37px;}
+#moodlemenu #custommenu .yui3-menu li li{height:auto}
+#moodlemenu #custommenu .yui3-menu-label, #moodlemenu #custommenu .yui3-menuitem-content{cursor:pointer}
+#moodlemenu #custommenu .yui3-menu-content, #moodlemenu #custommenu .yui3-menu .yui3-menu .yui3-menu-content{border:none;}
+#moodlemenu #custommenu .yui3-menu-horizontal .yui3-menu-label {border:none; display:block; color:#fff; padding:6px 20px 0 20px; margin:0; height:31px;}
+#moodlemenu #custommenu .yui3-menu-horizontal .yui3-menu-label:hover {color:#ff9933;}
+#moodlemenu #custommenu .yui3-menu-horizontal .yui3-menuitem .yui3-menuitem-content {border:none; display:block; color:#fff; padding:6px 20px 0 20px; margin:0;height:31px;}
+#moodlemenu #custommenu .yui3-menu-horizontal .yui3-menuitem .yui3-menuitem-content:hover {color:#ff9933;} 
+#moodlemenu #custommenu .yui3-menu-horizontal .yui3-menuitem-content {height:auto;}
+
+/* drop down levels */
+#moodlemenu #custommenu .custom_menu_submenu li{padding:0;  border-bottom:1px solid #ddd;}
+#moodlemenu #custommenu .custom_menu_submenu li a{padding:10px 15px;}
+
+#moodlemenu #custommenu .custom_menu_submenu .yui3-menuitem .yui3-menuitem-content{height:auto; padding:5px 15px; margin:0; color:#373737; border:none;}
+#moodlemenu #custommenu .custom_menu_submenu .yui3-menuitem .yui3-menuitem-content:hover {color:#ff9933;}
+#moodlemenu #custommenu .custom_menu_submenu .yui3-menuitem-active .yui3-menuitem-content{background-color:#efefef; color:#373737;}
+#moodlemenu #custommenu .custom_menu_submenu .yui3-menu-label-menuvisible{background-color:#efefef; color:#373737;}
+#moodlemenu #custommenu .custom_menu_submenu .yui3-menu-label {height:auto; font-weight:normal; color:#373737; padding:5px 15px; background:#efefef url([[pix:theme|arrow-menu]]) no-repeat right center; border:none;}
+#moodlemenu #custommenu .custom_menu_submenu .yui3-menu-label:hover {color:#ff9933;}
+
+#moodlemenu #custommenu .custom_menu_submenu .yui3-menu-content{background-color:#efefef;border-width:0;margin:2px 0 0 2px;padding:0;position:relative;}
+#moodlemenu #custommenu .custom_menu_submenu .yui3-menu-content ul{background-color:#efefef; border:1px solid #ddd; margin:-2px 0 0 -2px}
+
+#page-site-index #moodlemenu, #page-my-index #moodlemenu{border-bottom-color:#ddd}
+#moodlemenu #custommenu .javascript-disabled .yui3-menu-label, #moodlemenu #custommenu .javascript-disabled .yui3-menuitem-content{text-decoration:none}
+#moodlemenu #custommenu .javascript-disabled .custom_menu_submenu .yui3-menuitem{padding:0}
+
+.ie6 #moodlemenu #custommenu,
+.ie6 #moodlemenu #custommenu .yui3-menu,
+.ie6 #moodlemenu #custommenu .yui3-menu .yui3-menu-content,
+.ie6 #moodlemenu #custommenu .yui3-menu .yui3-menu-content ul,
+.ie6 #moodlemenu #custommenu .yui3-menu .yui3-menu-content ul li{float:left;display:inline}
+
+
+
+
+
+
+
+
+

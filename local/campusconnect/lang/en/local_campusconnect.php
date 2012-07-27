@@ -106,6 +106,7 @@ $string['modemanual'] = 'Manually mapped';
 $string['modepending'] = 'Not yet mapped';
 $string['modewhole'] = 'Whole tree mapped';
 $string['months'] = 'months';
+$string['mustbevalidcategory'] = 'Must be a valid category id';
 $string['name'] = 'Name';
 $string['newassignment'] = 'New Assignment';
 $string['nocategoryselected'] = 'No category selected';

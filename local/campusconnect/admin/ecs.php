@@ -73,8 +73,12 @@ $url_parts = parse_url($currentsettings->url);
 if (!empty($url_parts['scheme'])) {
     $currentsettings->protocol = $url_parts['scheme'];
 }
+$currentsettings->url = '';
 if (!empty($url_parts['host'])) {
-    $currentsettings->url = $url_parts['host'];
+    $currentsettings->url .= $url_parts['host'];
+}
+if (!empty($url_parts['path'])) {
+    $currentsettings->url .= $url_parts['path'];
 }
 if (!empty($url_parts['port'])) {
     $currentsettings->port = $url_parts['port'];
@@ -94,7 +98,10 @@ if ($form->is_cancelled()) {
 if ($data = $form->get_data()) {
 
     $data->crontime = ($data->pollingtimemin * 60) + $data->pollingtimesec;
-    $data->url = $data->protocol.'://'.$data->url.':'.$data->port;
+    $data->url = $data->protocol.'://'.$data->url;
+    if (!empty($data->port)) {
+        $data->url .= ':'.$data->port;
+    }
 
     $ecssettings->save_settings($data);
 

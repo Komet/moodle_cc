@@ -233,15 +233,19 @@ class campusconnect_metadata {
      * Generate a default summary layout (could be used to reset back to the default)
      * @return string the default summary
      */
-    public static function generate_default_summary() {
-        $mapping = array('organization' => get_string('field_organisation', 'local_campusconnect'),
-                         'lang' => get_string('field_language', 'local_campusconnect'),
-                         'semesterHours' => get_string('field_semesterhours', 'local_campusconnect'),
-                         'courseID' => get_string('field_courseid', 'local_campusconnect'),
-                         'term' => get_string('field_term', 'local_campusconnect'),
-                         'credits' => get_string('field_credits', 'local_campusconnect'),
-                         'status' => get_string('field_status', 'local_campusconnect'),
-                         'courseType' => get_string('field_coursetype', 'local_campusconnect'));
+    public static function generate_default_summary($external = true) {
+        if ($external) {
+            $mapping = array('destinationForDisplay' => get_string('field_organisation', 'local_campusconnect'),
+                             'lang' => get_string('field_language', 'local_campusconnect'),
+                             'term' => get_string('field_term', 'local_campusconnect'),
+                             'credits' => get_string('field_credits', 'local_campusconnect'),
+                             'status' => get_string('field_status', 'local_campusconnect'),
+                             'courseType' => get_string('field_coursetype', 'local_campusconnect'));
+        } else {
+            $mapping = array('organisation' => get_string('field_organisation', 'local_campusconnect'),
+                             'term' => get_string('field_term', 'local_campusconnect'),
+                             'courseType' => get_string('field_coursetype', 'local_campusconnect'));
+        }
         $summary = '';
         foreach ($mapping as $field => $text) {
             $summary .= '<b>'.$text.':</b> {'.$field.'}<br/>';

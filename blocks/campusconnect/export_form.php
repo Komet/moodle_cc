@@ -31,15 +31,20 @@ class block_campusconnect_export_form extends moodleform {
         $mform = $this->_form;
         $export = $this->_customdata;
 
-        $mform->addElement('selectyesno', 'enableexport', get_string('exportcourse', 'block_campusconnect'));
-        $mform->setDefault('enableexport', $export->is_exported());
-
         $parts = $export->list_participants();
-        foreach ($parts as $identifier => $part) {
-            $elname = 'part_'.$identifier;
-            $mform->addElement('advcheckbox', $elname, '', s($part->get_displayname()));
-            $mform->disabledIf($elname, 'enableexport', 'eq', 0);
-            $mform->setDefault($elname, $part->is_exported());
+        if (empty($parts)) {
+            $mform->addElement('hidden', 'enableexport', false);
+            $mform->addElement('static', 'noparticipants', '', get_string('noexportparticipants', 'block_campusconnect'));
+        } else {
+            $mform->addElement('selectyesno', 'enableexport', get_string('exportcourse', 'block_campusconnect'));
+            $mform->setDefault('enableexport', $export->is_exported());
+
+            foreach ($parts as $identifier => $part) {
+                $elname = 'part_'.$identifier;
+                $mform->addElement('advcheckbox', $elname, '', s($part->get_displayname()));
+                $mform->disabledIf($elname, 'enableexport', 'eq', 0);
+                $mform->setDefault($elname, $part->is_exported());
+            }
         }
         $mform->addElement('hidden', 'courseid', $export->get_courseid());
 

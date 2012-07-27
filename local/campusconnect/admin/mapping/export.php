@@ -26,11 +26,13 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once("$CFG->libdir/formslib.php");
 
-$mform = new campusconnect_export_form("{$CFG->wwwroot}/admin/campusconnect/datamapping.php?type=export");
+$mform = new campusconnect_export_form();
+
+$redir = new moodle_url('/local/campusconnect/admin/datamapping.php', array('type' => 'export'));
 
 if ($mform->is_cancelled()) {
 
-    redirect("{$CFG->wwwroot}/admin/campusconnect/datamapping.php?type=export", '', 0);
+    redirect($redir);
 
 } else if ($post=$mform->get_data()) {
 
@@ -52,7 +54,7 @@ if ($mform->is_cancelled()) {
         $savemetadata->set_export_mappings($details);
     }
 
-    redirect("{$CFG->wwwroot}/admin/campusconnect/datamapping.php?type=export", '', 0);
+    redirect($redir);
 
 } else {
 
@@ -73,8 +75,9 @@ class campusconnect_export_form extends moodleform {
 
         foreach ($ecslist as $ecsid => $ecsname) {
 
-            $mform =& $this->_form;
+            $mform = $this->_form;
 
+            $mform->addElement('hidden', 'type', 'export');
             $mform->addElement('header');
             $mform->addElement('html', "<h2>$ecsname</h2>");
             $mform->addElement('html', "<h3>".get_string('course', 'local_campusconnect')."</h3>");
@@ -84,22 +87,30 @@ class campusconnect_export_form extends moodleform {
             $remotefields = $metadata->list_remote_fields(false);
             $currentmappings = $metadata->get_export_mappings();
 
+            $strunmapped = get_string('unmapped', 'local_campusconnect');
+            $strnomappings = get_string('nomappings', 'local_campusconnect');
+
             foreach ($remotefields as $remotemap) {
+                $elname = $ecsid.'_'.$remotemap.'_internal';
                 if ($remotemap == 'summary') {
-                    $mform->addElement('editor', $ecsid.'_'.$remotemap, $remotemap);
+                    $mform->addElement('editor', $elname, $remotemap);
                     $mform->setType('fieldname', PARAM_RAW);
-                    $mform->setDefault($ecsid.'_'.$remotemap, array('text'=>$currentmappings[$remotemap], 'format'=>FORMAT_HTML));
+                    $mform->setDefault($elname, array('text'=>$currentmappings[$remotemap], 'format'=>FORMAT_HTML));
                 } else if ($metadata->is_remote_text_field($remotemap, false)) {
-                    $mform->addElement('text', $ecsid.'_'.$remotemap, $remotemap, $currentmappings[$remotemap]);
-                    $mform->setDefault($ecsid.'_'.$remotemap, $currentmappings[$remotemap]);
+                    $mform->addElement('text', $elname, $remotemap, $currentmappings[$remotemap]);
+                    $mform->setDefault($elname, $currentmappings[$remotemap]);
                 } else {
                     $maparray = $metadata->list_local_to_remote_fields($remotemap, false);
-                    $maps = array();
-                    foreach ($maparray as $i) {
-                        $maps[$i] = $i;
+                    if ($maparray) {
+                        $maps = array('' => $strunmapped);
+                        foreach ($maparray as $i) {
+                            $maps[$i] = $i;
+                        }
+                    } else {
+                        $maps = array('' => $strnomappings);
                     }
-                    $mform->addElement('select', $ecsid.'_'.$remotemap, $remotemap, $maps, $currentmappings[$remotemap]);
-                    $mform->setDefault($ecsid.'_'.$remotemap, $currentmappings[$remotemap]);
+                    $mform->addElement('select', $elname, $remotemap, $maps, $currentmappings[$remotemap]);
+                    $mform->setDefault($elname, $currentmappings[$remotemap]);
                 }
             }
 
@@ -111,24 +122,26 @@ class campusconnect_export_form extends moodleform {
             $currentmappings = $metadata->get_export_mappings();
 
             foreach ($remotefields as $remotemap) {
+                $elname = $ecsid.'_'.$remotemap.'_external';
                 if ($remotemap == 'summary') {
-                    $mform->addElement('editor', $ecsid.'_'.$remotemap.'_external', $remotemap);
+                    $mform->addElement('editor', $elname, $remotemap);
                     $mform->setType('fieldname', PARAM_RAW);
-                    $mform->setDefault($ecsid.'_'.$remotemap.'_external',
-                        array('text'=>$currentmappings[$remotemap], 'format'=>FORMAT_HTML));
+                    $mform->setDefault($elname, array('text'=>$currentmappings[$remotemap], 'format'=>FORMAT_HTML));
                 } else if ($metadata->is_remote_text_field($remotemap, true)) {
-                    $mform->addElement('text', $ecsid.'_'.$remotemap.'_external',
-                        $remotemap, $currentmappings[$remotemap]);
-                    $mform->setDefault($ecsid.'_'.$remotemap.'_external', $currentmappings[$remotemap]);
+                    $mform->addElement('text', $elname, $remotemap, $currentmappings[$remotemap]);
+                    $mform->setDefault($elname, $currentmappings[$remotemap]);
                 } else {
                     $maparray = $metadata->list_local_to_remote_fields($remotemap, true);
-                    $maps = array();
-                    foreach ($maparray as $i) {
-                        $maps[$i] = $i;
+                    if ($maparray) {
+                        $maps = array('' => $strunmapped);
+                        foreach ($maparray as $i) {
+                            $maps[$i] = $i;
+                        }
+                    } else {
+                        $maps = array('' => $strnomappings);
                     }
-                    $mform->addElement('select', $ecsid.'_'.$remotemap.'_external',
-                        $remotemap, $maps, $currentmappings[$remotemap]);
-                    $mform->setDefault($ecsid.'_'.$remotemap.'_external', $currentmappings[$remotemap]);
+                    $mform->addElement('select', $elname, $remotemap, $maps, $currentmappings[$remotemap]);
+                    $mform->setDefault($elname, $currentmappings[$remotemap]);
                 }
             }
         }

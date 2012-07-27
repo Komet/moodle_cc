@@ -35,12 +35,91 @@ admin_externalpage_setup('campusconnectreleasedcourses');
 require_login();
 require_capability('moodle/site:config', get_context_instance(CONTEXT_SYSTEM));
 
+if (optional_param('refreshall', false, PARAM_BOOL)) {
+    // Refresh all the exports (if requested).
+    require_sesskey();
+    $errors = campusconnect_export::refresh_all_ecs();
+    if (empty($errors)) {
+        redirect($PAGE->url);
+    }
+
+    echo $OUTPUT->header();
+    echo $OUTPUT->notification(implode('<br/>', $errors));
+    echo $OUTPUT->continue_button($PAGE->url);
+    echo $OUTPUT->footer();
+    die();
+}
+
+// Get list of exported courses (and course details).
+$exports = campusconnect_export::list_all_exports();
+if ($exports) {
+    $courseids = array();
+    foreach ($exports as $export) {
+        $courseids[] = $export->get_courseid();
+    }
+    $courses = $DB->get_records_list('course', 'id', $courseids, 'id', 'id, fullname');
+}
+
+// Table headings.
+$table = new html_table();
+$table->head = array(
+    get_string('coursename', 'local_campusconnect'),
+    get_string('exportparticipants', 'local_campusconnect')
+);
+$table->attributes = array('style' => 'width: 90%;');
+$table->size = array(
+    '40%',
+    '60%'
+);
+
+$strstatus = array(
+    campusconnect_export::STATUS_CREATED => get_string('exportcreated', 'local_campusconnect'),
+    campusconnect_export::STATUS_UPDATED => get_string('exportupdated', 'local_campusconnect'),
+    campusconnect_export::STATUS_DELETED => get_string('exportdeleted', 'local_campusconnect'),
+);
+
+// Gather details for each exported course.
+$table->data = array();
+foreach ($exports as $export) {
+    $coursename = format_string($courses[$export->get_courseid()]->fullname);
+    $courseurl = new moodle_url('/course/view.php', array('id' => $export->get_courseid()));
+    $courselink = html_writer::link($courseurl, $coursename);
+
+    $part = array();
+    $participants = $export->list_current_exports();
+    if (empty($participants)) {
+        continue;
+    }
+    foreach ($participants as $identifier => $participant) {
+        $partname = $participant->get_displayname();
+        $status = $export->get_status($identifier);
+        if ($status != campusconnect_export::STATUS_UPTODATE) {
+            $partname .= ' ('.$strstatus[$status].')';
+        }
+        $part[] = $partname;
+    }
+
+    $row = array(
+        $courselink,
+        implode('<br/>', $part)
+    );
+
+    $table->data[] = $row;
+}
+
+$refreshurl = new moodle_url($PAGE->url, array('refreshall' => 1, 'sesskey' => sesskey()));
+
+// Output exported details.
 echo $OUTPUT->header();
-echo $OUTPUT->heading(get_string('pluginname', 'local_campusconnect'));
+echo $OUTPUT->heading(get_string('releasedcourses', 'local_campusconnect'));
 
-$ecslist = campusconnect_ecssettings::list_ecs();
-print '<h4 style="text-align: center">'.get_string('releasedcourses', 'local_campusconnect').'</h4>';
+echo $OUTPUT->single_button($refreshurl, get_string('refreshexport', 'local_campusconnect'), 'POST');
+echo html_writer::empty_tag('br');
 
-print 'TODO';
+if ($table->data) {
+    echo html_writer::table($table);
+} else {
+    echo get_string('nocourseexport', 'local_campusconnect');
+}
 
 echo $OUTPUT->footer();

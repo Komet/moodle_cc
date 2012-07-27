@@ -1013,7 +1013,7 @@ class campusconnect_directory {
      * @return mixed campusconnect_directory | false : returns the directory,
      *                 if a new directory was created, false if it already existed
      */
-    public static function check_update_directory($directory) {
+    public static function check_update_directory($resourceid, $directory) {
         $dirs = self::get_directories($directory->rootID);
         foreach ($dirs as $dir) {
             if ($dir->get_directory_id() == $directory->id) {
@@ -1028,7 +1028,7 @@ class campusconnect_directory {
 
         // Not found - create it.
         $dir = new campusconnect_directory();
-        $dir->create($directory->rootID, $directory->id, $directory->parent->id, $directory->title, $directory->order);
+        $dir->create($resourceid, $directory->rootID, $directory->id, $directory->parent->id, $directory->title, $directory->order);
         $dir->set_still_exists();
         return $dir;
     }

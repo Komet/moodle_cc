@@ -198,6 +198,10 @@ class campusconnect_courselink {
         return true;
     }
 
+    public static function refresh_from_ecs(campusconnect_connect $connect) {
+        throw new coding_exception('This function will be written in Phase 2');
+    }
+
     /**
      * Delete all the courselinks to the given participant (used when
      * deleting an ECS or switching off import from a particular participant)

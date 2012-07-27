@@ -43,3 +43,18 @@
 .generaltable #campusconnect_dirtree td {
     border: 0;
 }
+
+.campusconnect_refresh div.singlebutton {
+    display: inline-block;
+    margin-left: 10px;
+}
+
+.campusconnect_refreshdone {
+    color: black;
+    width: 90%;
+    border: 1px solid #00cc00;
+    background-color: #ccffcc;
+    margin: auto;
+    padding: 1em;
+    text-align: center;
+}

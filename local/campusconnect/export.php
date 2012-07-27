@@ -54,6 +54,7 @@ class campusconnect_export {
                 $mids[$setting->ecsid] = explode(',', $setting->mids);
             }
         }
+
         $this->exportparticipants = campusconnect_participantsettings::list_potential_export_participants();
 
         foreach ($this->exportparticipants as $part) {
@@ -69,6 +70,25 @@ class campusconnect_export {
      */
     function get_courseid() {
         return $this->courseid;
+    }
+
+    /**
+     * Returns the update status of a particular participant
+     * @param str $partidentifier
+     * @param int the current status
+     */
+    function get_status($partidentifier) {
+        if (!array_key_exists($partidentifier, $this->exportparticipants)) {
+            throw new coding_exception("Attempting to get the status of a participant ($partidentifier) not in the available to export to list");
+        }
+        $ecsid = $this->exportparticipants[$partidentifier]->get_ecs_id();
+        foreach ($this->exportsettings as $setting) {
+            if ($setting->ecsid == $ecsid) {
+                return $setting->status;
+            }
+        }
+
+        throw new coding_exception("Attempting to get the status of a participant ($partidentifier) not currently being exported to");
     }
 
     /**
@@ -167,14 +187,16 @@ class campusconnect_export {
             }
         }
 
-        // No current export record for this course & ECS => create one.
-        $ins = new stdClass();
-        $ins->courseid = $this->courseid;
-        $ins->ecsid = $ecsid;
-        $ins->mids = $mid;
-        $ins->status = self::STATUS_CREATED;
-        $ins->id = $DB->insert_record('local_campusconnect_export', $ins);
-        $this->exportsettings[$ins->id] = $ins;
+        // No current export record for this course & ECS => create one (if needed).
+        if ($export) {
+            $ins = new stdClass();
+            $ins->courseid = $this->courseid;
+            $ins->ecsid = $ecsid;
+            $ins->mids = $mid;
+            $ins->status = self::STATUS_CREATED;
+            $ins->id = $DB->insert_record('local_campusconnect_export', $ins);
+            $this->exportsettings[$ins->id] = $ins;
+        }
     }
 
     /**
@@ -322,6 +344,24 @@ class campusconnect_export {
     }
 
     /**
+     * Resync the exported courses with the ECS
+     */
+    public static function refresh_all_ecs() {
+        $errors = array();
+        $ecslist = campusconnect_ecssettings::list_ecs();
+        foreach ($ecslist as $ecsid => $ecs) {
+            $settings = new campusconnect_ecssettings($ecsid);
+            $connect = new campusconnect_connect($settings);
+            try {
+                self::refresh_ecs($connect);
+            } catch (Exception $e) {
+                $errors[] = $ecs.': '.$e->getMessage();
+            }
+        }
+        return $errors;
+    }
+
+    /**
      * Get list of exported courses from ECS - delete any that should not be there any more, create
      * any that should be there and update all others
      * @param campusconnect_connect $connect connection to the ECS to update
@@ -356,9 +396,9 @@ class campusconnect_export {
         $metadata = new campusconnect_metadata($connect->get_settings());
 
         // Check all the resources on the server against our local list.
-        $resources = $connect->get_resource_list(campusconnect_export::RES_COURSELINK);
+        $resources = $connect->get_resource_list(campusconnect_event::RES_COURSELINK);
         foreach ($resources->get_ids() as $resourceid) {
-            $details = $connect->get_resouce($resourceid, true);
+            $details = $connect->get_resource($resourceid, campusconnect_event::RES_COURSELINK, true);
             if (!in_array($details->senders[0]->mid, $mymids)) {
                 continue; // Not one of this VLE's resources.
             }
@@ -403,7 +443,7 @@ class campusconnect_export {
         }
 
         // Check for any courses that were not found on the ECS.
-        foreach ($exportedcourses as $exporedcourse) {
+        foreach ($exportedcourses as $exportedcourse) {
             if (!empty($exportedcourse->updated)) {
                 continue; // Already updated.
             }
@@ -456,5 +496,20 @@ class campusconnect_export {
             // Final clean-up.
             $DB->delete_records('local_campusconnect_export', array('ecsid' => $ecsid));
         }
+    }
+
+    /**
+     * List all courses exported by this VLE
+     * @return array campusconnect_export objects
+     */
+    public static function list_all_exports() {
+        global $DB;
+
+        $courseids = $DB->get_fieldset_select('local_campusconnect_export', 'DISTINCT courseid', '');
+        $exports = array();
+        foreach ($courseids as $courseid) {
+            $exports[] = new campusconnect_export($courseid);
+        }
+        return $exports;
     }
 }

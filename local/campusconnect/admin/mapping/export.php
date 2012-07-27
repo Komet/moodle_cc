@@ -99,9 +99,9 @@ if (!empty($errors)) {
     $mform->set_errors($errors);
 }
 
+echo html_writer::start_tag('span', array('class' => 'campusconnect_metadata'));
 $mform->display();
-
-
+echo html_writer::end_tag('span');
 
 
 class campusconnect_export_form extends moodleform {

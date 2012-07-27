@@ -58,3 +58,7 @@
     padding: 1em;
     text-align: center;
 }
+
+.campusconnect_metadata .mform .fitem .fitemtitle {
+    width: 40%;
+}

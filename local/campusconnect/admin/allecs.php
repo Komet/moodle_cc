@@ -52,7 +52,7 @@ require_capability('moodle/site:config', get_context_instance(CONTEXT_SYSTEM));
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('pluginname', 'local_campusconnect'));
 
-print '<a href="ecs.php"><h3>Add New ECS</h3></a><br />';
+print '<a href="'.new moodle_url('/local/campusconnect/admin/ecs.php').'"><h3>Add New ECS</h3></a><br />';
 print '<h4>Available ECS</h4>';
 $ecslist = campusconnect_ecssettings::list_ecs(false);
 print '<table class="generaltable" width="100%">
@@ -75,10 +75,10 @@ foreach ($ecslist as $ecsid => $ecs) {
         print '<td style="text-align: center">'.get_string('no').'</td>';
     }
     print "<td><div class='info'>
-        <strong><a href='ecs.php?id=$ecsid'>$ecs</a></strong><br />
+        <strong><a href='".new moodle_url('/local/campusconnect/admin/ecs.php', array('id'=>$ecsid))."'>$ecs</a></strong><br />
         <strong>Server Address:</strong> $url
     </div></td>";
-    print "<td><a href='ecs.php?id=$ecsid'>Edit</a> | <a href='ecs.php?delete=$ecsid'>Delete</a></td>";
+    print '<td><a href='.new moodle_url('/local/campusconnect/admin/ecs.php', array('id'=>$ecsid)).'>Edit</a> | <a href='.new moodle_url('/local/campusconnect/admin/ecs.php', array('delete'=>$ecsid, 'sesskey'=>sesskey())).'>Delete</a></td>';
     print '</tr>';
 }
 print '</tbody></table>';

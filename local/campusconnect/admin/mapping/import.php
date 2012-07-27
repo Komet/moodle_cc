@@ -30,7 +30,7 @@ $mform = new campusconnect_import_form();
 
 if ($mform->is_cancelled()) {
 
-    redirect("{$CFG->wwwroot}/admin/campusconnect/datamapping.php?type=import", '', 0);
+    redirect(new moodle_url('/local/campusconnect/admin/datamapping.php', array('type'=>'import')));
 
 } else if ($post=$mform->get_data()) {
 
@@ -54,30 +54,12 @@ if ($mform->is_cancelled()) {
         $savemetadata->set_import_mappings($details);
     }
 
-    redirect("{$CFG->wwwroot}/admin/campusconnect/datamapping.php?type=import", '', 0);
+    redirect(new moodle_url('/local/campusconnect/admin/datamapping.php', array('type'=>'import')));
 
 } else {
 
     print '<div class="controls"><strong><a href="?type=import">Import</a></strong> |
             <a href="?type=export">Export</a></div><br /><br />';
-    print '<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>';
-    print '<script type="text/javascript">
-
-        $(document).ready(function() {
-
-          var allPanels = $(".meta_accordion > div.meta_content").hide();
-
-          $(".meta_accordion > .meta_title > h3 > a").click(function() {
-                allPanels.slideUp();
-            if ( $(this).parent().siblings() > 0 || $(this).parent().parent().next().css("display") == "none") {
-                $(this).parent().parent().next().slideDown();
-            }
-            return false;
-          });
-
-        });
-
-        </script>';
 
 
     $mform->display();
@@ -96,15 +78,10 @@ class campusconnect_import_form extends moodleform {
 
             $mform =& $this->_form;
 
-            $mform->addElement('html', "<h2><a href='javascript://'>$ecsname</a></h2>");
             $mform->addElement('header');
+            $mform->addElement('html', "<h2>$ecsname</h2>");
 
-            $mform->addElement('html', '<div class="meta_accordion">');
-
-            $mform->addElement('html', '<div class="meta_title">');
-            $mform->addElement('html', "<h3><a href='javascript://'>Kurse</a></h35>");
-            $mform->addElement('html', '</div>');
-            $mform->addElement('html', '<div class="meta_content">');
+            $mform->addElement('html', "<h3>".get_string('course')."</h3>");
 
             $ecssettings = new campusconnect_ecssettings($ecsid);
             $metadata = new campusconnect_metadata($ecssettings, false);
@@ -130,12 +107,7 @@ class campusconnect_import_form extends moodleform {
                 }
             }
 
-            $mform->addElement('html', '</div>');
-
-            $mform->addElement('html', '<div class="meta_title">');
-            $mform->addElement('html', "<h3><a href='javascript://'>External Kurse</a></h3>");
-            $mform->addElement('html', '</div>');
-            $mform->addElement('html', '<div class="meta_content">');
+            $mform->addElement('html', "<h3>".get_string('externalcourse', 'local_campusconnect')."</h3>");
 
             $ecssettings = new campusconnect_ecssettings($ecsid);
             $metadata = new campusconnect_metadata($ecssettings, true);
@@ -161,10 +133,6 @@ class campusconnect_import_form extends moodleform {
                     $mform->setDefault($ecsid.'_'.$localmap.'_external', $currentmappings[$localmap]);
                 }
             }
-
-            $mform->addElement('html', '</div>');
-
-            $mform->addElement('html', '</div>');
         }
 
         $this->add_action_buttons();

@@ -61,8 +61,23 @@ if ($mform->is_cancelled()) {
 } else {
 
     print '<div class="controls"><strong><a href="?type=import">Import</a></strong> |
-            <a href="?type=export">Export</a></div><br /><br />';
+            <a href="?type=export">Export</a></div>';
 
+    $remotefields = campusconnect_metadata::list_remote_fields(false);
+    $helpcontent = '';
+    foreach ($remotefields as $remotefield) {
+        $helpcontent .= '{'.$remotefield.'}<br />';
+    }
+    print "<div style='float: left; width: 45%; border: 1px solid #000; background: #ddd; margin: 10px 5px; padding: 5px;'><strong>"
+        .get_string('courseavailablefields', 'local_campusconnect').':</strong><br />'.$helpcontent."</div>";
+
+    $remotefields = campusconnect_metadata::list_remote_fields(true);
+    $helpcontent = '';
+    foreach ($remotefields as $remotefield) {
+        $helpcontent .= '{'.$remotefield.'}<br />';
+    }
+    print "<div style='float: right; width: 45%; border: 1px solid #000; background: #ddd; margin: 10px 5px; padding: 5px'><strong>"
+        .get_string('courseextavailablefields', 'local_campusconnect').':</strong><br />'.$helpcontent."</div>";
 
     $mform->display();
 }
@@ -88,6 +103,7 @@ class campusconnect_import_form extends moodleform {
             $ecssettings = new campusconnect_ecssettings($ecsid);
             $metadata = new campusconnect_metadata($ecssettings, false);
             $localfields = $metadata->list_local_fields();
+            $remotefields = $metadata->list_remote_fields(false);
             $currentmappings = $metadata->get_import_mappings();
 
             $strunmapped = get_string('unmapped', 'local_campusconnect');
@@ -119,7 +135,6 @@ class campusconnect_import_form extends moodleform {
 
             $mform->addElement('html', "<h3>".get_string('externalcourse', 'local_campusconnect')."</h3>");
 
-            $ecssettings = new campusconnect_ecssettings($ecsid);
             $metadata = new campusconnect_metadata($ecssettings, true);
             $localfields = $metadata->list_local_fields();
             $currentmappings = $metadata->get_import_mappings();

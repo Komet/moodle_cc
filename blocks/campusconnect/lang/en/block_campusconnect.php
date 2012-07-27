@@ -27,6 +27,7 @@ defined('MOODLE_INTERNAL') || die();
 $string['editexport'] = 'Update export settings';
 $string['exportcourse'] = 'Export course';
 $string['exportedto'] = 'Exported to';
+$string['noexportparticipants'] = 'There are no participants available to export this course to';
 $string['notexported'] = 'Not exported';
 $string['notsiteid'] = 'You cannot export the SITE course via CampusConnect';
 $string['pluginname'] = 'Export course';

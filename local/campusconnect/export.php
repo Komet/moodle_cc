@@ -167,14 +167,16 @@ class campusconnect_export {
             }
         }
 
-        // No current export record for this course & ECS => create one.
-        $ins = new stdClass();
-        $ins->courseid = $this->courseid;
-        $ins->ecsid = $ecsid;
-        $ins->mids = $mid;
-        $ins->status = self::STATUS_CREATED;
-        $ins->id = $DB->insert_record('local_campusconnect_export', $ins);
-        $this->exportsettings[$ins->id] = $ins;
+        // No current export record for this course & ECS => create one (if needed).
+        if ($export) {
+            $ins = new stdClass();
+            $ins->courseid = $this->courseid;
+            $ins->ecsid = $ecsid;
+            $ins->mids = $mid;
+            $ins->status = self::STATUS_CREATED;
+            $ins->id = $DB->insert_record('local_campusconnect_export', $ins);
+            $this->exportsettings[$ins->id] = $ins;
+        }
     }
 
     /**

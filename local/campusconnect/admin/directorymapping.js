@@ -3,12 +3,10 @@ M.campusconnect_directorymapping = {
     mappings: null,
     mapbutton: null,
     unmapbutton: null,
-    mappinglocked: null,
 
     init: function(Y, opts) {
         this.Y = Y;
         this.mappings = opts.mappings;
-        this.mappinglocked = opts.mappinglocked;
 
         var self = this;
 
@@ -43,7 +41,7 @@ M.campusconnect_directorymapping = {
         // Find the currently mapped category (if any).
         var id = radio.get('id');
         var directoryid = id.split('-')[1];
-        var categoryid = this.mappings[directoryid];
+        var map = this.mappings[directoryid];
 
         // Deselect all categories + labels.
         var cats = this.Y.one('#campusconnect_categorytree');
@@ -51,18 +49,23 @@ M.campusconnect_directorymapping = {
         cats.all('.categorylabel').removeClass('mapped_category');
 
         // Select the correct category + label.
-        if (categoryid) {
-            cats.one('#category-'+categoryid).set('checked', true);
-            cats.one('#labelcategory-'+categoryid).addClass('mapped_category');
+        if (map.category) {
+            cats.one('#category-'+map.category).set('checked', true);
+            cats.one('#labelcategory-'+map.category).addClass('mapped_category');
             this.mapbutton.set('value', M.util.get_string('remapdirectory', 'local_campusconnect'));
-            if (this.mappinglocked[directoryid]) {
-                this.unmapbutton.set('disabled', 'disabled');
-            } else {
+            if (map.canunmap) {
                 this.unmapbutton.removeAttribute('disabled');
+            } else {
+                this.unmapbutton.set('disabled', 'disabled');
             }
         } else {
             this.mapbutton.set('value', M.util.get_string('mapdirectory', 'local_campusconnect'));
             this.unmapbutton.set('disabled', 'disabled');
+        }
+        if (map.canmap) {
+            this.mapbutton.removeAttribute('disabled');
+        } else {
+            this.mapbutton.set('disabled', 'disabled');
         }
     }
 

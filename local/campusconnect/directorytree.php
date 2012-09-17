@@ -337,19 +337,18 @@ class campusconnect_directorytree {
      * @return array of directoryid => categoryid
      */
     public function list_all_mappings() {
-        $ret = array($this->rootid => $this->categoryid);
+        $rootmapping = new stdClass();
+        $rootmapping->category = intval($this->categoryid);
+        $rootmapping->canunmap = true;
+        $rootmapping->canmap = true;
+        $ret = array($this->rootid => $rootmapping);
         $dirs = campusconnect_directory::get_directories($this->rootid);
         foreach ($dirs as $dir) {
-            $ret[$dir->get_directory_id()] = $dir->get_category_id();
-        }
-        return $ret;
-    }
-
-    public function locked_mappings() {
-        $ret = array($this->rootid => false);
-        $dirs = campusconnect_directory::get_directories($this->rootid);
-        foreach ($dirs as $dir) {
-            $ret[$dir->get_directory_id()] = $dir->is_mapping_locked();
+            $mapping = new stdClass();
+            $mapping->category = intval($dir->get_category_id());
+            $mapping->canunmap = $dir->can_unmap();
+            $mapping->canmap = $dir->can_map();
+            $ret[$dir->get_directory_id()] = $mapping;
         }
         return $ret;
     }
@@ -664,8 +663,17 @@ class campusconnect_directory {
         return campusconnect_directorytree::get_by_root_id($this->rootid);
     }
 
-    public function is_mapping_locked() {
-        return ($this->mapping == self::MAPPING_MANUAL);
+    public function can_unmap() {
+        // Only pending-manual mappings can be remapped if the category id exists
+        return ($this->mapping == self::MAPPING_MANUAL_PENDING);
+    }
+
+    public function can_map() {
+        // Can only map if not already automatically mapped.
+        if ($this->categoryid) {
+            return ($this->mapping != self::MAPPING_AUTOMATIC);
+        }
+        return true;
     }
 
     /**
@@ -905,16 +913,17 @@ class campusconnect_directory {
     /**
      * Map this directory onto a course category
      * @param int $categoryid
+     * @return null|string - error message to display
      */
     public function map_category($categoryid) {
         global $DB;
 
-        if ($this->categoryid && $this->mapping == self::MAPPING_AUTOMATIC) {
+        if (!$this->can_map()) {
             throw new campusconnect_directorytree_exception("Cannot map directory {$this->directoryid} as it is already mapped automatically");
         }
 
         if ($this->categoryid == $categoryid) {
-            return; // No change.
+            return null; // No change.
         }
 
         if (! $newcategory = $DB->get_record('course_categories', array('id' => $categoryid))) {
@@ -943,13 +952,15 @@ class campusconnect_directory {
                 $tree->create_all_categories();
             }
         }
+
+        return null;
     }
 
     /**
      * Unmap this directory from the category.
      */
     public function unmap_category() {
-        if ($this->mapping != self::MAPPING_MANUAL_PENDING) {
+        if (!$this->can_unmap()) {
             throw new campusconnect_directorytree_exception("Unmapping of directories can only be done when mapping is pending - current mapping status: {$this->mapping}");
         }
 
@@ -1065,7 +1076,7 @@ class campusconnect_directory {
     /**
      * Get all the directories within the given directory tree
      * @param int $rootid
-     * @return array of campusconnect_directory objects (indexed by recordid)
+     * @return array campusconnect_directory objects (indexed by recordid)
      */
     public static function get_directories($rootid) {
         global $DB;

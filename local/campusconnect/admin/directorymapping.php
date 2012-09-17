@@ -141,8 +141,7 @@ if ($showdirectory) {
 
 // Initialise the page javascript.
 $opts = array(
-    'mappings' => $dirtree->list_all_mappings(),
-    'mappinglocked' => $dirtree->locked_mappings());
+    'mappings' => $dirtree->list_all_mappings());
 $jsmodule = array(
     'name' => 'campusconnect_directorymapping',
     'fullpath' => new moodle_url('/local/campusconnect/admin/directorymapping.js'),

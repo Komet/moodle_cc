@@ -52,6 +52,7 @@ class campusconnect_ecs_form extends moodleform {
         $mform->setType('port', PARAM_INT);
 
         $auth = array(
+            campusconnect_ecssettings::AUTH_NONE => get_string('directconnection', 'local_campusconnect'),
             campusconnect_ecssettings::AUTH_CERTIFICATE => get_string('certificatebase', 'local_campusconnect'),
             campusconnect_ecssettings::AUTH_HTTP => get_string('usernamepassword', 'local_campusconnect')
         );
@@ -71,13 +72,16 @@ class campusconnect_ecs_form extends moodleform {
         $mform->addElement('text', 'httppass', get_string('password', 'local_campusconnect'));
         $mform->disabledIf('httppass', 'auth', 'neq', campusconnect_ecssettings::AUTH_HTTP);
 
+        $mform->addElement('text', 'ecsauth', get_string('ecsauth', 'local_campusconnect'));
+        $mform->disabledIf('ecsauth', 'auth', 'neq', campusconnect_ecssettings::AUTH_NONE);
+
         $mform->addElement('header', 'localsettings', get_string('localsettings', 'local_campusconnect'));
 
         $selectarray=array();
-        $selectarray[] = MoodleQuickForm::createElement('select', 'pollingtimemin', '', range(0, 59));
-        $selectarray[] = MoodleQuickForm::createElement('static', 'pollingmins', '', get_string('minutes', 'local_campusconnect'));
-        $selectarray[] = MoodleQuickForm::createElement('select', 'pollingtimesec', '', range(0, 59));
-        $selectarray[] = MoodleQuickForm::createElement('static', 'pollingsecs', '', get_string('seconds', 'local_campusconnect'));
+        $selectarray[] = $mform->createElement('select', 'pollingtimemin', '', range(0, 59));
+        $selectarray[] = $mform->createElement('static', 'pollingmins', '', get_string('minutes', 'local_campusconnect'));
+        $selectarray[] = $mform->createElement('select', 'pollingtimesec', '', range(0, 59));
+        $selectarray[] = $mform->createElement('static', 'pollingsecs', '', get_string('seconds', 'local_campusconnect'));
         $mform->addGroup($selectarray, 'pollingtime', get_string('pollingtime', 'local_campusconnect'), array(' '), false);
 
         $mform->addElement('text', 'importcategory', get_string('categoryid', 'local_campusconnect'));

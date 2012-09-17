@@ -52,6 +52,8 @@ function local_campusconnect_cron() {
                 local_campusconnect_ecs_error_notification($ecssettings, $e->getMessage());
             }
 
+            campusconnect_directorytree::check_all_mappings();
+
             $ecssettings->update_last_cron();
         }
     }

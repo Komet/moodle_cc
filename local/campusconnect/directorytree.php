@@ -483,6 +483,9 @@ class campusconnect_directorytree {
                 campusconnect_directory::remove_missing_directories($tree->get_root_id());
             }
         }
+
+        // Look for any directories mapped on to categories that no longer exist.
+        self::check_all_mappings();
     }
 
     /**
@@ -589,6 +592,63 @@ class campusconnect_directorytree {
 
         // Not found - but don't worry about it.
         return true;
+    }
+
+    public static function check_all_mappings() {
+        global $DB;
+
+        // Check all directory tree mappings.
+        $categoryids = array();
+        $trees = $DB->get_records('local_campusconnect_dirroot');
+        $dirtrees = array();
+        foreach ($trees as $tree) {
+            $dirtree = new campusconnect_directorytree($tree);
+            if ($catid = $dirtree->get_category_id()) {
+                $dirtrees[] = $dirtree;
+                $categoryids[] = $catid;
+            }
+        }
+        $categories = $DB->get_records_list('course_categories', 'id', $categoryids, 'id', 'id');
+        foreach ($dirtrees as $tree) {
+            if ($tree->get_category_id()) {
+                if (!array_key_exists($tree->get_category_id(), $categories)) {
+                    // Looks like the category has been deleted - clear the mapping.
+                    $tree->unmap_category();
+                }
+            }
+        }
+
+        // Check all directory mappings.
+        $dbdirs = $DB->get_records('local_campusconnect_dir');
+        $dirs = array();
+        $categoryids = array();
+        foreach ($dbdirs as $dbdir) {
+            $dir = new campusconnect_directory($dbdir);
+            if ($catid = $dir->get_category_id()) {
+                $dirs[] = $dir;
+                $categoryids[] = $catid;
+            }
+        }
+        $recreate = array();
+        foreach ($dirs as $dir) {
+            if ($dir->get_category_id()) {
+                if (!array_key_exists($dir->get_category_id(), $categories)) {
+                    // Directory was mapped onto a category that no longer exists.
+                    if ($dir->clear_deleted_category()) {
+                        $recreate[] = $dir;
+                    }
+                }
+            }
+        }
+        // Try to recreate the categories for any automatically mapped directories that
+        // previously had categories.
+        if ($recreate) {
+            foreach ($recreate as $dir) {
+                $dirtree = $dir->get_directory_tree();
+                $dir->create_category($dirtree->get_category_id(), false);
+            }
+            fix_course_sortorder();
+        }
     }
 }
 
@@ -966,6 +1026,30 @@ class campusconnect_directory {
 
         $this->set_field('categoryid', null);
         $this->set_field('mapping', self::MAPPING_AUTOMATIC);
+    }
+
+    /**
+     * The category this directory is mapped on to no longer exists - find the
+     * most appropriate fix, based on the mapping status.
+     * @return bool - true if should attempt to recreate
+     */
+    public function clear_deleted_category() {
+        if (!$this->categoryid) {
+            return false;
+        }
+        if ($this->mapping == self::MAPPING_DELETED) {
+            return false;
+        }
+
+        $this->set_field('categoryid', null);
+
+        if ($this->mapping == self::MAPPING_AUTOMATIC) {
+            return true;
+        }
+
+        $this->set_field('mapping', self::MAPPING_AUTOMATIC);
+
+        return false;
     }
 
     /**

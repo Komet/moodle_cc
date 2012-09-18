@@ -114,7 +114,7 @@ class campusconnect_connect {
 
     /**
      * Check an auth token
-     * @param hash the hash value retrieved from the url parameters
+     * @param str $hash value retrieved from the url parameters
      * @return object the authentication details for this connection
      */
     public function get_auth($hash) {
@@ -332,7 +332,7 @@ class campusconnect_connect {
     public function get_memberships($mid = 0) {
         $resourcepath = '/sys/memberships';
         if ($mid) {
-            $resourcepath .= "/$id";
+            $resourcepath .= "/$mid";
         }
         $this->init_connection($resourcepath);
 

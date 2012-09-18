@@ -221,7 +221,7 @@ class campusconnect_courselink {
     /**
      * Check if the courseid provided refers to a remote course and return the URL if it does
      * @param int $courseid the ID of the course being viewed
-     * @return mixed moodle_url | false - the URL to redirect to
+     * @return mixed string | false - the URL to redirect to
      */
     public static function check_redirect($courseid) {
         global $USER;

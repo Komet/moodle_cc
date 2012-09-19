@@ -24,6 +24,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
 require_once("$CFG->libdir/formslib.php");
 
 $mform = new campusconnect_export_form();
@@ -107,8 +108,6 @@ echo html_writer::end_tag('span');
 class campusconnect_export_form extends moodleform {
 
     public function definition() {
-        global $CFG;
-
         $ecslist = campusconnect_ecssettings::list_ecs();
 
         foreach ($ecslist as $ecsid => $ecsname) {

@@ -37,6 +37,7 @@ class campusconnect_directorytree {
     const MODE_MANUAL = 2;
     const MODE_DELETED = 3;
 
+    /** @var int $recordid */
     protected $recordid = null;
     protected $resourceid = null;
     protected $rootid = null;
@@ -57,7 +58,7 @@ class campusconnect_directorytree {
     protected static $createemptycategories = null;
     protected static $enabled = null;
 
-    public function __construct($data = null) {
+    public function __construct(stdClass $data = null) {
         if ($data) {
             // local_campusconnect_dirroot record loaded from DB.
             $this->set_data($data);
@@ -125,7 +126,7 @@ class campusconnect_directorytree {
 
     /**
      * Internal function to set the data loaded from the DB
-     * @param obj $data
+     * @param object $data - record from the database
      */
     protected function set_data($data) {
         $this->recordid = $data->id;
@@ -204,7 +205,7 @@ class campusconnect_directorytree {
     /**
      * Map this directory tree onto a course category
      * @param int $categoryid
-     * @return mixed str | null - error string if there is a problem
+     * @return mixed string | null - error string if there is a problem
      */
     public function map_category($categoryid) {
         global $DB;
@@ -249,8 +250,6 @@ class campusconnect_directorytree {
      * Remove the category mapping.
      */
     public function unmap_category() {
-        global $DB;
-
         if ($this->mappingmode == self::MODE_DELETED) {
             throw new coding_exception("Cannot map deleted directory trees");
         }
@@ -334,7 +333,7 @@ class campusconnect_directorytree {
     /**
      * Lists all current directory => category mappings
      * (used by the javascript front end)
-     * @return array of directoryid => categoryid
+     * @return int[] of directoryid => categoryid
      */
     public function list_all_mappings() {
         $rootmapping = new stdClass();
@@ -394,7 +393,7 @@ class campusconnect_directorytree {
     /**
      * Get a list of all directory trees loaded from ECS servers (only one ECS server
      * and one mid should be providing these, so no parameters needed)
-     * @return array of campusconnect_directorytree
+     * @return campusconnect_directorytree[]
      */
     public static function list_directory_trees() {
         global $DB;
@@ -431,6 +430,7 @@ class campusconnect_directorytree {
         }
 
         $trees = $DB->get_records('local_campusconnect_dirroot');
+        /** @var $currenttrees campusconnect_directorytree[] */
         $currenttrees = array();
         foreach ($trees as $tree) {
             $currenttrees[$tree->rootid] = new campusconnect_directorytree($tree);
@@ -492,8 +492,9 @@ class campusconnect_directorytree {
      * Used by the ECS event processing to create new directories / directory trees
      * @param int $resourceid - the ID on the ECS server
      * @param campusconnect_ecssettings $ecssettings - the ECS being connected to
-     * @param obj $directory - the resource data from ECS
+     * @param object $directory - the resource data from ECS
      * @param campusconnect_details $details - the metadata for the resource on the ECS
+     * @return bool true if successful
      */
     public static function create_directory($resourceid, campusconnect_ecssettings $ecssettings, $directory, campusconnect_details $details) {
         global $DB;
@@ -532,7 +533,7 @@ class campusconnect_directorytree {
      * Used by the ECS event processing to update directories / directory trees
      * @param int $resourceid - the ID on the ECS server
      * @param campusconnect_ecssettings $ecssettings - the ECS being connected to
-     * @param obj $directory - the resource data from ECS
+     * @param object $directory - the resource data from ECS
      * @param campusconnect_details $details - the metadata for the resource on the ECS
      */
     public static function update_directory($resourceid, campusconnect_ecssettings $ecssettings, $directory, campusconnect_details $details) {
@@ -572,6 +573,7 @@ class campusconnect_directorytree {
      * Used by the ECS event processing to delete directories / directory trees
      * @param int $resourceid - the ID on the ECS server
      * @param campusconnect_ecssettings $ecssettings - the ECS being connected to
+     * @return bool true if successful
      */
     public static function delete_directory($resourceid, campusconnect_ecssettings $ecssettings) {
         global $DB;
@@ -600,6 +602,7 @@ class campusconnect_directorytree {
         // Check all directory tree mappings.
         $categoryids = array();
         $trees = $DB->get_records('local_campusconnect_dirroot');
+        /** @var $dirtrees campusconnect_directorytree[] */
         $dirtrees = array();
         foreach ($trees as $tree) {
             $dirtree = new campusconnect_directorytree($tree);
@@ -620,6 +623,7 @@ class campusconnect_directorytree {
 
         // Check all directory mappings.
         $dbdirs = $DB->get_records('local_campusconnect_dir');
+        /** @var $dirs campusconnect_directory[] */
         $dirs = array();
         $categoryids = array();
         foreach ($dbdirs as $dbdir) {
@@ -629,6 +633,7 @@ class campusconnect_directorytree {
                 $categoryids[] = $catid;
             }
         }
+        /** @var $recreate campusconnect_directory[] */
         $recreate = array();
         foreach ($dirs as $dir) {
             if ($dir->get_category_id()) {
@@ -668,6 +673,7 @@ class campusconnect_directory {
 
     protected $recordid = null;
     protected $resourceid = null;
+    /** @var $rootid int */
     protected $rootid = null;
     protected $directoryid = null;
     protected $title = null;
@@ -682,6 +688,7 @@ class campusconnect_directory {
     protected static $dbfields = array('resourceid', 'rootid', 'directoryid', 'title', 'parentid', 'sortorder', 'categoryid', 'mapping');
 
     protected static $dirs = array();
+    /** @var campusconnect_directory[] $newdirs */
     protected static $newdirs = array();
 
     /**
@@ -750,6 +757,7 @@ class campusconnect_directory {
         if ($this->parent != null) {
             return $this->parent;
         }
+        /** @var $dirs campusconnect_directory[] */
         $dirs = self::get_directories($this->rootid);
         foreach ($dirs as $dir) {
             if ($dir->get_directory_id() == $this->parentid) {
@@ -762,7 +770,7 @@ class campusconnect_directory {
 
     /**
      * Get the child directories below this one
-     * @return array of campusconnect_directory
+     * @return campusconnect_directory[]
      */
     public function get_children() {
         $children = array();
@@ -789,7 +797,9 @@ class campusconnect_directory {
 
     /**
      * Build an unordered list element for this directory and it's children
-     * @return str HTML fragment
+     * @param string $radioname
+     * @param int $selecteddir
+     * @return string HTML fragment
      */
     public function output_directory_tree_node($radioname, $selecteddir = null) {
         static $classes = array(
@@ -951,8 +961,6 @@ class campusconnect_directory {
     }
 
     public function set_order($sortorder) {
-        global $DB;
-
         if ($sortorder == $this->sortorder) {
             return; // No update needed.
         }
@@ -1057,7 +1065,7 @@ class campusconnect_directory {
      * that do not already exist.
      * @param int $rootcategoryid - ID of the category that the root directory is mapped on to
      * @param bool $fixsortorder optional - used to make sure fix_course_sortorder is only called once
-     * @retrun int $id of the category created (or already allocated)
+     * @return int $id of the category created (or already allocated)
      */
     public function create_category($rootcategoryid, $fixsortorder = true) {
         global $DB;
@@ -1104,6 +1112,7 @@ class campusconnect_directory {
 
     /**
      * Update the directory details from the ECS
+     * @param int $resourceid
      * @param object $directory the details, direct from the ECS
      * @return mixed campusconnect_directory | false : returns the directory,
      *                 if a new directory was created, false if it already existed
@@ -1151,6 +1160,7 @@ class campusconnect_directory {
         //global $DB;
         //$DB->delete_records('local_campusconnect_dir', array('rootid' => $rootid));
 
+        /** @var $dirs campusconnect_directory[] */
         $dirs = self::get_directories($rootid);
         foreach ($dirs as $dir) {
             $dir->delete();
@@ -1160,7 +1170,7 @@ class campusconnect_directory {
     /**
      * Get all the directories within the given directory tree
      * @param int $rootid
-     * @return array campusconnect_directory objects (indexed by recordid)
+     * @return campusconnect_directory[]
      */
     public static function get_directories($rootid) {
         global $DB;
@@ -1174,7 +1184,7 @@ class campusconnect_directory {
     /**
      * Get the first level of directories for the given directory tree
      * @param int $rootid
-     * @return array of campusconnect_directory objects
+     * @return campusconnect_directory[]
      */
     public static function get_toplevel_directories($rootid) {
         $dirs = self::get_directories($rootid);
@@ -1189,11 +1199,13 @@ class campusconnect_directory {
 
     /**
      * Output the directory tree as nested unordered lists (ready for use with YUI treeview).
-     * @param int $rootid - the tree to output
-     * @param str $radioname - optional - if set, creates radio input elements for each item
-     * @return str HTML of the lists
+     * @param campusconnect_directorytree $dirtree
+     * @param string $radioname - optional - if set, creates radio input elements for each item
+     * @param null $selecteddir
+     * @internal param int $rootid - the tree to output
+     * @return string HTML of the lists
      */
-    public static function output_directory_tree($dirtree, $radioname, $selecteddir = null) {
+    public static function output_directory_tree(campusconnect_directorytree $dirtree, $radioname, $selecteddir = null) {
         $expand = false;
         $childdirs = '';
         if ($dirs = self::get_toplevel_directories($dirtree->get_root_id())) {
@@ -1288,8 +1300,6 @@ class campusconnect_directory {
      * @param int $rootcategoryid the id of the Moodle category for the root node
      */
     public static function create_all_categories($rootid, $rootcategoryid) {
-        global $DB;
-
         $dirs = self::get_directories($rootid);
         foreach ($dirs as $dir) {
             if (!$dir->get_category_id()) {
@@ -1303,7 +1313,7 @@ class campusconnect_directory {
     /**
      * Move all the courses and sub-directories when the root node of a directory tree
      * has been re-mapped
-     * @param int $rootid the root node of the directory tree
+     * @param int $directoryid the root node of the directory tree
      * @param int $oldcategoryid the previous root category (for checking)
      * @param int $newcategoryid the new root category mapping
      */
@@ -1328,19 +1338,16 @@ class campusconnect_directory {
             $DB->update_record('course_categories', $category);
         }
 
-        // TODO - uncomment this code once 'course' import is implemented
-        /*
         // Move any courses within the root directory.
-        $coursestomove = $DB->get_records('local_campusconnect_course', array('parentid' => $rootid));
+        $coursestomove = $DB->get_records('local_campusconnect_course', array('parentid' => $directoryid));
         foreach ($coursestomove as $coursetomove) {
             $course = $DB->get_record('course', array('id' => $coursetomove->id), 'id, category', MUST_EXIST);
             if ($course->category != $oldcategoryid) {
-                throw new campusconnect_directorytree_exception("move_root_category: found course $courseid in root directory where category != root directory category");
+                throw new campusconnect_directorytree_exception("move_root_category: found course {$course->id} in root directory where category != root directory category");
             }
             $course->category = $newcategoryid;
             $DB->update_record('course', $course);
         }
-        */
 
         // Tidy up the sort order, course count and category path fields.
         fix_course_sortorder();
@@ -1360,7 +1367,8 @@ class campusconnect_directory {
         }
 
         $dirtrees = campusconnect_directorytree::list_directory_trees();
-        foreach (self::$newdirs as $rootid => $dirs) {
+        foreach (self::$newdirs as $dirs) {
+            /** @var $dir campusconnect_directory */
             foreach ($dirs as $dir) {
                 $founddirtree = null;
                 foreach ($dirtrees as $dirtree) {
@@ -1372,9 +1380,11 @@ class campusconnect_directory {
                 if (!$founddirtree) {
                     throw new campusconnect_directorytree_exception("Unable to find directory tree ".$dir->get_root_id()." for directory ".$dir->get_directory_id());
                 }
-                $mode = $founddirtree->get_category_id();
+                $mode = $founddirtree->get_mode();
                 $rootcategoryid = $founddirtree->get_category_id();
-                if (($mode == campusconect_directorytree::MODE_MANUAL || $mode == campusconnect_directorytree::MODE_WHOLE) && $categoryid) {
+                $createcategory = ($mode == campusconnect_directorytree::MODE_MANUAL);
+                $createcategory = $createcategory || ($mode == campusconnect_directorytree::MODE_WHOLE && $rootcategoryid);
+                if ($createcategory) {
                     $dir->create_category($rootcategoryid, false);
                 }
             }

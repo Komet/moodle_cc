@@ -24,6 +24,8 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG, $ADMIN;
+
 if ($hassiteconfig) {
     require_once($CFG->dirroot.'/local/campusconnect/lib.php');
 

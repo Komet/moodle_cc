@@ -24,6 +24,8 @@
 
 require_once(dirname(__FILE__).'/../../../config.php');
 
+global $CFG, $PAGE, $OUTPUT;
+
 require_once($CFG->libdir.'/adminlib.php');
 require_once("$CFG->libdir/formslib.php");
 require_once($CFG->dirroot.'/local/campusconnect/connect.php');
@@ -39,12 +41,11 @@ require_capability('moodle/site:config', get_context_instance(CONTEXT_SYSTEM));
 class campusconnect_category_form extends moodleform {
 
     public function definition() {
-        global $CFG, $cats;
-
-        $mform =& $this->_form;
+        $mform = $this->_form;
 
         $mform->addElement('header', 'categoryassignment', get_string('categoryassignment', 'local_campusconnect'));
 
+        $cats = array();
         $categories = get_categories();
         foreach ($categories as $category) {
             $cats[$category->id] = $category->name;
@@ -54,8 +55,8 @@ class campusconnect_category_form extends moodleform {
         $mform->addElement('select', 'attributename', get_string('attributename', 'local_campusconnect'), array('1' => 'Community', '2' => 'Participant ID'));
 
         $radioarray=array();
-        $radioarray[] = &MoodleQuickForm::createElement('radio', 'cc_mapping', '', get_string('fixedvalue', 'local_campusconnect'), 'mapping_fixed', 'onclick=cc_switch_mapping_fixed()');
-        $radioarray[] = &MoodleQuickForm::createElement('radio', 'cc_mapping', '', get_string('daterange', 'local_campusconnect'), 'mapping_date', 'onclick=cc_switch_mapping_date()');
+        $radioarray[] = $mform->createElement('radio', 'cc_mapping', '', get_string('fixedvalue', 'local_campusconnect'), 'mapping_fixed', 'onclick=cc_switch_mapping_fixed()');
+        $radioarray[] = $mform->createElement('radio', 'cc_mapping', '', get_string('daterange', 'local_campusconnect'), 'mapping_date', 'onclick=cc_switch_mapping_date()');
         $mform->addGroup($radioarray, 'radioar', get_string('mappingtype', 'local_campusconnect'), array(' '), false);
         $mform->setDefault('cc_mapping', 'mapping_fixed');
 

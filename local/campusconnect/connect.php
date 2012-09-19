@@ -24,6 +24,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
 require_once($CFG->dirroot.'/local/campusconnect/ecssettings.php');
 require_once($CFG->dirroot.'/local/campusconnect/urilist.php');
 
@@ -41,7 +42,7 @@ class campusconnect_connect_exception extends moodle_exception {
 
 class campusconnect_connect {
 
-    /** The curl connection currently being prepared **/
+    /** @var $curlresource resource - curl connection currently being prepared **/
     protected $curlresource = null;
     /** The headers to send in the next request **/
     protected $headers = array();
@@ -114,7 +115,7 @@ class campusconnect_connect {
 
     /**
      * Check an auth token
-     * @param str $hash value retrieved from the url parameters
+     * @param string $hash value retrieved from the url parameters
      * @return object the authentication details for this connection
      */
     public function get_auth($hash) {
@@ -167,12 +168,12 @@ class campusconnect_connect {
 
     /**
      * Get a list of available resources on the remote VLEs
-     * @param str $type the type of resource to load (see campusconnect_event for list)
-     * @return array of links to get further details about each resource
+     * @param string $type the type of resource to load (see campusconnect_event for list)
+     * @return campusconnect_uri_list - links to get further details about each resource
      */
     public function get_resource_list($type) {
         if (!campusconnect_event::is_valid_resource($type)) {
-            throw new coding_error("get_resource_list: unknown resource type $type");
+            throw new coding_exception("get_resource_list: unknown resource type $type");
         }
         $this->init_connection('/'.$type);
 
@@ -187,14 +188,14 @@ class campusconnect_connect {
     /**
      * Get an individual resource
      * @param int $id of the resource to retrieve
-     * @param str $type the type of resource to load (see campusconnect_event for list)
+     * @param string $type the type of resource to load (see campusconnect_event for list)
      * @param bool $detailsonly optional - if true then retrieves the delivery
      *                           details for the resource, false for the contents
-     * @return mix object | false the details retrieved
+     * @return mixed object | false the details retrieved
      */
     public function get_resource($id, $type, $detailsonly = false) {
         if (!campusconnect_event::is_valid_resource($type)) {
-            throw new coding_error("get_resource: unknown resource type $type");
+            throw new coding_exception("get_resource: unknown resource type $type");
         }
         $resourcepath = '/'.$type;
         if ($id) {
@@ -217,15 +218,15 @@ class campusconnect_connect {
 
     /**
      * Add a resource that other VLEs can retrieve
-     * @param str $type the type of resource to load (see campusconnect_event for list)
+     * @param string $type the type of resource to load (see campusconnect_event for list)
      * @param object $post the details of the resource to create
      * @param string $targetcommunityids a comma-separated list of community IDs that have access to this resource
      * @param string $targetmids a comma-separated list of participant IDs that have access to this resource
-     * @result int the id that this resource has been allocated on the ECS
+     * @return int the id that this resource has been allocated on the ECS
      */
     public function add_resource($type, $post, $targetcommunityids = null, $targetmids = null) {
         if (!campusconnect_event::is_valid_resource($type)) {
-            throw new coding_error("add_resource: unknown resource type $type");
+            throw new coding_exception("add_resource: unknown resource type $type");
         }
         if (!is_object($post)) {
             throw new coding_exception('add_resource - expected \'post\' to be an object');
@@ -246,7 +247,7 @@ class campusconnect_connect {
             $this->set_communities($targetcommunityids);
         }
 
-        $result = $this->call();
+        $this->call();
         if (!$this->check_status(self::HTTP_CODE_CREATED)) {
             throw new campusconnect_connect_exception('add_resource - bad response: '.$this->get_status());
         }
@@ -257,7 +258,7 @@ class campusconnect_connect {
     /**
      * Update a previously shared resource
      * @param int $id the id allocated when the resource was first posted
-     * @param str $type the type of resource to load (see campusconnect_event for list)
+     * @param string $type the type of resource to load (see campusconnect_event for list)
      * @param object $post the new details
      * @param string $targetcommunityids a comma-separated list of community IDs that have access to this resource
      * @param string $targetmids a comma-separated list of participant IDs that have access to this resource
@@ -265,7 +266,7 @@ class campusconnect_connect {
      */
     public function update_resource($id, $type, $post, $targetcommunityids = null, $targetmids = null) {
         if (!campusconnect_event::is_valid_resource($type)) {
-            throw new coding_error("update_resource: unknown resource type $type");
+            throw new coding_exception("update_resource: unknown resource type $type");
         }
         if (!is_object($post)) {
             throw new coding_exception('add_resource - expected \'post\' to be an object');
@@ -307,12 +308,12 @@ class campusconnect_connect {
     /**
      * Delete a previously shared resource
      * @param int $id the id allocated when the resource was first posted
-     * @param str $type the type of resource to load (see campusconnect_event for list)
+     * @param string $type the type of resource to load (see campusconnect_event for list)
      * @return object the response from the server
      */
     public function delete_resource($id, $type) {
         if (!campusconnect_event::is_valid_resource($type)) {
-            throw new coding_error("delete_resource: unknown resource type $type");
+            throw new coding_exception("delete_resource: unknown resource type $type");
         }
         if (!$id) {
             throw new campusconnect_connect_exception('delete_resource - no resource id given');
@@ -411,6 +412,7 @@ class campusconnect_connect {
      * headername => headervalue
      * @param resource $handle the curl resource
      * @param string $header the raw text of the HTTP header
+     * @return int header length
      */
     protected function parse_response_header($handle, $header) {
         $lines = explode("\r\n", $header);
@@ -505,7 +507,7 @@ class campusconnect_connect {
 
     /**
      * Adds a file to the request and sets the method to PUT
-     * @param filepointer $fp the file resource to read from
+     * @param resource $fp the file resource to read from
      * @param int $size the size of the file
      */
     protected function set_putfile($fp, $size) {

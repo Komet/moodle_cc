@@ -24,6 +24,8 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
+
 require_once($CFG->dirroot.'/local/campusconnect/connect.php');
 require_once($CFG->dirroot.'/local/campusconnect/event.php');
 require_once($CFG->dirroot.'/local/campusconnect/courselink.php');
@@ -109,7 +111,7 @@ class campusconnect_receivequeue {
 
     /**
      * Retrieve the next event from the incoming event queue (without removing it)
-     * @param campusconnect_ecssettings $ecsid optional is specified, only retrieve events from this ECS server
+     * @param campusconnect_ecssettings $ecssettings optional is specified, only retrieve events from this ECS server
      * @return mixed campusconnect_event | false
      */
     protected function get_event_from_queue(campusconnect_ecssettings $ecssettings = null) {
@@ -139,7 +141,7 @@ class campusconnect_receivequeue {
 
     /**
      * Process all the events in the queue and take the appropriate actions
-     * @param campusconnect_ecssettings $ecsid optional - if provided, only process events from the specified ECS server
+     * @param campusconnect_ecssettings $ecssettings optional - if provided, only process events from the specified ECS server
      */
     public function process_queue(campusconnect_ecssettings $ecssettings = null) {
         $fixcourses = false;
@@ -165,7 +167,7 @@ class campusconnect_receivequeue {
         campusconnect_directory::process_new_directories();
 
         if ($fixcourses) {
-            rebuild_course_sortorder();
+            fix_course_sortorder();
         }
     }
 
@@ -175,8 +177,6 @@ class campusconnect_receivequeue {
      * @return bool true if successful
      */
     protected function process_courselink_event(campusconnect_event $event) {
-
-        return true; // Disabled until Phase 2
 
         $settings = new campusconnect_ecssettings($event->get_ecs_id());
         $status = $event->get_status();

@@ -34,6 +34,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
 require_once($CFG->dirroot.'/local/campusconnect/receivequeue.php');
 require_once($CFG->dirroot.'/local/campusconnect/simpletest/enabledtests.php');
 
@@ -43,7 +44,9 @@ Mock::generate(get_class($DB), 'mockDB_coursecreate', array('mock_create_course'
                                                             'mock_delete_course'));
 
 class local_campusconnect_receivequeue_test extends UnitTestCase {
+    /** @var campusconnect_ecssettings[] $settings */
     protected $settings = array();
+    /** @var campusconnect_connect[] $connect */
     protected $connect = array();
     protected $mid = array();
     protected $realDB = null;

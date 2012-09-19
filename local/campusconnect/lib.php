@@ -24,6 +24,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
 require_once($CFG->dirroot.'/local/campusconnect/receivequeue.php');
 require_once($CFG->dirroot.'/local/campusconnect/export.php');
 
@@ -62,8 +63,10 @@ function local_campusconnect_cron() {
 /**
  * Sends a message out to all admin users if there is an ECS connection problem
  * (message is 'from' the first admin user)
+ * @param campusconnect_ecssettings $ecssettings
+ * @param string $msg
  */
-function local_campusconnect_ecs_error_notification($ecssettings, $msg) {
+function local_campusconnect_ecs_error_notification(campusconnect_ecssettings $ecssettings, $msg) {
     mtrace("ECS connection error, sending notification to site admins - $msg");
 
     $admins = get_admins();
@@ -107,5 +110,7 @@ function local_campusconnect_refresh_ecs(campusconnect_ecssettings $ecssettings)
     campusconnect_directorytree::refresh_from_ecs();
 
     // Resync all imported course links
-    //campusconnect_courselink::refresh_from_ecs($connect);
+    campusconnect_courselink::refresh_from_ecs($connect);
+
+    return true;
 }

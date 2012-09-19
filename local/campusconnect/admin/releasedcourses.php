@@ -24,6 +24,8 @@
 
 require_once(dirname(__FILE__).'/../../../config.php');
 
+global $CFG, $PAGE, $OUTPUT, $DB;
+
 require_once($CFG->libdir.'/adminlib.php');
 require_once($CFG->dirroot.'/local/campusconnect/connect.php');
 
@@ -51,6 +53,7 @@ if (optional_param('refreshall', false, PARAM_BOOL)) {
 }
 
 // Get list of exported courses (and course details).
+$courses = array();
 $exports = campusconnect_export::list_all_exports();
 if ($exports) {
     $courseids = array();
@@ -81,6 +84,7 @@ $strstatus = array(
 // Gather details for each exported course.
 $table->data = array();
 foreach ($exports as $export) {
+    /** @var $export campusconnect_export */
     $coursename = format_string($courses[$export->get_courseid()]->fullname);
     $courseurl = new moodle_url('/course/view.php', array('id' => $export->get_courseid()));
     $courselink = html_writer::link($courseurl, $coursename);
@@ -91,6 +95,7 @@ foreach ($exports as $export) {
         continue;
     }
     foreach ($participants as $identifier => $participant) {
+        /** @var $participant campusconnect_participantsettings */
         $partname = $participant->get_displayname();
         $status = $export->get_status($identifier);
         if ($status != campusconnect_export::STATUS_UPTODATE) {

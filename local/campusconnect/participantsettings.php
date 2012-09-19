@@ -24,6 +24,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
 require_once($CFG->dirroot.'/local/campusconnect/ecssettings.php');
 require_once($CFG->dirroot.'/local/campusconnect/connect.php');
 
@@ -36,6 +37,7 @@ class campusconnect_participantsettings {
     // Settings saved locally in the database.
     protected $recordid = null;
     protected $ecsid = null;
+    /** @var int $mid */
     protected $mid = null;
     protected $export = false;
     protected $import = false;
@@ -321,7 +323,7 @@ class campusconnect_participantsettings {
     /**
      * Get a list of all the participants in all the ECS that we are able to
      * export courses to
-     * @return array of ecsid_mid => campusconnect_participantsettings
+     * @return campusconnect_participantsettings[] indexed by ecsid_mid
      */
     public static function list_potential_export_participants() {
         global $DB;

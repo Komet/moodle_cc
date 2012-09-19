@@ -76,7 +76,7 @@ class campusconnect_event {
             throw new campusconnect_event_exception("Unexpected event type: $this->resourcetype");
         }
         if (!self::is_valid_status($this->status)) {
-            throw new campusconnect_event_exception("Unexpected event status: $status");
+            throw new campusconnect_event_exception("Unexpected event status: {$this->status}");
         }
     }
 

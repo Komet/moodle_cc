@@ -24,6 +24,8 @@
 
 require_once(dirname(__FILE__).'/../../../config.php');
 
+global $CFG, $OUTPUT;
+
 require_once($CFG->libdir.'/adminlib.php');
 require_once($CFG->dirroot.'/local/campusconnect/lib.php');
 

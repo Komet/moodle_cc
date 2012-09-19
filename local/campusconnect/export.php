@@ -24,6 +24,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
 require_once($CFG->dirroot.'/local/campusconnect/connect.php');
 require_once($CFG->dirroot.'/local/campusconnect/participantsettings.php');
 
@@ -74,8 +75,7 @@ class campusconnect_export {
 
     /**
      * Returns the update status of a particular participant
-     * @param str $partidentifier
-     * @param int the current status
+     * @param string $partidentifier
      */
     function get_status($partidentifier) {
         if (!array_key_exists($partidentifier, $this->exportparticipants)) {
@@ -270,7 +270,7 @@ class campusconnect_export {
     public static function update_all_ecs() {
         $ecslist = campusconnect_ecssettings::list_ecs();
         foreach ($ecslist as $ecsid => $ecsname) {
-            $settings = new campusconnect_ecssettigns($ecsid);
+            $settings = new campusconnect_ecssettings($ecsid);
             $connect = new campusconnect_connect($settings);
             self::update_ecs($connect);
         }
@@ -393,6 +393,7 @@ class campusconnect_export {
 
         // Get a list of the courses we have exported.
         $exportedcourses = $DB->get_records('local_campusconnect_export', array('ecsid' => $connect->get_ecs_id()), '', 'resourceid, id, courseid, mids');
+        $exportedresourceids = array_keys($exportedcourses);
         $metadata = new campusconnect_metadata($connect->get_settings());
 
         // Check all the resources on the server against our local list.
@@ -425,7 +426,7 @@ class campusconnect_export {
                     // None of the recipients are in the same community any more
                     // => delete the resource from ECS and local export list.
                     $connect->delete_resource($resourceid, campusconnect_event::RES_COURSELINK);
-                    $DB->delete_record('local_campusconnect_export', array('id' => $exportedcourses[$resourceid]->id));
+                    $DB->delete_records('local_campusconnect_export', array('id' => $exportedcourses[$resourceid]->id));
                     unset($exportedcourses[$resourceid]);
                     $ret->deleted[] = $resourceid;
                 } else {
@@ -479,13 +480,13 @@ class campusconnect_export {
 
         $exports = $DB->get_records('local_campusconnect_export', array('ecsid' => $ecsid));
         if ($exports) {
-            $secssettings = new campusconnect_ecssettings($ecsid);
+            $ecssettings = new campusconnect_ecssettings($ecsid);
             $connect = new campusconnect_connect($ecssettings);
             foreach ($exports as $export) {
                 if ($export->status != self::STATUS_CREATED) {
                     try {
                         $connect->delete_resource($export->resourceid, campusconnect_event::RES_COURSELINK);
-                        $DB->delete_record('local_campusconnect_export', array('id' => $export->id));
+                        $DB->delete_records('local_campusconnect_export', array('id' => $export->id));
                     } catch (Exception $e) {
                         if (!$force) {
                             throw $e;
@@ -500,7 +501,7 @@ class campusconnect_export {
 
     /**
      * List all courses exported by this VLE
-     * @return array campusconnect_export objects
+     * @return campusconnect_export[]
      */
     public static function list_all_exports() {
         global $DB;

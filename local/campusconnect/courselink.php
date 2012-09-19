@@ -24,16 +24,27 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
 require_once($CFG->dirroot.'/local/campusconnect/participantsettings.php');
 require_once($CFG->dirroot.'/local/campusconnect/metadata.php');
 require_once($CFG->dirroot.'/course/lib.php');
 
+/**
+ * Exception thrown by the campusconnect_courselink object
+ */
 class campusconnect_courselink_exception extends moodle_exception {
+    /**
+     * Throw a new exception
+     * @param string $msg
+     */
     function __construct($msg) {
         parent::__construct('error', 'local_campusconnect', '', $msg);
     }
 }
 
+/**
+ * Holds and updates courselinks created that link fake local courses to real courses on an external server.
+ */
 class campusconnect_courselink {
 
     /**
@@ -77,6 +88,7 @@ class campusconnect_courselink {
                 // be practical to mock up the database responses
                 global $DB;
                 $course = $coursedata;
+                /** @noinspection PhpUndefinedMethodInspection */
                 $course->id = $DB->mock_create_course($coursedata);
             }
 
@@ -140,6 +152,7 @@ class campusconnect_courselink {
                     // be practical to mock up the database responses
                     global $DB;
                     $course = $coursedata;
+                    /** @noinspection PhpUndefinedMethodInspection */
                     $course->id = $DB->mock_create_course($coursedata);
                 }
 
@@ -158,6 +171,7 @@ class campusconnect_courselink {
                     update_course($coursedata);
                 } else {
                     global $DB;
+                    /** @noinspection PhpUndefinedMethodInspection */
                     $DB->mock_update_course($coursedata);
                 }
             }
@@ -190,6 +204,7 @@ class campusconnect_courselink {
                 // be practical to mock up the database responses
                 delete_course($currlink->courseid);
             } else {
+                /** @noinspection PhpUndefinedMethodInspection */
                 $DB->mock_delete_course($currlink->courseid);
             }
             $DB->delete_records('local_campusconnect_clink', array('id' => $currlink->id));
@@ -198,7 +213,12 @@ class campusconnect_courselink {
         return true;
     }
 
+    /**
+     * Update all courselinks from the ECS
+     * @param campusconnect_connect $connect
+     */
     public static function refresh_from_ecs(campusconnect_connect $connect) {
+        // TODO complete this
         throw new coding_exception('This function will be written in Phase 2');
     }
 
@@ -246,6 +266,12 @@ class campusconnect_courselink {
         return $url;
     }
 
+    /**
+     * Internal - generate an authentication hash for the given
+     * course link
+     * @param $courselink
+     * @return string
+     */
     protected static function get_ecs_hash($courselink) {
         $ecssettings = new campusconnect_ecssettings($courselink->ecsid);
         $connect = new campusconnect_connect($ecssettings);
@@ -256,6 +282,11 @@ class campusconnect_courselink {
         return $connect->add_auth($post, $courselink->mid);
     }
 
+    /**
+     * Internal - generate the user data to append to the courselink URL to allow SSO
+     * @param object $user
+     * @return string
+     */
     protected static function get_user_data($user) {
         global $CFG;
 
@@ -271,17 +302,34 @@ class campusconnect_courselink {
         return http_build_query($userdata);
     }
 
+    /**
+     * Get the courselink db record from the courseid
+     * @param $courseid
+     * @return mixed false | object
+     */
     public static function get_by_courseid($courseid) {
         global $DB;
         return $DB->get_record('local_campusconnect_clink', array('courseid' => $courseid));
     }
 
+    /**
+     * Get the courselink db record from it's resourceid and ecsid
+     * @param int $resourceid
+     * @param int $ecsid
+     * @return mixed false | object
+     */
     public static function get_by_resourceid($resourceid, $ecsid) {
         global $DB;
         $params = array('resourceid' => $resourceid, 'ecsid' => $ecsid);
         return $DB->get_record('local_campusconnect_clink', $params);
     }
 
+    /**
+     * Generate the Moodle course metadata, based on the metadata details from the ECS server
+     * @param object $courselink
+     * @param campusconnect_ecssettings $ecssettings
+     * @return object
+     */
     protected static function map_course_settings($courselink, campusconnect_ecssettings $ecssettings) {
 
         $metadata = new campusconnect_metadata($ecssettings, true);

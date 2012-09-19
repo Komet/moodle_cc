@@ -24,10 +24,10 @@
 
 require_once(dirname(__FILE__).'/../../../config.php');
 
+global $CFG, $DB, $OUTPUT, $PAGE;
+
 require_once($CFG->libdir.'/adminlib.php');
 require_once($CFG->dirroot.'/local/campusconnect/connect.php');
-
-global $CFG, $DB;
 
 $PAGE->set_url(new moodle_url('/local/campusconnect/admin/allecs.php'));
 $PAGE->set_context(context_system::instance());

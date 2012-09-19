@@ -69,4 +69,4 @@ M.campusconnect_directorymapping = {
         }
     }
 
-}
+};

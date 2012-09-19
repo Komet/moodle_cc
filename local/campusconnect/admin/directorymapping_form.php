@@ -24,12 +24,15 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
+
 require_once($CFG->libdir.'/formslib.php');
 require_once($CFG->dirroot.'/local/campusconnect/directorytree.php');
 
 class campusconnect_directorymapping_form extends moodleform {
     public function definition() {
         $mform = $this->_form;
+        /** @var $dirtree campusconnect_directorytree */
         $dirtree = $this->_customdata['dirtree'];
 
         $statuses = array(

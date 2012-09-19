@@ -24,6 +24,8 @@
 
 require_once(dirname(__FILE__).'/../../../config.php');
 
+global $CFG, $PAGE, $OUTPUT;
+
 require_once($CFG->libdir.'/adminlib.php');
 require_once($CFG->dirroot.'/local/campusconnect/connect.php');
 
@@ -70,6 +72,7 @@ if (optional_param('saveparticipants', false, PARAM_TEXT)) {
     foreach ($allcommunities as $communities) {
         foreach ($communities as $community) {
             foreach ($community->participants as $identifier => $participant) {
+                /** @var $participant campusconnect_participantsettings */
                 if (!in_array($identifier, $updateparticipants)) {
                     continue; // This participant was not in the list being updated.
                 }

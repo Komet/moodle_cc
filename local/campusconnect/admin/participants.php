@@ -88,19 +88,22 @@ if (optional_param('saveparticipants', false, PARAM_TEXT)) {
     }
 }
 
+echo $OUTPUT->header();
+echo $OUTPUT->heading(get_string('pluginname', 'local_campusconnect'));
+
 if ($ecsid = optional_param('refresh', null, PARAM_INT)) {
     require_sesskey();
 
     require_once($CFG->dirroot.'/local/campusconnect/lib.php');
     $ecssettings = new campusconnect_ecssettings($ecsid);
-    local_campusconnect_refresh_ecs($ecssettings);
+
+    echo $OUTPUT->heading(get_string('refreshing', 'local_campusconnect', $ecssettings->get_name()), 3);
+
+    local_campusconnect_refresh_ecs($ecssettings, true);
 
     $redir = new moodle_url($PAGE->url, array('refreshdone' => $ecsid));
-    redirect($redir);
+    redirect($redir, '', 5);
 }
-
-echo $OUTPUT->header();
-echo $OUTPUT->heading(get_string('pluginname', 'local_campusconnect'));
 
 echo $refreshmsg;
 

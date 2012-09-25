@@ -365,7 +365,7 @@ class campusconnect_export {
      * Get list of exported courses from ECS - delete any that should not be there any more, create
      * any that should be there and update all others
      * @param campusconnect_connect $connect connection to the ECS to update
-     * @return object containing: ->created = array of resourceids created
+     * @return object an object containing: ->created = array of resourceids created
      *                            ->updated = array of resourceids updated
      *                            ->deleted = array of resourceids deleted
      */
@@ -399,8 +399,8 @@ class campusconnect_export {
         // Check all the resources on the server against our local list.
         $resources = $connect->get_resource_list(campusconnect_event::RES_COURSELINK);
         foreach ($resources->get_ids() as $resourceid) {
-            $details = $connect->get_resource($resourceid, campusconnect_event::RES_COURSELINK, true);
-            if (!in_array($details->senders[0]->mid, $mymids)) {
+            $transferdetails = $connect->get_resource($resourceid, campusconnect_event::RES_COURSELINK, true);
+            if (!$transferdetails->sent_by_me($mymids)) {
                 continue; // Not one of this VLE's resources.
             }
 

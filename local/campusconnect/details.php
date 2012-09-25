@@ -51,4 +51,8 @@ class campusconnect_details {
         }
         throw new campusconnect_connect_exception("This participant is not in the list of receivers");
     }
+
+    function sent_by_me(array $mymids) {
+        return in_array($this->senders[0]->mid, $mymids);
+    }
 }

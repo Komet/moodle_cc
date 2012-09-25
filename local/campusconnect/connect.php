@@ -189,11 +189,11 @@ class campusconnect_connect {
      * Get an individual resource
      * @param int $id of the resource to retrieve
      * @param string $type the type of resource to load (see campusconnect_event for list)
-     * @param bool $detailsonly optional - if true then retrieves the delivery
+     * @param bool $transferdetails optional - if true then retrieves the delivery
      *                           details for the resource, false for the contents
-     * @return mixed object | false the details retrieved
+     * @return mixed object | campusconnect_details | false - the details retrieved
      */
-    public function get_resource($id, $type, $detailsonly = false) {
+    public function get_resource($id, $type, $transferdetails = false) {
         if (!campusconnect_event::is_valid_resource($type)) {
             throw new coding_exception("get_resource: unknown resource type $type");
         }
@@ -201,7 +201,7 @@ class campusconnect_connect {
         if ($id) {
             $resourcepath .= "/$id";
         }
-        if ($detailsonly) {
+        if ($transferdetails) {
             $resourcepath .= '/details';
         }
 
@@ -213,7 +213,11 @@ class campusconnect_connect {
             return false; // Resource does not exist on the server.
         }
 
-        return $this->parse_json($result);
+        if ($transferdetails) {
+            return new campusconnect_details($this->parse_json($result));
+        } else {
+            return $this->parse_json($result);
+        }
     }
 
     /**

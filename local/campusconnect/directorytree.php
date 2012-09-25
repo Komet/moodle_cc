@@ -416,17 +416,23 @@ class campusconnect_directorytree {
 
     /**
      * Full update of all directory trees from ECS
-     * @return void
+     * @return bool - true if update enabled
      */
     public static function refresh_from_ecs() {
         global $DB;
 
         if (!self::enabled()) {
-            return; // Mapping disabled.
+            return false; // Mapping disabled.
         }
 
         if (! $cms = campusconnect_participantsettings::get_cms_participant()) {
-            return;
+            return false;
+        }
+
+        // Gather directory changes from the ECS server.
+        $ecssettings = new campusconnect_ecssettings($cms->get_ecs_id());
+        if (!$ecssettings->is_enabled()) {
+            return false; // Ignore disabled ECS.
         }
 
         $trees = $DB->get_records('local_campusconnect_dirroot');
@@ -436,12 +442,6 @@ class campusconnect_directorytree {
             $currenttrees[$tree->rootid] = new campusconnect_directorytree($tree);
         }
         unset($trees);
-
-        // Gather directory changes from the ECS server.
-        $ecssettings = new campusconnect_ecssettings($cms->get_ecs_id());
-        if (!$ecssettings->is_enabled()) {
-            return; // Ignore disabled ECS.
-        }
 
         $connect = new campusconnect_connect($ecssettings);
         $resources = $connect->get_resource_list(campusconnect_event::RES_DIRECTORYTREE);
@@ -486,6 +486,7 @@ class campusconnect_directorytree {
 
         // Look for any directories mapped on to categories that no longer exist.
         self::check_all_mappings();
+        return true;
     }
 
     /**
@@ -1069,8 +1070,6 @@ class campusconnect_directory {
      */
     public function create_category($rootcategoryid, $fixsortorder = true) {
         global $DB;
-
-        echo $this->get_title();
 
         if ($this->categoryid) {
             // Directory already has an associated category - return it.

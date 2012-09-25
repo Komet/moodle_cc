@@ -267,7 +267,7 @@ class campusconnect_participantsettings {
             // Import state changed - need to update all course links
             if (isset($settings->import)) {
                 if ($settings->import) {
-                    // TODO - update all imported course links
+                    campusconnect_courselink::refresh_from_participant($this->ecsid, $this->mid);
                 } else {
                     // No longer importing course links
                     campusconnect_courselink::delete_mid_courselinks($this->mid);
@@ -276,9 +276,9 @@ class campusconnect_participantsettings {
 
             if (isset($settings->export)) {
                 if ($settings->export) {
-                    // Nothing to do here?
+                    // Nothing to do here - will be updated at next cron.
                 } else {
-                    // TODO inform ECS that all exported courses have been deleted.
+                    campusconnect_export::delete_mid_exports($this);
                 }
             }
         }

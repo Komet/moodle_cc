@@ -130,19 +130,26 @@ class campusconnect_export {
 
     /**
      * Set the export status for an individual participant
-     * @param string $identifier - ecsid_mid for the participant
+     * @param mixed string | campusconnect_participantsettings $identifier - ecsid_mid for the participant
      * @param bool $export true to export to them, false to not export
      * @return void
      */
     function set_export($identifier, $export) {
         global $DB;
 
-        if (!array_key_exists($identifier, $this->exportparticipants)) {
-            throw new coding_exception("Attempting to set the exported value of a participant ($identifier) not in the available to export to list");
+        if (is_object($identifier) && get_class($identifier) == 'campusconnect_participantsettings') {
+            /** @var campusconnect_participantsettings $identifier */
+            $ecsid = $identifier->get_ecs_id();
+            $mid = $identifier->get_mid();
+        } else {
+            /** @var string $identifier */
+            if (!array_key_exists($identifier, $this->exportparticipants)) {
+                throw new coding_exception("Attempting to set the exported value of a participant ($identifier) not in the available to export to list");
+            }
+            $ecsid = $this->exportparticipants[$identifier]->get_ecs_id();
+            $mid = $this->exportparticipants[$identifier]->get_mid();
+            $this->exportparticipants[$identifier]->show_exported($export);
         }
-        $ecsid = $this->exportparticipants[$identifier]->get_ecs_id();
-        $mid = $this->exportparticipants[$identifier]->get_mid();
-        $this->exportparticipants[$identifier]->show_exported($export);
 
         foreach ($this->exportsettings as $setting) {
             if ($setting->ecsid == $ecsid) {
@@ -341,6 +348,35 @@ class campusconnect_export {
     public static function course_deleted($course) {
         $export = new campusconnect_export($course->id);
         $export->deleted();
+    }
+
+    /**
+     * Remove, from the ECS server, all the exports linked to a particular MID
+     * (Warning - this removes the 'export' settings as well, so the courses will not be automatically
+     * exported again if re-enabled).
+     * @param campusconnect_participantsettings $participant
+     * @return void
+     */
+    public static function delete_mid_exports(campusconnect_participantsettings $participant) {
+        global $DB;
+
+        // Find all the exports to this participant
+        $exportrecords = $DB->get_records('local_campusconnect_export', array('ecsid' => $participant->get_ecs_id()));
+        foreach ($exportrecords as $id => $exportrecord) {
+            $mids = explode(',', $exportrecord->mids);
+            if (!in_array($participant->get_mid(), $mids)) {
+                unset($exportrecords[$id]);
+            }
+        }
+        if (empty($exportrecords)) {
+            return; // Nothing currently exported to this participant
+        }
+
+        // Stop exporting to this participant
+        foreach ($exportrecords as $exportrecord) {
+            $export = new campusconnect_export($exportrecord->courseid);
+            $export->set_export($participant, false);
+        }
     }
 
     /**

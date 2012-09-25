@@ -228,12 +228,13 @@ class campusconnect_courselink {
 
     /**
      * Update all courselinks from the ECS
-     * @param campusconnect_connect $connect
+     * @param campusconnect_ecssettings $ecssettings
+     * @param int $singlemid optional - only update courselinks from this participant
      * @return object containing: ->created - array of created resource ids
      *                            ->updated - array of updated resource ids
      *                            ->deleted - array of deleted resource ids
      */
-    public static function refresh_from_ecs(campusconnect_ecssettings $ecssettings) {
+    public static function refresh_from_ecs(campusconnect_ecssettings $ecssettings, $singlemid = null) {
         global $DB;
 
         $ret = (object)array('created' => array(), 'updated' => array(), 'deleted' => array());
@@ -253,7 +254,9 @@ class campusconnect_courselink {
                 if ($part->get_import_type() != campusconnect_participantsettings::IMPORT_LINK) {
                     continue;
                 }
-                $importparticipants[$part->get_mid()] = $part;
+                if (!is_null($singlemid) && $part->get_mid() == $singlemid) {
+                    $importparticipants[$part->get_mid()] = $part;
+                }
             }
         }
         unset($communities);
@@ -267,6 +270,10 @@ class campusconnect_courselink {
             // Check if we already have this locally.
             if (isset($courselinks[$resourceid])) {
                 $mid = $courselinks[$resourceid]->mid;
+                if (!is_null($singlemid) && $mid != $singlemid) {
+                    unset($courselinks[$resourceid]);
+                    continue; // Skip links that don't match the MID we are interested in.
+                }
                 if (isset($importparticipants[$mid])) {
                     $details = $connect->get_resource($resourceid, campusconnect_event::RES_COURSELINK, false);
                     self::update($resourceid, $ecssettings, $details, null, $mid);
@@ -282,6 +289,10 @@ class campusconnect_courselink {
                     continue; // This probably shouldn't occur, but we're just going to ignore it.
                 }
 
+                if (!is_null($singlemid) && $transferdetails->get_sender_mid() != $singlemid) {
+                    continue; // Skip links that don't match the MID we are interested in.
+                }
+
                 self::create($resourceid, $ecssettings, $details, $transferdetails);
                 $ret->created[] = $resourceid;
             }
@@ -295,6 +306,16 @@ class campusconnect_courselink {
         }
 
         return $ret;
+    }
+
+    /**
+     * Update all courselinks exported by the given participant
+     * @param $ecsid the ECS we are connecting to
+     * @param $mid the MID of the participant we are updating from
+     */
+    public static function refresh_from_participant($ecsid, $mid) {
+        $ecssettings = new campusconnect_ecssettings($ecsid);
+        self::refresh_from_ecs($ecssettings, $mid);
     }
 
     /**

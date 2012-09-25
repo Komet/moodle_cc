@@ -352,7 +352,6 @@ class campusconnect_courselink {
         $connect = new campusconnect_connect($ecssettings);
 
         $post = (object)array('url' => $courselink->url);
-        $post = json_encode($post);
 
         return $connect->add_auth($post, $courselink->mid);
     }

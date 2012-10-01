@@ -347,7 +347,8 @@ class campusconnect_directorytree {
             $mapping->category = intval($dir->get_category_id());
             $mapping->canunmap = $dir->can_unmap();
             $mapping->canmap = $dir->can_map();
-            $ret[$dir->get_directory_id()] = $mapping;
+            $mapping->dirid = $dir->get_directory_id();
+            $ret[$mapping->dirid] = $mapping;
         }
         return $ret;
     }
@@ -634,6 +635,7 @@ class campusconnect_directorytree {
                 $categoryids[] = $catid;
             }
         }
+        $categories = $DB->get_records_list('course_categories', 'id', $categoryids, 'id', 'id');
         /** @var $recreate campusconnect_directory[] */
         $recreate = array();
         foreach ($dirs as $dir) {

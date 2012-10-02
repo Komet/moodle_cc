@@ -539,10 +539,32 @@ class campusconnect_export {
      * List all courses exported by this VLE
      * @return campusconnect_export[]
      */
-    public static function list_all_exports() {
+    public static function list_all_exports($ecsid = null, $mid = null) {
         global $DB;
 
-        $courseids = $DB->get_fieldset_select('local_campusconnect_export', 'DISTINCT courseid', '');
+        $select = '';
+        $params = array();
+        if (!is_null($ecsid)) {
+            $select = 'ecsid = :ecsid';
+            $params['ecsid'] = $ecsid;
+        }
+        if (is_null($mid)) {
+            // Get all exported courses (optionally for a specific ECS)
+            $courseids = $DB->get_fieldset_select('local_campusconnect_export', 'DISTINCT courseid', $select, $params);
+        } else {
+            if (is_null($ecsid)) {
+                throw new coding_exception("campusconnect_export::list_all_exports - must specify ecsid when specifying mid");
+            }
+            // Get the exported courses for a particular participant
+            $courseids = array();
+            $exports = $DB->get_records_select('local_campusconnect_export', $select, $params);
+            foreach ($exports as $export) {
+                $mids = explode(',', $export->mids);
+                if (in_array($mid, $mids)) {
+                    $courseids[$export->courseid] = $export->courseid;
+                }
+            }
+        }
         $exports = array();
         foreach ($courseids as $courseid) {
             $exports[] = new campusconnect_export($courseid);

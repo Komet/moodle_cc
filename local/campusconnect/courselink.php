@@ -485,10 +485,15 @@ class campusconnect_courselink {
     /**
      * Retrieve a list of all the imported course links
      * @param integer $ecsid optional - only retrieve links for this ECS
+     * @param integer $mid optional - only retrieve links for this MID
      * @return campusconnect_courselink[] the course link details
      */
-    public static function list_links($ecsid = null) {
+    public static function list_links($ecsid = null, $mid = null) {
         global $DB;
+
+        if (!is_null($mid) && is_null($ecsid)) {
+            throw new coding_exception('campusconnect_courselink::list_links - must specify ecsid if mid is specified');
+        }
 
         $sql = "SELECT cl.*, c.fullname AS title, p.displayname AS participantname, c.summary, c.timemodified
                   FROM {local_campusconnect_clink} cl
@@ -498,6 +503,10 @@ class campusconnect_courselink {
         if (!is_null($ecsid)) {
             $params['ecsid'] = $ecsid;
             $sql .= " WHERE cl.ecsid = :ecsid ";
+            if (!is_null($mid)) {
+                $params['mid'] = $mid;
+                $sql .= " AND cl.mid = :mid ";
+            }
         }
         $links = $DB->get_records_sql($sql, $params);
         $ret = array();

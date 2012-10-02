@@ -170,3 +170,5 @@ $string['useraccountsettings'] = 'User Account Settings';
 $string['username'] = 'Username';
 $string['usernamepassword'] = 'Username/Password';
 $string['usernotificationdesc'] = 'Enter one or more usernames of users (comma seperated) that will be informed about new ECS users by e-mail.';
+$string['warningexports'] = 'Warning - the following course(s) are currently exported to \'{$a}\' - they will no longer be exported if you continue.';
+$string['warningimports'] = 'Warning - the following course(s) are currently imported from \'{$a}\' - they will be removed if you continue.';

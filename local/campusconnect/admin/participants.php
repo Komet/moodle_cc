@@ -57,6 +57,8 @@ foreach ($ecslist as $ecsid => $ecsname) {
     }
 }
 
+$confirmmsgs = array();
+$confirmparams = array();
 if (optional_param('saveparticipants', false, PARAM_TEXT)) {
     require_sesskey();
 
@@ -68,6 +70,9 @@ if (optional_param('saveparticipants', false, PARAM_TEXT)) {
     $import = optional_param_array('import', array(), PARAM_TEXT);
     // Array of import types (indexed by participant identifiers).
     $importtypes = required_param_array('importtype', PARAM_TEXT);
+
+    // User has confirmed the change (only needed if the change would remove data).
+    $confirm = optional_param('confirm', false, PARAM_BOOL);
 
     foreach ($allcommunities as $communities) {
         foreach ($communities as $community) {
@@ -82,6 +87,22 @@ if (optional_param('saveparticipants', false, PARAM_TEXT)) {
                 $tosave->export = in_array($identifier, $export);
                 $tosave->importtype = $importtypes[$identifier];
 
+                if (!$confirm) {
+                    if ($confirmmsg = $participant->get_confirm_message($tosave)) {
+                        // Not confirmed and needs confirming, gather the output message and the parameters required
+                        $confirmmsgs[] = $confirmmsg;
+                        $confirmparams["updateparticipants[$identifier]"] = $identifier;
+                        if ($tosave->import) {
+                            $confirmparams["import[$identifier]"] = $identifier;
+                        }
+                        if ($tosave->export) {
+                            $confirmparams["export[$identifier]"] = $identifier;
+                        }
+                        $confirmparams["importtype[$identifier]"] = $tosave->importtype;
+                        continue;
+                    }
+                }
+
                 $participant->save_settings($tosave);
             }
         }
@@ -90,6 +111,16 @@ if (optional_param('saveparticipants', false, PARAM_TEXT)) {
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('pluginname', 'local_campusconnect'));
+
+if (!empty($confirmmsgs)) {
+    $confirmparams['saveparticipants'] = 1;
+    $confirmparams['confirm'] = 1;
+    $confirmparams['sesskey'] = sesskey();
+    $confirmurl = new moodle_url($PAGE->url, $confirmparams);
+    echo $OUTPUT->confirm(implode('<br/>', $confirmmsgs), $confirmurl, $PAGE->url);
+    echo $OUTPUT->footer();
+    die();
+}
 
 if ($ecsid = optional_param('refresh', null, PARAM_INT)) {
     require_sesskey();

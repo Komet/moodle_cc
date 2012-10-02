@@ -284,6 +284,60 @@ class campusconnect_participantsettings {
         }
     }
 
+    /**
+     * Check to see if any of the settings changes will result in data loss and return an html fragment
+     * to notify the user. If no data loss will occur, returns null.
+     * @param $settings
+     * @return mixed string | null
+     */
+    public function get_confirm_message($settings) {
+        global $DB;
+        $ret = array();
+        if (isset($settings->export) && !$settings->export && $this->export) {
+            // Disabling export - check to see if there are any exports that would be deleted.
+            $exports = campusconnect_export::list_all_exports($this->ecsid, $this->mid);
+            if (!empty($exports)) {
+                $msg = html_writer::tag('p', get_string('warningexports', 'local_campusconnect', $this->displayname));
+                foreach ($exports as $export) {
+                    $course = $DB->get_record('course', array('id' => $export->get_courseid()), 'id, fullname');
+                    if ($course) {
+                        $courseurl = new moodle_url('/course/view.php', array('id' => $course->id));
+                        $msg .= html_writer::link($courseurl, format_string($course->fullname));
+                        $msg .= html_writer::empty_tag('br');
+                    }
+                }
+                $ret[] = $msg;
+            }
+        }
+
+        $changeimporttype = isset($settings->importtype) && ($settings->importtype != $this->importtype);
+        $disableimport = isset($settings->import) && !$settings->import && $this->import;
+        $disableclimport = $this->importtype == self::IMPORT_LINK && ($disableimport || $changeimporttype);
+        $disablecmsimport = $this->importtype == self::IMPORT_CMS && ($disableimport || $changeimporttype);
+        if ($disableclimport) {
+            // Disabling course link import - check to see if there are any currently imported courses that would be deleted.
+            $imports = campusconnect_courselink::list_links($this->ecsid, $this->mid);
+            if (!empty($imports)) {
+                $msg = html_writer::tag('p', get_string('warningimports', 'local_campusconnect', $this->displayname));
+                foreach ($imports as $import) {
+                    $msg .= html_writer::link($import->get_url(), format_string($import->get_title()));
+                    $msg .= html_writer::empty_tag('br');
+                }
+                $ret[] = $msg;
+            }
+        }
+
+        if ($disablecmsimport) {
+            // TODO - list the changes that would result from disabling the CMS import type
+        }
+
+        if (empty($ret)) {
+            return null;
+        }
+
+        return implode('<br/>', $ret);
+    }
+
     protected function set_settings($settings) {
         foreach (self::$validsettings as $setting) {
             if (isset($settings->$setting)) {

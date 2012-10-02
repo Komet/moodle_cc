@@ -47,6 +47,54 @@ class campusconnect_courselink_exception extends moodle_exception {
  */
 class campusconnect_courselink {
 
+    protected $recordid;
+    protected $courseid;
+    protected $url;
+    protected $resourceid;
+    protected $ecsid;
+    protected $mid;
+    protected $title;
+    protected $participantname;
+    protected $summary;
+    protected $timemodified;
+
+    public function __construct(stdClass $data) {
+        $this->recordid = $data->id;
+        $this->courseid = $data->courseid;
+        $this->url = $data->url;
+        $this->resourceid = $data->resourceid;
+        $this->ecsid = $data->ecsid;
+        $this->mid = $data->mid;
+        $this->title = $data->title;
+        $this->summary = $data->summary;
+        $this->participantname = $data->participantname;
+        $this->timemodified = $data->timemodified;
+    }
+
+    public function get_title() {
+        return $this->title;
+    }
+
+    public function get_url() {
+        return $this->url;
+    }
+
+    public function get_link() {
+        return html_writer::link($this->url, $this->url);
+    }
+
+    public function get_participantname() {
+        return $this->participantname." ({$this->ecsid}_{$this->mid})";
+    }
+
+    public function get_summary() {
+        return $this->summary;
+    }
+
+    public function get_timemodified() {
+        return $this->timemodified;
+    }
+
     /**
      * Create a new courselink with the details provided.
      * @param int $resourceid the id of this link on the ECS server
@@ -432,5 +480,31 @@ class campusconnect_courselink {
         $coursedata->summaryformat = FORMAT_HTML;
 
         return $coursedata;
+    }
+
+    /**
+     * Retrieve a list of all the imported course links
+     * @param integer $ecsid optional - only retrieve links for this ECS
+     * @return campusconnect_courselink[] the course link details
+     */
+    public static function list_links($ecsid = null) {
+        global $DB;
+
+        $sql = "SELECT cl.*, c.fullname AS title, p.displayname AS participantname, c.summary, c.timemodified
+                  FROM {local_campusconnect_clink} cl
+                  JOIN {course} c ON cl.courseid = c.id
+                  JOIN {local_campusconnect_part} p ON cl.ecsid = p.ecsid AND cl.mid = p.mid";
+        $params = array();
+        if (!is_null($ecsid)) {
+            $params['ecsid'] = $ecsid;
+            $sql .= " WHERE cl.ecsid = :ecsid ";
+        }
+        $links = $DB->get_records_sql($sql, $params);
+        $ret = array();
+        foreach ($links as $link) {
+            $ret[] = new campusconnect_courselink($link);
+        }
+
+        return $ret;
     }
 }

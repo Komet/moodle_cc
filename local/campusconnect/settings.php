@@ -69,11 +69,9 @@ if ($hassiteconfig) {
                                                         new moodle_url('/local/campusconnect/admin/categoryassignment.php')));
     */
 
-    /*
     $ADMIN->add('campusconnect', new admin_externalpage('campusconnectimportedcourses',
                                                         get_string('importedcourses', 'local_campusconnect'),
                                                         new moodle_url('/local/campusconnect/admin/importedcourses.php')));
-    */
 
     $ADMIN->add('campusconnect', new admin_externalpage('campusconnectreleasedcourses',
                                                         get_string('releasedcourses', 'local_campusconnect'),

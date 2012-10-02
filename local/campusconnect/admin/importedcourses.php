@@ -34,62 +34,43 @@ $PAGE->set_context(context_system::instance());
 
 admin_externalpage_setup('campusconnectimportedcourses');
 
-require_login();
-require_capability('moodle/site:config', get_context_instance(CONTEXT_SYSTEM));
+// Set up table contents.
+$table = new html_table();
+$table->attributes = array('width' => '100%');
+$table->head = array(
+    get_string('title', 'local_campusconnect'),
+    get_string('links', 'local_campusconnect'),
+    get_string('importedfrom', 'local_campusconnect'),
+    get_string('metadata', 'local_campusconnect')
+);
 
+$table->data = array();
+$table->attributes = array('class' => 'generaltable campusconnect_imported');
+
+$ecslist = campusconnect_ecssettings::list_ecs();
+foreach ($ecslist as $ecsid => $ecsname) {
+    $links = campusconnect_courselink::list_links($ecsid);
+    foreach ($links as $link) {
+        $row = array(
+            format_string($link->get_title()),
+            $link->get_link(),
+            format_string($link->get_participantname()),
+            format_text($link->get_summary(), FORMAT_HTML)
+        );
+        $table->data[] = $row;
+    }
+}
+
+// Output starts here.
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('pluginname', 'local_campusconnect'));
 
-$ecslist = campusconnect_ecssettings::list_ecs();
-print '<h4 style="text-align: center">'.get_string('importedcourses', 'local_campusconnect').'</h4>';
-print '<table class="generaltable" width="100%">
-            <thead>
-                <tr>
-                    <th class="header c0">Title</th>
-                    <th class="header c1">Links</th>
-                    <th class="header c2">Imported From</th>
-                    <th class="header c3 lastcol">Meta Data</th>
-                </tr>
-            </thead>
-            <tbody>';
+echo $OUTPUT->heading(get_string('importedcourses', 'local_campusconnect'), 4);
 
-foreach ($ecslist as $ecsid => $ecsname) {
-    $ecssettings = new campusconnect_ecssettings($ecsid);
-    $connect = new campusconnect_connect($ecssettings);
-    try {
-        $resources = $connect->get_resource_list(campusconnect_event::RES_COURSELINK);
-    } catch (Exception $e) {
-        continue;
-    }
-    $resources = $resources->get_ids();
-
-    foreach ($resources as $id) {
-        $resource = $connect->get_resource($id, campusconnect_event::RES_COURSELINK);
-        print '<tr>';
-        print "<td>{$resource->title}</td>";
-        print "<td>{$resource->url}</td>";
-        print "<td>{$ecsname}</td>";
-        print '<td>';
-        foreach ((array)$resource as $name => $detail) {
-            print "<div><strong>$name:</strong> ";
-            if (is_array($detail) || is_object($detail)) {
-                $detail = (array)$detail;
-                foreach ($detail as $d) {
-                    if (!empty($d)) {
-                        print $d.'<br />';
-                    }
-                }
-            } else {
-                print "$detail";
-            }
-            print '</div>';
-        }
-        print '</td>';
-        print '</tr>';
-    }
-
+if (empty($table->data)) {
+    echo html_writer::tag('p', get_string('noimportedcourses', 'local_campusconnect'));
+} else {
+    echo html_writer::table($table);
 }
-
-print '</tbody></table>';
 
 echo $OUTPUT->footer();

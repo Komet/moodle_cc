@@ -62,3 +62,7 @@
 .campusconnect_metadata .mform .fitem .fitemtitle {
     width: 40%;
 }
+
+table.campusconnect_imported {
+    margin-top: 1em;
+}

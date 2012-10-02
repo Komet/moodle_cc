@@ -31,7 +31,11 @@ if ($hassiteconfig) {
 
     $ADMIN->add('root', new admin_category('campusconnect', get_string('pluginname', 'local_campusconnect')));
 
-    $ecslist = campusconnect_ecssettings::list_ecs(false);
+    try {
+        $ecslist = campusconnect_ecssettings::list_ecs(false);
+    } catch (Exception $e) {
+        return; // Skip during install.
+    }
      // Web service test clients DO NOT COMMIT : THE EXTERNAL WEB PAGE IS NOT AN ADMIN PAGE !!!!!
     /*
     $ADMIN->add('campusconnect', new admin_externalpage('campusconnectsettings',

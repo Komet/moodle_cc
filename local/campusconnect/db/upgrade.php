@@ -125,7 +125,7 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2012061800, 'local', 'campusconnect');
     }
 
-   if ($oldversion < 2012061801) {
+    if ($oldversion < 2012061801) {
 
         // Define table local_campusconnect_part to be created
         $table = new xmldb_table('local_campusconnect_part');
@@ -152,9 +152,9 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
 
         // campusconnect savepoint reached
         upgrade_plugin_savepoint(true, 2012061801, 'local', 'campusconnect');
-   }
+    }
 
-   if ($oldversion < 2012062600) {
+    if ($oldversion < 2012062600) {
 
         // Define table local_campusconnect_mappings to be created
         $table = new xmldb_table('local_campusconnect_mappings');
@@ -221,7 +221,7 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2012062700, 'local', 'campusconnect');
     }
 
-   if ($oldversion < 2012071800) {
+    if ($oldversion < 2012071800) {
 
         // Define table local_campusconnect_dirroot to be created
         $table = new xmldb_table('local_campusconnect_dirroot');
@@ -293,7 +293,7 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2012071900, 'local', 'campusconnect');
     }
 
-   if ($oldversion < 2012072000) {
+    if ($oldversion < 2012072000) {
         // Define index rootid (unique) to be added to local_campusconnect_dirroot
         $table = new xmldb_table('local_campusconnect_dirroot');
         $index = new xmldb_index('rootid', XMLDB_INDEX_UNIQUE, array('rootid'));
@@ -314,9 +314,9 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
 
         // campusconnect savepoint reached
         upgrade_plugin_savepoint(true, 2012072000, 'local', 'campusconnect');
-   }
+    }
 
-   if ($oldversion < 2012072600) {
+    if ($oldversion < 2012072600) {
 
         // Define field enabled to be added to local_campusconnect_ecs
         $table = new xmldb_table('local_campusconnect_ecs');
@@ -331,6 +331,30 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2012072600, 'local', 'campusconnect');
     }
 
+    if ($oldversion < 2012100201) {
+
+        // Define table local_campusconnect_crs to be created
+        $table = new xmldb_table('local_campusconnect_crs');
+
+        // Adding fields to table local_campusconnect_crs
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', XMLDB_UNSIGNED, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('courseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('resourceid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('ecsid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('mid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+
+        // Adding keys to table local_campusconnect_crs
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+        $table->add_key('courseid', XMLDB_KEY_FOREIGN_UNIQUE, array('courseid'), 'course', array('id'));
+
+        // Conditionally launch create table for local_campusconnect_crs
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012100201, 'local', 'campusconnect');
+    }
 
     return true;
 }

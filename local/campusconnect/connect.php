@@ -150,7 +150,7 @@ class campusconnect_connect {
     /**
      * Get the next event for this participant
      * @param bool $delete optional - true to delete the message once read
-     * @return object the details of the event
+     * @return mixed object[] | bool the details of the event (false if no events left)
      */
     public function read_event_fifo($delete = false) {
         $this->init_connection('/sys/events/fifo');
@@ -169,7 +169,7 @@ class campusconnect_connect {
     /**
      * Get a list of available resources on the remote VLEs
      * @param string $type the type of resource to load (see campusconnect_event for list)
-     * @return campusconnect_uri_list - links to get further details about each resource
+     * @return mixed campusconnect_uri_list | bool - links to get further details about each resource (false if none)
      */
     public function get_resource_list($type) {
         if (!campusconnect_event::is_valid_resource($type)) {
@@ -332,7 +332,7 @@ class campusconnect_connect {
     /**
      * Get the details of the communities this VLE is a member of
      * @param int $mid optional the id of a specific community to retrieve?
-     * @return object the details returned by the ECS server
+     * @return object[] the details returned by the ECS server
      */
     public function get_memberships($mid = 0) {
         $resourcepath = '/sys/memberships';

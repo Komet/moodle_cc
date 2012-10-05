@@ -539,7 +539,7 @@ class campusconnect_metadata {
                     break;
                 case 'linklist':
                     foreach ($details[$fieldname] as $key => $link) {
-                        $details[$fieldname][$key] = html_writer::link($details[$fieldname]->href, $details[$fieldname]->title);
+                        $details[$fieldname][$key] = html_writer::link($details[$fieldname][$key]->href, $details[$fieldname][$key]->title);
                     }
                     $details[$fieldname] = implode(', ', $details[$fieldname]);
                     break;

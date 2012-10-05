@@ -38,14 +38,22 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
 require_once($CFG->dirroot.'/local/campusconnect/directorytree.php');
 require_once($CFG->dirroot.'/local/campusconnect/simpletest/enabledtests.php');
 
 global $DB;
+/** @noinspection PhpDynamicAsStaticMethodCallInspection */
 Mock::generate(get_class($DB), 'mockDB');
 
 class local_campusconnect_directorytree_test extends UnitTestCase {
+    /**
+     * @var campusconnect_ecssettings[]
+     */
     protected $settings = array();
+    /**
+     * @var campusconnect_connect[]
+     */
     protected $connect = array();
     protected $mid = array();
     protected $realDB = null;
@@ -59,6 +67,7 @@ class local_campusconnect_directorytree_test extends UnitTestCase {
         // Override the $DB global.
         global $DB;
         $this->realDB = $DB;
+        /** @noinspection PhpUndefinedClassInspection */
         $DB = new mockDB();
 
         // Create the connections for testing.
@@ -133,6 +142,7 @@ class local_campusconnect_directorytree_test extends UnitTestCase {
     }
 
     public function test_directorytree_create() {
+        /** @var $DB SimpleMock */
         global $DB;
 
         $data = (object)array(
@@ -164,6 +174,7 @@ class local_campusconnect_directorytree_test extends UnitTestCase {
     }
 
     public function test_directorytree_set_title_and_category() {
+        /** @var $DB SimpleMock */
         global $DB;
 
         $data = (object)array(
@@ -182,7 +193,8 @@ class local_campusconnect_directorytree_test extends UnitTestCase {
 
         // Try without category.
         $newtitle = 'Change title';
-        $DB->expectAt(0, 'set_field', array('local_campusconnect_dirroot', 'title', $newtitle, array('id' => -1)));
+        $idx = 0;
+        $DB->expectAt($idx++, 'set_field', array('local_campusconnect_dirroot', 'title', $newtitle, array('id' => -1)));
 
         $dirtree = new campusconnect_directorytree($data);
         $dirtree->set_title($newtitle);
@@ -191,8 +203,9 @@ class local_campusconnect_directorytree_test extends UnitTestCase {
 
         // Set the category and make sure the name is updated.
         $categoryid = -5;
-        $DB->expectAt(1, 'set_field', array('local_campusconnect_dirroot', 'categoryid', $categoryid, array('id' => -1)));
-        $DB->expectAt(2, 'set_field', array('course_categories', 'name', $newtitle, array('id' => $categoryid)));
+        $DB->expectAt($idx++, 'set_field', array('local_campusconnect_dirroot', 'categoryid', $categoryid, array('id' => -1)));
+        $DB->expectAt($idx++, 'set_field', array('course_categories', 'name', $newtitle, array('id' => $categoryid)));
+        $DB->expectAt($idx++, 'set_field', array('local_campusconnect_dirroot', 'mappingmode', campusconnect_directorytree::MODE_WHOLE, array('id' => -1)));
         $DB->setReturnValue('get_record', (object)array('id' => $categoryid));
 
         $dirtree->map_category($categoryid);
@@ -201,8 +214,8 @@ class local_campusconnect_directorytree_test extends UnitTestCase {
 
         // Set the title again and make sure the category name is updated.
         $newtitle = 'A different title';
-        $DB->expectAt(3, 'set_field', array('local_campusconnect_dirroot', 'title', $newtitle, array('id' => -1)));
-        $DB->expectAt(4, 'set_field', array('course_categories', 'name', $newtitle, array('id' => $categoryid)));
+        $DB->expectAt($idx++, 'set_field', array('local_campusconnect_dirroot', 'title', $newtitle, array('id' => -1)));
+        $DB->expectAt($idx++, 'set_field', array('course_categories', 'name', $newtitle, array('id' => $categoryid)));
 
         $dirtree->set_title($newtitle);
 
@@ -243,6 +256,7 @@ class local_campusconnect_directorytree_test extends UnitTestCase {
     }
 
     function test_directorytree_delete() {
+        /** @var $DB SimpleMock */
         global $DB;
 
         $data = (object)array(
@@ -272,6 +286,7 @@ class local_campusconnect_directorytree_test extends UnitTestCase {
     }
 
     function test_list_directory_trees() {
+        /** @var $DB SimpleMock */
         global $DB;
 
         $treedata1 = (object)array(
@@ -331,6 +346,7 @@ class local_campusconnect_directorytree_test extends UnitTestCase {
     }
 
     function test_directorytree_refresh_create() {
+        /** @var $DB SimpleMock */
         global $DB;
 
         $dirtree = (object)array(
@@ -381,6 +397,7 @@ class local_campusconnect_directorytree_test extends UnitTestCase {
     }
 
     function test_directorytree_refresh_update() {
+        /** @var $DB SimpleMock */
         global $DB;
 
         $dirtree = (object)array(
@@ -433,6 +450,7 @@ class local_campusconnect_directorytree_test extends UnitTestCase {
     }
 
     function test_directorytree_refresh_delete() {
+        /** @var $DB SimpleMock */
         global $DB;
 
         $treedata = (object)array(
@@ -468,6 +486,7 @@ class local_campusconnect_directorytree_test extends UnitTestCase {
     }
 
     function test_directorytree_directory_create() {
+        /** @var $DB SimpleMock */
         global $DB;
 
         $dirtree = (object)array(
@@ -525,6 +544,7 @@ class local_campusconnect_directorytree_test extends UnitTestCase {
     }
 
     function test_directorytree_directory_update() {
+        /** @var $DB SimpleMock */
         global $DB;
 
         $dirtree = (object)array(
@@ -583,6 +603,7 @@ class local_campusconnect_directorytree_test extends UnitTestCase {
     }
 
     function test_directorytree_directory_delete() {
+        /** @var $DB SimpleMock */
         global $DB;
 
         $resourceid = 10;
@@ -602,6 +623,7 @@ class local_campusconnect_directorytree_test extends UnitTestCase {
         );
 
         $DB->setReturnValue('get_record', $treedata); // Already exists.
+        $DB->setReturnValue('get_records', array()); // List of contained dirs (none!)
 
         $DB->expectAt(0, 'set_field', array('local_campusconnect_dirroot', 'mappingmode', campusconnect_directorytree::MODE_DELETED, array('id' => $treedata->id)));
         campusconnect_directorytree::delete_directory($resourceid, $this->settings[2]);

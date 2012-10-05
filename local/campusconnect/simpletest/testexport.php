@@ -34,11 +34,14 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
 require_once($CFG->dirroot.'/local/campusconnect/export.php');
 require_once($CFG->dirroot.'/local/campusconnect/simpletest/enabledtests.php');
 
 class local_campusconnect_export_test extends UnitTestCase {
+    /** @var campusconnect_ecssettings[] */
     protected $settings = array();
+    /** @var campusconnect_connect[] */
     protected $connect = array();
     protected $mid = array();
     protected $resources = array();
@@ -93,7 +96,7 @@ class local_campusconnect_export_test extends UnitTestCase {
     public function tearDown() {
         // Delete all resources (just in case).
         foreach ($this->connect as $connect) {
-            $courselinks = $connect->get_resource_list(campusconnect_export::RES_COURSELINK);
+            $courselinks = $connect->get_resource_list(campusconnect_event::RES_COURSELINK);
             foreach ($courselinks->get_ids() as $eid) {
                 // All courselinks were created by 'unittest1'.
                 $this->connect[1]->delete_resource($eid, campusconnect_event::RES_COURSELINK);
@@ -112,6 +115,7 @@ class local_campusconnect_export_test extends UnitTestCase {
 
     public function test_list_participants() {
         $export = new campusconnect_export(-10);
+        /** @var $participants campusconnect_participantsettings[] */
         $participants = $export->list_participants();
 
         $this->assertTrue(count($participants) >= 3, 'Should be at least 3 participants to export to');
@@ -135,7 +139,9 @@ class local_campusconnect_export_test extends UnitTestCase {
         $this->assertEqual(count($export->list_current_exports()), 0, 'Course exported participants list should be empty');
 
         // Check exporting to one participant works as expected.
+        /** @var $potentialexports campusconnect_participantsettings[] */
         $potentialexports = $export->list_participants();
+        /** @var $potential campusconnect_participantsettings[] */
         $potential = array();
         foreach ($potentialexports as $part) {
             // Ignore any potential exports that are not part of the unit-testing environment.
@@ -149,7 +155,7 @@ class local_campusconnect_export_test extends UnitTestCase {
         $this->assertEqual(count($exports), 1, 'Course should be exported to one participant only');
         $this->assertTrue(isset($exports[$potential[0]->get_identifier()]), 'Expected the export to match the participant we exported to');
         $potentialexports = $export->list_participants();
-        foreach ($potentialexports as $key => $part) {
+        foreach ($potentialexports as $part) {
             // Ignore any potential exports that are not part of the unit-testing environment.
             if ($part->get_ecs_id() == $this->settings[1]->get_id()) {
                 if ($part->get_mid() == $potential[0]->get_mid()) {
@@ -167,7 +173,7 @@ class local_campusconnect_export_test extends UnitTestCase {
         $this->assertEqual(count($exports), 1, 'Course should be exported to one participant only');
         $this->assertTrue(isset($exports[$potential[0]->get_identifier()]), 'Expected the export to match the participant we exported to');
         $potentialexports = $export->list_participants();
-        foreach ($potentialexports as $key => $part) {
+        foreach ($potentialexports as $part) {
             // Ignore any potential exports that are not part of the unit-testing environment.
             if ($part->get_ecs_id() == $this->settings[1]->get_id()) {
                 if ($part->get_mid() == $potential[0]->get_mid()) {
@@ -203,7 +209,9 @@ class local_campusconnect_export_test extends UnitTestCase {
     public function test_clear_exports() {
         $export = new campusconnect_export(-10);
 
+        /** @var $potentialexports campusconnect_participantsettings[] */
         $potentialexports = $export->list_participants();
+        /** @var $potential campusconnect_participantsettings[] */
         $potential = array();
         foreach ($potentialexports as $part) {
             // Ignore any potential exports that are not part of the unit-testing environment.
@@ -232,12 +240,12 @@ class local_campusconnect_export_test extends UnitTestCase {
 
     public function test_update_ecs_empty() {
         // Check that there are no courses currently exported.
-        $result = $this->connect[2]->get_resource_list(campusconnect_export::RES_COURSELINK);
+        $result = $this->connect[2]->get_resource_list(campusconnect_event::RES_COURSELINK);
         $this->assertFalse($result->get_ids(), 'Expected there to be no exported courses');
 
         // Update the ECS with exported courses - should be nothing to export.
         campusconnect_export::update_ecs($this->connect[1]);
-        $result = $this->connect[2]->get_resource_list(campusconnect_export::RES_COURSELINK);
+        $result = $this->connect[2]->get_resource_list(campusconnect_event::RES_COURSELINK);
         $this->assertFalse($result->get_ids(), 'Expected there to still be no exported courses');
     }
 
@@ -252,7 +260,9 @@ class local_campusconnect_export_test extends UnitTestCase {
                                       'startdate' => mktime(12, 0, 0, 4, 1, 2012));
         $coursedata = array(-10 => $exportcourse);
 
+        /** @var $potentialexports campusconnect_participantsettings[] */
         $potentialexports = $export->list_participants();
+        /** @var $potential campusconnect_participantsettings[] */
         $potential = array();
         foreach ($potentialexports as $part) {
             // Ignore any potential exports that are not part of the unit-testing environment.
@@ -266,18 +276,18 @@ class local_campusconnect_export_test extends UnitTestCase {
         $export->set_export($potential[2]->get_identifier(), true);
 
         // Check there are still no exported courses.
-        $result = $this->connect[2]->get_resource_list(campusconnect_export::RES_COURSELINK);
+        $result = $this->connect[2]->get_resource_list(campusconnect_event::RES_COURSELINK);
         $this->assertFalse($result->get_ids(), 'Expected there to be no exported courses for ECS 2');
-        $result = $this->connect[3]->get_resource_list(campusconnect_export::RES_COURSELINK);
+        $result = $this->connect[3]->get_resource_list(campusconnect_event::RES_COURSELINK);
         $this->assertFalse($result->get_ids(), 'Expected there to be no exported courses for ECS 3');
 
         // Update the ECS.
         campusconnect_export::update_ecs($this->connect[1], $coursedata);
 
         // Check the expected course is now available.
-        $result = $this->connect[3]->get_resource_list(campusconnect_export::RES_COURSELINK);
+        $result = $this->connect[3]->get_resource_list(campusconnect_event::RES_COURSELINK);
         $this->assertFalse($result->get_ids(), 'Expected there to still be no exported courses for ECS 3');
-        $result = $this->connect[2]->get_resource_list(campusconnect_export::RES_COURSELINK);
+        $result = $this->connect[2]->get_resource_list(campusconnect_event::RES_COURSELINK);
         $ids = $result->get_ids();
         $this->assertEqual(count($ids), 1, 'Expected there to now be exported courses for ECS 2');
         $result = $this->connect[2]->get_resource($ids[0], campusconnect_event::RES_COURSELINK);
@@ -293,9 +303,9 @@ class local_campusconnect_export_test extends UnitTestCase {
         campusconnect_export::update_ecs($this->connect[1], $coursedata);
 
         // Check the course is no longer available.
-        $result = $this->connect[2]->get_resource_list(campusconnect_export::RES_COURSELINK);
+        $result = $this->connect[2]->get_resource_list(campusconnect_event::RES_COURSELINK);
         $this->assertFalse($result->get_ids(), 'Expected there to be no exported courses for ECS 2');
-        $result = $this->connect[3]->get_resource_list(campusconnect_export::RES_COURSELINK);
+        $result = $this->connect[3]->get_resource_list(campusconnect_event::RES_COURSELINK);
         $this->assertFalse($result->get_ids(), 'Expected there to be no exported courses for ECS 3');
     }
 }

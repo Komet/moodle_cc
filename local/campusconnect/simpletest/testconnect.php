@@ -33,12 +33,18 @@
  */
 
 defined('MOODLE_INTERNAL') || die();
-
+global $CFG;
 require_once($CFG->dirroot.'/local/campusconnect/connect.php');
 require_once($CFG->dirroot.'/local/campusconnect/simpletest/enabledtests.php');
 
 class local_campusconnect_connect_test extends UnitTestCase {
+    /**
+     * @var campusconnect_connect[]
+     */
     protected $connect = array();
+    /**
+     * @var integer[]
+     */
     protected $mid = array();
 
     public function skip() {
@@ -55,8 +61,6 @@ class local_campusconnect_connect_test extends UnitTestCase {
 
         // Retrieve the mid values for each participant
         foreach ($this->connect as $key => $connect) {
-        	var_dump($connect);
-        	print '<br />';
             $memberships = $connect->get_memberships();
             foreach ($memberships[0]->participants as $participant) {
                 if ($participant->itsyou) {
@@ -70,7 +74,7 @@ class local_campusconnect_connect_test extends UnitTestCase {
     public function tearDown() {
         // Delete all resources (just in case)
         foreach ($this->connect as $connect) {
-            $courselinks = $connect->get_resource_list(campusconnect_export::RES_COURSELINK);
+            $courselinks = $connect->get_resource_list(campusconnect_event::RES_COURSELINK);
             foreach ($courselinks->get_ids() as $eid) {
                 // All courselinks were created by 'unittest1'
                 $this->connect[1]->delete_resource($eid, campusconnect_event::RES_COURSELINK);
@@ -133,7 +137,7 @@ class local_campusconnect_connect_test extends UnitTestCase {
 
         // Test that 'unittest3' cannot retrieve this hash
         $this->expectException('campusconnect_connect_exception');
-        $result = $this->connect[3]->get_auth($hash);
+        $this->connect[3]->get_auth($hash);
     }
 
     public function test_add_delete_resource() {
@@ -153,27 +157,19 @@ class local_campusconnect_connect_test extends UnitTestCase {
 
         // Get the resource details - should be sent / owned by mid[1] and received by mid[2] & mid[3]
         $result = $this->connect[1]->get_resource($eid, campusconnect_event::RES_COURSELINK, true);
-        $this->assertIsA($result, 'stdClass');
-        $this->assertEqual($result->senders[0]->mid, $this->mid[1]);
-        $found = array(2 => false, 3 => false);
-        foreach ($result->receivers as $receiver) {
-            foreach ($this->mid as $idx => $mid) {
-                if ($mid == $receiver->mid) {
-                    $found[$idx] = true;
-                    break;
-                }
-            }
-        }
-        foreach ($found as $foundparticipant) {
-            $this->assertTrue($foundparticipant);
+        $this->assertIsA($result, 'campusconnect_details');
+        $this->assertTrue($result->sent_by_me(array($this->mid[1])));
+        $recipientids = array($this->mid[2], $this->mid[3]);
+        foreach ($recipientids as $recipientid) {
+            $this->assertTrue($result->received_by($recipientid));
         }
 
         // Delete the resource
-        $result = $this->connect[1]->delete_resource($eid, campusconnect_event::RES_COURSELINK);
+        $this->connect[1]->delete_resource($eid, campusconnect_event::RES_COURSELINK);
 
         // Check the resource does not exist any more
-        $this->expectException('campusconnect_connect_exception');
         $result = $this->connect[1]->get_resource($eid, campusconnect_event::RES_COURSELINK, false);
+        $this->assertFalse($result);
     }
 
     public function test_read_event_fifo() {
@@ -205,7 +201,7 @@ class local_campusconnect_connect_test extends UnitTestCase {
         $this->assertEqual($result[0]->ressource, "campusconnect/courselinks/$eid");
 
         // Check the event queue is empty after deletion
-        $result = $this->connect[2]->read_event_fifo(true);
+        $this->connect[2]->read_event_fifo(true);
         $result = $this->connect[2]->read_event_fifo();
         $this->assertFalse($result);
 
@@ -226,28 +222,28 @@ class local_campusconnect_connect_test extends UnitTestCase {
         $post = (object)array('url' => $url);
 
         // Check the resource list is empty to begin with
-        $result = $this->connect[2]->get_resource_list(campusconnect_export::RES_COURSELINK);
+        $result = $this->connect[2]->get_resource_list(campusconnect_event::RES_COURSELINK);
         $this->assertIsA($result, 'campusconnect_uri_list');
         $this->assertFalse($result->get_ids());
-        $result = $this->connect[3]->get_resource_list(campusconnect_export::RES_COURSELINK);
+        $result = $this->connect[3]->get_resource_list(campusconnect_event::RES_COURSELINK);
         $this->assertFalse($result->get_ids());
 
         // Add a resource (only shared with 'unittest2')
         $eid = $this->connect[1]->add_resource(campusconnect_event::RES_COURSELINK, $post, null, $this->mid[2]);
 
         // Check 'unittest2' can see the new resource, but not 'unittest3'
-        $result = $this->connect[2]->get_resource_list(campusconnect_export::RES_COURSELINK);
+        $result = $this->connect[2]->get_resource_list(campusconnect_event::RES_COURSELINK);
         $ids = $result->get_ids();
         $this->assertEqual(count($ids), 1);
         $this->assertEqual($ids[0], $eid);
-        $result = $this->connect[3]->get_resource_list(campusconnect_export::RES_COURSELINK);
+        $result = $this->connect[3]->get_resource_list(campusconnect_event::RES_COURSELINK);
         $this->assertFalse($result->get_ids());
 
         // Delete the resource
         $this->connect[1]->delete_resource($eid, campusconnect_event::RES_COURSELINK);
 
         // Check 'unittest2' can no longer see the resource
-        $result = $this->connect[2]->get_resource_list(campusconnect_export::RES_COURSELINK);
+        $result = $this->connect[2]->get_resource_list(campusconnect_event::RES_COURSELINK);
         $this->assertFalse($result->get_ids());
     }
 
@@ -268,7 +264,7 @@ class local_campusconnect_connect_test extends UnitTestCase {
         $this->assertEqual($result->url, $url);
 
         // Update the resource
-        $result = $this->connect[1]->update_resource($eid, campusconnect_event::RES_COURSELINK, $post2, $community);
+        $this->connect[1]->update_resource($eid, campusconnect_event::RES_COURSELINK, $post2, $community);
 
         // Get the resource - should match the second set of details
         $result = $this->connect[2]->get_resource($eid, campusconnect_event::RES_COURSELINK, false);
@@ -277,7 +273,7 @@ class local_campusconnect_connect_test extends UnitTestCase {
 
         // Double-check 'unittest2' cannot update the resource
         $this->expectException('campusconnect_connect_exception');
-        $result = $this->connect[2]->update_resource($eid, campusconnect_event::RES_COURSELINK, $post2, $community);
+        $this->connect[2]->update_resource($eid, campusconnect_event::RES_COURSELINK, $post2, $community);
 
         // Delete the resource
         $this->connect[1]->delete_resource($eid, campusconnect_event::RES_COURSELINK);

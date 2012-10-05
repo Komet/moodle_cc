@@ -24,6 +24,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
 require_once($CFG->dirroot.'/local/campusconnect/ecssettings.php');
 require_once($CFG->dirroot.'/local/campusconnect/simpletest/enabledtests.php');
 
@@ -92,7 +93,7 @@ class local_campusconnect_ecssettings_test extends UnitTestCase {
 
         // Check the settings do not exist any more
         $this->expectException('dml_missing_record_exception');
-        $settings = new campusconnect_ecssettings($id);
+        new campusconnect_ecssettings($id);
     }
 
     public function test_connect_setting_validation() {

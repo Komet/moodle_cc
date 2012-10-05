@@ -24,11 +24,12 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
 require_once($CFG->dirroot.'/local/campusconnect/participantsettings.php');
 require_once($CFG->dirroot.'/local/campusconnect/simpletest/enabledtests.php');
 
 class local_campusconnect_participantsettings_test extends UnitTestCase {
-
+    /** @var campusconnect_ecssettings */
     protected $ecssettings = null;
 
     public function skip() {
@@ -52,6 +53,7 @@ class local_campusconnect_participantsettings_test extends UnitTestCase {
         $community = reset($communities);
         $this->assertEqual($community->name, 'unittest', "Expected the community to be called 'unittest'");
 
+        /** @var $parts campusconnect_participantsettings[] */
         $parts = $community->participants;
         $this->assertEqual(count($parts), 3, "Expected 3 participants in the 'unittest' community");
 
@@ -108,8 +110,8 @@ class local_campusconnect_participantsettings_test extends UnitTestCase {
         // Get the first participant in the community
         $communities = campusconnect_participantsettings::load_communities($this->ecssettings);
         $community = reset($communities);
+        /** @var $participant campusconnect_participantsettings */
         $participant = reset($community->participants);
-        $mid = $participant->get_mid();
 
         $settings = array('import' => 'fish', 'export' => 500);
         $participant->save_settings($settings);

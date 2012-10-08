@@ -24,10 +24,12 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
 require_once($CFG->dirroot.'/local/campusconnect/metadata.php');
 require_once($CFG->dirroot.'/local/campusconnect/simpletest/enabledtests.php');
 
 class local_campusconnect_metadata_test extends UnitTestCase {
+    /** @var campusconnect_ecssettings */
     protected $settings = null;
 
     public function skip() {

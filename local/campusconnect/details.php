@@ -55,4 +55,13 @@ class campusconnect_details {
     function sent_by_me(array $mymids) {
         return in_array($this->senders[0]->mid, $mymids);
     }
+
+    function received_by($mid) {
+        foreach ($this->receivers as $receiver) {
+            if ($receiver->mid == $mid) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

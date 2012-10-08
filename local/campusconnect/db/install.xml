@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/campusconnect/db" VERSION="20120726" COMMENT="XMLDB file for Moodle local/campusconnect"
+<XMLDB PATH="local/campusconnect/db" VERSION="20121002" COMMENT="XMLDB file for Moodle local/campusconnect"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -128,7 +128,7 @@
         <INDEX NAME="rootid" UNIQUE="true" FIELDS="rootid"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="local_campusconnect_dir" COMMENT="A directory node from the CMS via the ECS server" PREVIOUS="local_campusconnect_dirroot">
+    <TABLE NAME="local_campusconnect_dir" COMMENT="A directory node from the CMS via the ECS server" PREVIOUS="local_campusconnect_dirroot" NEXT="local_campusconnect_crs">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="resourceid"/>
         <FIELD NAME="resourceid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the resource on the ECS server" PREVIOUS="id" NEXT="rootid"/>
@@ -146,6 +146,19 @@
       <INDEXES>
         <INDEX NAME="rootid" UNIQUE="false" FIELDS="rootid"/>
       </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_campusconnect_crs" COMMENT="Stores information about courses created by campusconnect" PREVIOUS="local_campusconnect_dir">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="courseid"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the course that has been created" PREVIOUS="id" NEXT="resourceid"/>
+        <FIELD NAME="resourceid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The resourceid on the ECS server" PREVIOUS="courseid" NEXT="ecsid"/>
+        <FIELD NAME="ecsid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ECS server this course came from" PREVIOUS="resourceid" NEXT="mid"/>
+        <FIELD NAME="mid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The participant this course came from" PREVIOUS="ecsid"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id" NEXT="courseid"/>
+        <KEY NAME="courseid" TYPE="foreign-unique" FIELDS="courseid" REFTABLE="course" REFFIELDS="id" PREVIOUS="primary"/>
+      </KEYS>
     </TABLE>
   </TABLES>
 </XMLDB>

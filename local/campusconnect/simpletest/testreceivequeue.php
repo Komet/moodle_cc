@@ -39,6 +39,7 @@ require_once($CFG->dirroot.'/local/campusconnect/receivequeue.php');
 require_once($CFG->dirroot.'/local/campusconnect/simpletest/enabledtests.php');
 
 global $DB;
+/** @noinspection PhpDynamicAsStaticMethodCallInspection */
 Mock::generate(get_class($DB), 'mockDB_coursecreate', array('mock_create_course',
                                                             'mock_update_course',
                                                             'mock_delete_course'));
@@ -52,6 +53,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
     protected $realDB = null;
     protected $resources = array();
     protected $community = null;
+    /** @var campusconnect_receivequeue */
     protected $queue = null;
 
     public function skip() {
@@ -62,6 +64,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         // Override the $DB global.
         global $DB;
         $this->realDB = $DB;
+        /** @noinspection PhpUndefinedClassInspection */
         $DB = new mockDB_coursecreate();
 
         // Create the connections for testing.
@@ -98,6 +101,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         // General settings used by the tests
         $this->community = 'unittest';
         $this->queue = new campusconnect_receivequeue();
+        $this->queue->set_unittest();
     }
 
     public function tearDown() {
@@ -107,7 +111,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
 
         // Delete all resources (just in case).
         foreach ($this->connect as $connect) {
-            $courselinks = $connect->get_resource_list(campusconnect_export::RES_COURSELINK);
+            $courselinks = $connect->get_resource_list(campusconnect_event::RES_COURSELINK);
             foreach ($courselinks->get_ids() as $eid) {
                 // All courselinks were created by 'unittest1'.
                 $this->connect[1]->delete_resource($eid, campusconnect_event::RES_COURSELINK);
@@ -125,6 +129,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
     }
 
     public function test_update_from_ecs_empty() {
+        /** @var $DB SimpleMock */
         global $DB;
 
         // Check the update queue - no updates expected
@@ -135,6 +140,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
     }
 
     public function test_update_from_ecs_create_update_delete() {
+        /** @var $DB SimpleMock */
         global $DB;
 
         // Add a resource to the community
@@ -204,6 +210,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
     }
 
     public function test_update_from_ecs_create_two() {
+        /** @var $DB SimpleMock */
         global $DB;
 
         $DB->expectNever('update_record');
@@ -238,6 +245,7 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
     }
 
     public function test_process_event_queue_create() {
+        /** @var $DB SimpleMock */
         global $DB;
 
         // Send courselink from server 1 to server 2 and check that a course
@@ -251,9 +259,10 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
                                    'resourceid' => "$eid",
                                    'serverid' => $this->connect[2]->get_ecs_id(),
                                    'status' => campusconnect_event::STATUS_CREATED);
-        $DB->setReturnValue('get_records', array()); // No further events.
+        $DB->setReturnValue('get_records_select', array()); // No further events.
+        $DB->setReturnValue('get_records', array()); // Category mapping
         $DB->setReturnValueAt(0, 'get_records', array()); // Default metadata mappings.
-        $DB->setReturnValueAt(1, 'get_records', array($eventdata)); // Get event.
+        $DB->setReturnValueAt(0, 'get_records_select', array($eventdata)); // Get event.
         $DB->setReturnValueAt(1, 'get_record', false); // Check if courselink exists.
         $DB->setReturnValueAt(0, 'get_record', (object)array('id' => 1, 'import' => 1, 'export' => 1,
                                                              'importtype' => campusconnect_participantsettings::IMPORT_LINK)); // Load participant settings.
@@ -274,13 +283,15 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         $DB->expectOnce('mock_create_course', array($coursedata)); // Create course.
         $DB->expectOnce('insert_record', array('local_campusconnect_clink', $linkdata)); // Create course link.
 
-        $DB->expectCallCount('get_records', 4); // Pulling items from the event queue + loading metadata settings
+        $DB->expectCallCount('get_records', 2); // Pulling items from the event queue
+        $DB->expectCallCount('get_records_select', 2); //  Loading metadata settings
         $DB->expectCallCount('delete_records', 1); // Deleting items from the event queue
 
         $this->queue->process_queue();
     }
 
     public function test_process_event_queue_import_disabled() {
+        /** @var $DB SimpleMock */
         global $DB;
 
         // Send courselink from server 1 to server 2 and check that a course
@@ -294,8 +305,9 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
                                    'resourceid' => "$eid",
                                    'serverid' => $this->connect[2]->get_ecs_id(),
                                    'status' => campusconnect_event::STATUS_CREATED);
-        $DB->setReturnValue('get_records', array()); // No further events.
-        $DB->setReturnValueAt(0, 'get_records', array($eventdata)); // Get event.
+        $DB->setReturnValue('get_records_select', array()); // No further events.
+        $DB->setReturnValue('get_records', array()); // Category mapping
+        $DB->setReturnValueAt(0, 'get_records_select', array($eventdata)); // Get event.
         $DB->setReturnValueAt(1, 'get_record', false); // Check if courselink exists.
         $DB->setReturnValueAt(0, 'get_record', (object)array('id' => 1, 'import' => 0, 'export' => 1,
                                                              'importtype' => campusconnect_participantsettings::IMPORT_LINK)); // Load participant settings.
@@ -303,13 +315,14 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         $DB->expectNever('mock_create_course', 'Import disabled - did not expect a course to be created');
         $DB->expectNever('insert_record', 'Import disabled - did not expect a course link to be created');
 
-        $DB->expectCallCount('get_records', 2); // Pulling items from the event queue
+        $DB->expectCallCount('get_records_select', 2); // Pulling items from the event queue
         $DB->expectCallCount('delete_records', 1); // Deleting items from the event queue
 
         $this->queue->process_queue();
     }
 
     public function test_process_event_queue_update() {
+        /** @var $DB SimpleMock */
         global $DB;
 
         // Update a courselink sent by server 1 and received by server 2
@@ -329,9 +342,10 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
                                   'resourceid' => "$eid",
                                   'ecsid' => $this->connect[2]->get_ecs_id(),
                                   'mid' => $this->mid[1]);
-        $DB->setReturnValue('get_records', array()); // No further events.
+        $DB->setReturnValue('get_records_select', array()); // No further events.
+        $DB->setReturnValue('get_records', array()); // Category mapping
         $DB->setReturnValueAt(0, 'get_records', array()); // Default metadata mappings.
-        $DB->setReturnValueAt(1, 'get_records', array($eventdata)); // Get event.
+        $DB->setReturnValueAt(0, 'get_records_select', array($eventdata)); // Get event.
         $DB->setReturnValueAt(1, 'get_record', $linkdata); // Retrieve courselink.
         $DB->setReturnValueAt(0, 'get_record', (object)array('id' => 1, 'import' => 1, 'export' => 1,
                                                              'importtype' => campusconnect_participantsettings::IMPORT_LINK)); // Load participant settings.
@@ -348,13 +362,15 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         $DB->expectOnce('mock_update_course', array($coursedata)); // Update course.
         $DB->expectOnce('update_record', array('local_campusconnect_clink', $linkdata)); // Update course link.
 
-        $DB->expectCallCount('get_records', 4); // Pulling items from the event queue + loading metadata settings
+        $DB->expectCallCount('get_records_select', 2); // Pulling items from the event queue
+        $DB->expectCallCount('get_records', 2); // Metadata settings
         $DB->expectCallCount('delete_records', 1); // Deleting items from the event queue
 
-        $this->queue->process_queue();
+        $this->queue->process_queue(null, true);
     }
 
     public function test_process_event_queue_delete() {
+        /** @var $DB SimpleMock */
         global $DB;
 
         // Delete a courselink from server 1, received by course 2 and
@@ -373,20 +389,21 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
                                   'resourceid' => "$eid",
                                   'ecsid' => $this->connect[2]->get_ecs_id(),
                                   'mid' => $this->mid[1]);
-        $DB->setReturnValue('get_records', array()); // No further events.
-        $DB->setReturnValueAt(0, 'get_records', array($eventdata)); // Get event.
+        $DB->setReturnValue('get_records_select', array()); // No further events.
+        $DB->setReturnValueAt(0, 'get_records_select', array($eventdata)); // Get event.
         $DB->setReturnValue('get_record', $linkdata); // Retrieve courselink
 
         $DB->expectOnce('mock_delete_course', array(5)); // Delete course.
         $DB->expectAt(0, 'delete_records', array('local_campusconnect_clink', array('id' => 3))); // Delete course link.
 
-        $DB->expectCallCount('get_records', 2); // Pulling items from the event queue
+        $DB->expectCallCount('get_records_select', 2); // Pulling items from the event queue
         $DB->expectCallCount('delete_records', 2); // Deleting items from the event queue
 
         $this->queue->process_queue();
     }
 
     public function test_process_event_queue_update_course_deleted() {
+        /** @var $DB SimpleMock */
         global $DB;
 
         // Update a courselink sent by server 1 and received by server 2
@@ -406,9 +423,10 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
                                   'resourceid' => "$eid",
                                   'ecsid' => $this->connect[2]->get_ecs_id(),
                                   'mid' => $this->mid[1]);
-        $DB->setReturnValue('get_records', array()); // No further events.
+        $DB->setReturnValue('get_records_select', array()); // No further events.
+        $DB->setReturnValue('get_records', array()); // Category mapping
         $DB->setReturnValueAt(0, 'get_records', array()); // Default metadata mappings.
-        $DB->setReturnValueAt(1, 'get_records', array($eventdata)); // Get event.
+        $DB->setReturnValueAt(0, 'get_records_select', array($eventdata)); // Get event.
         $DB->setReturnValueAt(1, 'get_record', $linkdata); // Retrieve courselink.
         $DB->setReturnValueAt(0, 'get_record', (object)array('id' => 1, 'import' => 1, 'export' => 1,
                                                              'importtype' => campusconnect_participantsettings::IMPORT_LINK)); // Load participant settings.
@@ -429,7 +447,8 @@ class local_campusconnect_receivequeue_test extends UnitTestCase {
         $DB->expectAt(0, 'update_record', array('local_campusconnect_clink', $linkdata)); // Update course link (new courseid).
         $DB->expectAt(1, 'update_record', array('local_campusconnect_clink', $linkdata2)); // Update course link (new url).
 
-        $DB->expectCallCount('get_records', 4); // Pulling items from the event queue + loading metadata settings
+        $DB->expectCallCount('get_records_select', 2); // Pulling items from the event queue
+        $DB->expectCallCount('get_records', 2); // loading metadata settings
         $DB->expectCallCount('delete_records', 1); // Deleting items from the event queue
 
         $this->queue->process_queue();

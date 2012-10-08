@@ -150,6 +150,10 @@ class campusconnect_participantsettings {
         return ($this->itsyou == true);
     }
 
+    /**
+     * Check if the participant is currently exported.
+     * @return bool
+     */
     public function is_exported() {
         if (is_null($this->exported)) {
             throw new coding_exception('is_exported can only be called after set_exported has been called (usually via campusconnect_export)');

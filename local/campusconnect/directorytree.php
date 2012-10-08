@@ -417,21 +417,26 @@ class campusconnect_directorytree {
 
     /**
      * Full update of all directory trees from ECS
+     * @param campusconnect_ecssettings $ecssettings
      * @return bool - true if update enabled
      */
-    public static function refresh_from_ecs() {
+    public static function refresh_from_ecs(campusconnect_ecssettings $ecssettings) {
         global $DB;
 
         if (!self::enabled()) {
             return false; // Mapping disabled.
         }
 
+        /** @var $cms campusconnect_participantsettings */
         if (! $cms = campusconnect_participantsettings::get_cms_participant()) {
             return false;
         }
 
+        if ($cms->get_ecs_id() != $ecssettings->get_id()) {
+            return false; // Not refreshing the ECS the CMS is connected to.
+        }
+
         // Gather directory changes from the ECS server.
-        $ecssettings = new campusconnect_ecssettings($cms->get_ecs_id());
         if (!$ecssettings->is_enabled()) {
             return false; // Ignore disabled ECS.
         }
@@ -537,6 +542,7 @@ class campusconnect_directorytree {
      * @param campusconnect_ecssettings $ecssettings - the ECS being connected to
      * @param object $directory - the resource data from ECS
      * @param campusconnect_details $details - the metadata for the resource on the ECS
+     * @return bool true if successful
      */
     public static function update_directory($resourceid, campusconnect_ecssettings $ecssettings, $directory, campusconnect_details $details) {
         global $DB;
@@ -657,6 +663,30 @@ class campusconnect_directorytree {
             }
             fix_course_sortorder();
         }
+    }
+
+    /**
+     * Returns the category that a given directory is mapped on to, creating the category if required and
+     * fixing the mapping in place if it is a provisional mapping.
+     * @param integer $directoryid the ID of the directory on the ECS
+     * @return mixed integer | null the ID of the Moodle category to create the course in - null if mapping not available
+     */
+    public static function get_category_for_course($directoryid) {
+        global $DB;
+
+        $sql = "SELECT dr.*
+                  FROM {local_campusconnect_dirroot} dr
+                  JOIN {local_campusconnect_dir} d ON d.rootid = dr.rootid
+                 WHERE d.directoryid = :directoryid";
+        $params = array('directoryid' => $directoryid);
+        if (!$dirtreedata = $DB->get_record_sql($sql, $params)) {
+            throw new campusconnect_directorytree_exception("Attempting to find category for non-existent directory $directoryid");
+        }
+
+        $dirtree = new campusconnect_directorytree($dirtreedata);
+        /** @var $dir campusconnect_directory */
+        $dir = $dirtree->get_directory($directoryid);
+        return $dir->create_category($dirtree->get_category_id());
     }
 }
 

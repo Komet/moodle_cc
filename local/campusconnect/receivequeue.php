@@ -31,6 +31,7 @@ require_once($CFG->dirroot.'/local/campusconnect/event.php');
 require_once($CFG->dirroot.'/local/campusconnect/courselink.php');
 require_once($CFG->dirroot.'/local/campusconnect/directorytree.php');
 require_once($CFG->dirroot.'/local/campusconnect/details.php');
+require_once($CFG->dirroot.'/local/campusconnect/course.php');
 
 class campusconnect_receivequeue_exception extends moodle_exception {
     function __construct($msg) {
@@ -39,6 +40,12 @@ class campusconnect_receivequeue_exception extends moodle_exception {
 }
 
 class campusconnect_receivequeue {
+
+    /**
+     * @var integer[] IDs of events that were unsuccessful and should be tried again next update
+     */
+    protected static $skipevents = array();
+    protected $unittest = false;
 
     /**
      * Code for pulling events from the ECS server and adding them to
@@ -118,10 +125,22 @@ class campusconnect_receivequeue {
         global $DB;
 
         $params = array();
+        $select = array();
         if ($ecssettings != null) {
             $params['serverid'] = $ecssettings->get_id();
+            $select[] = 'serverid = :serverid';
         }
-        $ret = $DB->get_records('local_campusconnect_eventin', $params, 'id', '*', 0, 1);
+        if (!empty(self::$skipevents)) {
+            list($ssql, $sparams) = $DB->get_in_or_equal(self::$skipevents, SQL_PARAMS_NAMED, 'param', false);
+            $select[] = "id $ssql";
+            $params = array_merge($params, $sparams);
+        }
+        if (empty($select)) {
+            $select = '';
+        } else {
+            $select = implode(' AND ', $select);
+        }
+        $ret = $DB->get_records_select('local_campusconnect_eventin', $select, $params, 'id', '*', 0, 1);
         if (empty($ret)) {
             return false;
         }
@@ -140,6 +159,22 @@ class campusconnect_receivequeue {
     }
 
     /**
+     * Skip over this event for now, but process it again on the next update
+     * @param campusconnect_event $event
+     */
+    protected function skip_event(campusconnect_event $event) {
+        self::$skipevents[] = $event->get_id();
+    }
+
+    /**
+     * Called if we are running a unit test - avoid calling 'fix_course_sortorder', as this is out of scope for
+     * the unit tests.
+     */
+    public function set_unittest() {
+        $this->unittest = true;
+    }
+
+    /**
      * Process all the events in the queue and take the appropriate actions
      * @param campusconnect_ecssettings $ecssettings optional - if provided, only process events from the specified ECS server
      */
@@ -147,6 +182,7 @@ class campusconnect_receivequeue {
         $fixcourses = false;
 
         while ($event = $this->get_event_from_queue($ecssettings)) {
+            $success = true;
             switch ($event->get_resource_type()) {
             case campusconnect_event::RES_COURSELINK:
                 $this->process_courselink_event($event);
@@ -155,18 +191,28 @@ class campusconnect_receivequeue {
             case campusconnect_event::RES_DIRECTORYTREE:
                 $this->process_directorytree_event($event);
                 break;
+            case campusconnect_event::RES_COURSE:
+                $success = $this->process_course_event($event);
+                if ($success) {
+                    $fixcourses = true;
+                }
+                break;
             default:
                 throw new campusconnect_receivequeue_exception("Unknown event resource: ".$event->get_resource_type());
                 break;
             }
 
-            $this->remove_event_from_queue($event);
+            if ($success) {
+                $this->remove_event_from_queue($event);
+            } else {
+                $this->skip_event($event);
+            }
         }
 
         // Check if any new categories need to be created.
         campusconnect_directory::process_new_directories();
 
-        if ($fixcourses) {
+        if ($fixcourses && !$this->unittest) { // Avoid fix_course_sortorder in unit tests.
             fix_course_sortorder();
         }
     }
@@ -249,5 +295,51 @@ class campusconnect_receivequeue {
 
         mtrace("CampusConnect: update directorytree: ".$event->get_resource_id()."\n");
         return campusconnect_directorytree::update_directory($event->get_resource_id(), $settings, $resource, $details);
+    }
+
+    /**
+     * Process events related to courses
+     * @param campusconnect_event $event the event to process
+     * @return bool true if successful
+     */
+    protected function process_course_event(campusconnect_event $event) {
+        $settings = new campusconnect_ecssettings($event->get_ecs_id());
+        $status = $event->get_status();
+
+        // Delete events do not need to retrieve the resource.
+        if ($status == campusconnect_event::STATUS_DESTROYED) {
+            mtrace("CampusConnect: delete directory: ".$event->get_resource_id()."\n");
+            campusconnect_course::delete($event->get_resource_id(), $settings);
+            return true;
+        }
+
+        if ($status != campusconnect_event::STATUS_CREATED &&
+            $status != campusconnect_event::STATUS_UPDATED) {
+            throw new campusconnect_receivequeue_exception("Unknown event status: ".$event->get_status());
+        }
+
+        // Retrieve the resource.
+        $connect = new campusconnect_connect($settings);
+        $resource = $connect->get_resource($event->get_resource_id(), campusconnect_event::RES_COURSE);
+        if ($resource) {
+            $details = $connect->get_resource($event->get_resource_id(), campusconnect_event::RES_COURSE, true);
+        } else {
+            return true; // The resource no longer exists - assume we will process the 'delete' event in a moment.
+        }
+
+        // Process the create/update event.
+        if ($status == campusconnect_event::STATUS_CREATED) {
+            mtrace("CampusConnect: create course: ".$event->get_resource_id()."\n");
+            if (!$status = campusconnect_course::create($event->get_resource_id(), $settings, $resource, $details)) {
+                mtrace("CamupsConnect: unable to create course - directory not yet mapped");
+            }
+            return $status;
+        }
+
+        mtrace("CampusConnect: update course: ".$event->get_resource_id()."\n");
+        if (!$status = campusconnect_course::update($event->get_resource_id(), $settings, $resource, $details)) {
+            mtrace("CampusConnect: unable to update course - directory not yet mapped");
+        }
+        return $status;
     }
 }

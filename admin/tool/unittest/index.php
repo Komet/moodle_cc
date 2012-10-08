@@ -44,6 +44,8 @@ $showpasses   = optional_param('showpasses', false, PARAM_BOOL);
 $codecoverage = optional_param('codecoverage', false, PARAM_BOOL);
 $showsearch   = optional_param('showsearch', false, PARAM_BOOL);
 
+$cc_codecoverage = false;
+
 admin_externalpage_setup('toolsimpletest', '', array('showpasses'=>$showpasses, 'showsearch'=>$showsearch));
 
 $unittest = true;
@@ -114,7 +116,30 @@ if (!is_null($path)) {
             $title = get_string('moodleunittests', 'tool_unittest', $displaypath);
         }
         echo $OUTPUT->heading($title);
+        if ($cc_codecoverage) { xdebug_start_code_coverage(); }
         $test->run($reporter);
+
+        // Analyse code coverage
+        if ($cc_codecoverage) {
+            $coverage = xdebug_get_code_coverage();
+            $outputdir = $CFG->dataroot.'/codecoverage/';
+            $campusconnectprefix = $CFG->dirroot.'/local/campusconnect/';
+            $prefixlen = strlen($campusconnectprefix);
+            foreach ($coverage as $filename => $lines) {
+                if (substr($filename, 0, $prefixlen) == $campusconnectprefix) {
+                    $outfile = $outputdir.substr($filename, $prefixlen);
+                    $outdir = dirname($outfile);
+                    @mkdir($outdir, 0777, true);
+                    $code = file($filename);
+                    foreach ($lines as $lineno => $run) {
+                        $code[$lineno-1] = '+'.$code[$lineno-1];
+                    }
+                    $fp = fopen($outfile, 'w');
+                    fwrite($fp, implode("", $code));
+                    fclose($fp);
+                }
+            }
+        }
     }
 
     $formheader = get_string('retest', 'tool_unittest');

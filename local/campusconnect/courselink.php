@@ -121,7 +121,7 @@ class campusconnect_courselink {
         $coursedata = self::map_course_settings($courselink, $settings);
 
         if ($partsettings->get_import_type() == campusconnect_participantsettings::IMPORT_LINK) {
-            if ($currlink = self::get_by_resourceid($resourceid, $settings->get_id())) {
+            if (self::get_by_resourceid($resourceid, $settings->get_id())) {
                 throw new campusconnect_courselink_exception("Cannot create a courselink to resource $resourceid - it already exists.");
             }
 
@@ -162,11 +162,11 @@ class campusconnect_courselink {
      * @param int $resourceid the id of this link on the ECS server
      * @param campusconnect_ecssettings $settings the settings for this ECS server
      * @param object $courselink the details of the course from the ECS server
-     * @param campusconnect_details $transferdetails the details of where the link came from / went to
+     * @param mixed campusconnect_details | null $transferdetails the details of where the link came from / went to
      * @param int $mid set when doing a full update (and $transferdetails = null)
      * @return bool true if successfully updated
      */
-    public static function update($resourceid, campusconnect_ecssettings $settings, $courselink, campusconnect_details $transferdetails, $mid = null) {
+    public static function update($resourceid, campusconnect_ecssettings $settings, $courselink, $transferdetails, $mid = null) {
         global $DB;
 
         if ((is_null($transferdetails) && is_null($mid)) ||
@@ -175,6 +175,7 @@ class campusconnect_courselink {
         }
 
         if (is_null($mid)) {
+            /** @var $transferdetails campusconnect_details */
             $mid = $transferdetails->get_sender_mid();
             $ecsid = $settings->get_id();
             $partsettings = new campusconnect_participantsettings($ecsid, $mid);
@@ -302,7 +303,7 @@ class campusconnect_courselink {
                 if ($part->get_import_type() != campusconnect_participantsettings::IMPORT_LINK) {
                     continue;
                 }
-                if (!is_null($singlemid) && $part->get_mid() == $singlemid) {
+                if (is_null($singlemid) || $part->get_mid() == $singlemid) {
                     $importparticipants[$part->get_mid()] = $part;
                 }
             }
@@ -358,8 +359,8 @@ class campusconnect_courselink {
 
     /**
      * Update all courselinks exported by the given participant
-     * @param $ecsid the ECS we are connecting to
-     * @param $mid the MID of the participant we are updating from
+     * @param integer $ecsid the ECS we are connecting to
+     * @param integer $mid the MID of the participant we are updating from
      */
     public static function refresh_from_participant($ecsid, $mid) {
         $ecssettings = new campusconnect_ecssettings($ecsid);
@@ -456,7 +457,7 @@ class campusconnect_courselink {
     }
 
     /**
-     * Get the courselink db record from it's resourceid and ecsid
+     * Get the courselink db record from its resourceid and ecsid
      * @param int $resourceid
      * @param int $ecsid
      * @return mixed false | object

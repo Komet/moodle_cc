@@ -356,5 +356,20 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2012100201, 'local', 'campusconnect');
     }
 
+    if ($oldversion < 2012100800) {
+
+        // Define field internallink to be added to local_campusconnect_crs
+        $table = new xmldb_table('local_campusconnect_crs');
+        $field = new xmldb_field('internallink', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'mid');
+
+        // Conditionally launch add field internallink
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012100800, 'local', 'campusconnect');
+    }
+
     return true;
 }

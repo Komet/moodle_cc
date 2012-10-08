@@ -139,6 +139,7 @@ $string['pollingtimedesc'] = 'Please define the polling time for creation and up
 $string['port'] = 'Port';
 $string['protocol'] = 'Protocol';
 $string['provider'] = 'Provider';
+$string['refresh_processcourse'] = 'Updating all imported courses';
 $string['refresh_processcourselinks'] = 'Updating all imported course links';
 $string['refresh_processdirtree'] = 'Updating all directory trees';
 $string['refresh_processexport'] = 'Updating all exported courses';

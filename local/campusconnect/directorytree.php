@@ -417,21 +417,26 @@ class campusconnect_directorytree {
 
     /**
      * Full update of all directory trees from ECS
+     * @param campusconnect_ecssettings $ecssettings
      * @return bool - true if update enabled
      */
-    public static function refresh_from_ecs() {
+    public static function refresh_from_ecs(campusconnect_ecssettings $ecssettings) {
         global $DB;
 
         if (!self::enabled()) {
             return false; // Mapping disabled.
         }
 
+        /** @var $cms campusconnect_participantsettings */
         if (! $cms = campusconnect_participantsettings::get_cms_participant()) {
             return false;
         }
 
+        if ($cms->get_ecs_id() != $ecssettings->get_id()) {
+            return false; // Not refreshing the ECS the CMS is connected to.
+        }
+
         // Gather directory changes from the ECS server.
-        $ecssettings = new campusconnect_ecssettings($cms->get_ecs_id());
         if (!$ecssettings->is_enabled()) {
             return false; // Ignore disabled ECS.
         }

@@ -46,14 +46,18 @@ class campusconnect_course {
      * @param campusconnect_ecssettings $ecssettings - the ECS being connected to
      * @param object $course - the resource data from ECS
      * @param campusconnect_details $transferdetails - the metadata for the resource on the ECS
+     * @param campusconnect_participantsettings $cms - passed in when doing full refresh (to save a DB query)
      * @return bool true if successful
      */
-    public static function create($resourceid, campusconnect_ecssettings $ecssettings, $course, campusconnect_details $transferdetails) {
+    public static function create($resourceid, campusconnect_ecssettings $ecssettings, $course,
+                                  campusconnect_details $transferdetails, campusconnect_participantsettings $cms = null) {
         global $DB;
 
+        if (is_null($cms)) {
+            $cms = campusconnect_participantsettings::get_cms_participant();
+        }
         $mid = $transferdetails->get_sender_mid();
         $ecsid = $ecssettings->get_id();
-        $cms = campusconnect_participantsettings::get_cms_participant();
         if (!$cms || $cms->get_mid() != $mid || $cms->get_ecs_id() != $ecsid) {
             throw new campusconnect_course_exception("Received create course event from non-CMS participant");
         }
@@ -104,14 +108,18 @@ class campusconnect_course {
      * @param campusconnect_ecssettings $ecssettings - the ECS being connected to
      * @param object $course - the resource data from ECS
      * @param campusconnect_details $transferdetails - the metadata for the resource on the ECS
+     * @param campusconnect_participantsettings $cms - the cms (already loaded if doing full refresh)
      * @return bool true if successful
      */
-    public static function update($resourceid, campusconnect_ecssettings $ecssettings, $course, campusconnect_details $transferdetails) {
+    public static function update($resourceid, campusconnect_ecssettings $ecssettings, $course,
+                                  campusconnect_details $transferdetails, campusconnect_participantsettings $cms = null) {
         global $DB;
 
+        if (is_null($cms)) {
+            $cms = campusconnect_participantsettings::get_cms_participant();
+        }
         $mid = $transferdetails->get_sender_mid();
         $ecsid = $ecssettings->get_id();
-        $cms = campusconnect_participantsettings::get_cms_participant();
         if (!$cms || $cms->get_mid() != $mid || $cms->get_ecs_id() != $ecsid) {
             throw new campusconnect_course_exception("Received update course event from non-CMS participant");
         }
@@ -195,6 +203,67 @@ class campusconnect_course {
         }
 
         return true;
+    }
+
+    /**
+     * Update all courses from the ECS
+     * @param campusconnect_ecssettings $ecssettings
+     * @return object containing: ->created - array of created resource ids
+     *                            ->updated - array of updated resource ids
+     *                            ->deleted - array of deleted resource ids
+     */
+    public static function refresh_from_ecs(campusconnect_ecssettings $ecssettings) {
+        global $DB;
+
+        $ret = (object)array('created' => array(), 'updated' => array(), 'deleted' => array());
+
+        // Get the CMS participant.
+        /** @var $cms campusconnect_participantsettings */
+        if (!$cms = campusconnect_participantsettings::get_cms_participant()) {
+            return $ret;
+        }
+        if ($cms->get_ecs_id() != $ecssettings->get_id()) {
+            // Not refreshing the ECS that the CMS is attached to
+            return $ret;
+        }
+
+        // Get full list of courselinks from this ECS.
+        $courses = $DB->get_records('local_campusconnect_crs', array('ecsid' => $cms->get_ecs_id(), 'mid' => $cms->get_mid()),
+                                    '', 'resourceid');
+
+        // Get full list of courselink resources shared with us.
+        $connect = new campusconnect_connect($ecssettings);
+        $servercourses = $connect->get_resource_list(campusconnect_event::RES_COURSE);
+
+        // Go through all the links from the server and compare to what we have locally.
+        foreach ($servercourses->get_ids() as $resourceid) {
+            $details = $connect->get_resource($resourceid, campusconnect_event::RES_COURSE, false);
+            $transferdetails = $connect->get_resource($resourceid, campusconnect_event::RES_COURSE, true);
+
+            // Check if we already have this locally.
+            if (isset($courses[$resourceid])) {
+                self::update($resourceid, $ecssettings, $details, $transferdetails, $cms);
+                $ret->updated[] = $resourceid;
+                unset($courses[$resourceid]); // So we can delete anything left in the list at the end.
+            } else {
+                // We don't already have this course
+                if (empty($details)) {
+                    continue; // This probably shouldn't occur, but we're just going to ignore it.
+                }
+
+                self::create($resourceid, $ecssettings, $details, $transferdetails, $cms);
+                $ret->created[] = $resourceid;
+            }
+        }
+
+        // Delete any courses still in our local list (they have either been deleted remotely, or they are from
+        // participants we no longer import course links from).
+        foreach ($courses as $course) {
+            self::delete($course->resourceid, $ecssettings);
+            $ret->deleted[] = $course->resourceid;
+        }
+
+        return $ret;
     }
 
     /**

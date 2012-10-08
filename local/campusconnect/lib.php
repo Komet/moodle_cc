@@ -104,7 +104,9 @@ function local_campusconnect_refresh_ecs(campusconnect_ecssettings $ecssettings,
     $connect = new campusconnect_connect($ecssettings);
 
     // Work through the message queue before resyncing all data.
-    echo html_writer::tag('p', get_string('refresh_processmessages', 'local_campusconnect'));
+    if ($output) {
+        echo html_writer::tag('p', get_string('refresh_processmessages', 'local_campusconnect'));
+    }
     $queue = new campusconnect_receivequeue();
     try {
         $queue->update_from_ecs($connect);
@@ -116,15 +118,27 @@ function local_campusconnect_refresh_ecs(campusconnect_ecssettings $ecssettings,
     $ret = new stdClass();
 
     // Resync all exported courses
-    echo html_writer::tag('p', get_string('refresh_processexport', 'local_campusconnect'));
+    if ($output) {
+        echo html_writer::tag('p', get_string('refresh_processexport', 'local_campusconnect'));
+    }
     $ret->export = campusconnect_export::refresh_ecs($connect);
 
     // Resync all imported directory trees
-    echo html_writer::tag('p', get_string('refresh_processdirtree', 'local_campusconnect'));
-    $ret->dirtree = campusconnect_directorytree::refresh_from_ecs();
+    if ($output) {
+        echo html_writer::tag('p', get_string('refresh_processdirtree', 'local_campusconnect'));
+    }
+    $ret->dirtree = campusconnect_directorytree::refresh_from_ecs($ecssettings);
+
+    // Resync all imported courses
+    if ($output) {
+        echo html_writer::tag('p', get_string('refresh_processcourse', 'local_campusconnect'));
+    }
+    $ret->course = campusconnect_course::refresh_from_ecs($ecssettings);
 
     // Resync all imported course links
-    echo html_writer::tag('p', get_string('refresh_processcourselinks', 'local_campusconnect'));
+    if ($output) {
+        echo html_writer::tag('p', get_string('refresh_processcourselinks', 'local_campusconnect'));
+    }
     $ret->courselink = campusconnect_courselink::refresh_from_ecs($ecssettings);
 
     return true;

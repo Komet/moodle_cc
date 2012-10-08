@@ -130,10 +130,15 @@ if ($ecsid = optional_param('refresh', null, PARAM_INT)) {
 
     echo $OUTPUT->heading(get_string('refreshing', 'local_campusconnect', $ecssettings->get_name()), 3);
 
+    echo $OUTPUT->box_start();
     local_campusconnect_refresh_ecs($ecssettings, true);
 
     $redir = new moodle_url($PAGE->url, array('refreshdone' => $ecsid));
-    redirect($redir, '', 5);
+    echo $OUTPUT->continue_button($redir);
+
+    echo $OUTPUT->box_end();
+    echo $OUTPUT->footer();
+    die();
 }
 
 echo $refreshmsg;

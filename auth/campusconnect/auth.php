@@ -53,7 +53,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
      *
      */
     function loginpage_hook() {
-        global $SESSION, $CFG;
+        global $SESSION, $CFG, $DB;
 
         if (!isset($SESSION) || !isset($SESSION->wantsurl)) {
             return;
@@ -112,11 +112,28 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         }
         $uidhash = $paramassoc['ecs_uid_hash'];
         $username = $this->username_from_params($uidhash, $authenticatingecs);
-        echo $username;
 
-        print_object($paramassoc);
-        print_object($auth);
-        print_object($foundecs);
+        //If user does not exist, create:
+        if (!$user = $DB->get_record('user', array('username' => $username))) {
+            $user = new stdClass();
+            $user->username = $username;
+            $requiredfields = array('firstname', 'lastname', 'email');
+            foreach($requiredfields as $field) {
+                $user->{$field} = isset($paramassoc['ecs_' . $field]) ? $paramassoc['ecs_' . $field] : '';
+            }
+            $user->modified   = time();
+            $user->confirmed  = 1;
+            $user->auth       = $this->authtype;
+            $user->mnethostid = $CFG->mnet_localhost_id;
+            $user->lang = $CFG->lang;
+            if(!$id = $DB->insert_record('user', $user)) {
+                print_error('errorcreatinguser', 'auth_campusconnect');
+            }
+            $user = $DB->get_record('user', array('id' => $id));
+        }
+
+        //Activate if inactive:
+
     }
 
     /**

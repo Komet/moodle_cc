@@ -70,8 +70,9 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             if (count($split)<2) {
                 continue;
             }
-            $paramassoc[$split[0]] = $split[1];
+            $paramassoc[$split[0]] = urldecode(urldecode($split[1]));
         }
+
         if (!isset($paramassoc['ecs_hash'])) {
             return;
         }
@@ -81,13 +82,15 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         $connecterrors = false;
         $authenticated = false;
         $ecslist = campusconnect_ecssettings::list_ecs();
+        $authenticatingecs = null;
         foreach ($ecslist as $ecsid => $ecsname) {
             $settings = new campusconnect_ecssettings($ecsid);
             try {
                 $connect = new campusconnect_connect($settings);
                 $auth = $connect->get_auth($hash);
-                if (is_object($auth) && isset($auth->abbr)) {
+                if (is_object($auth) && isset($auth->hash)) {
                     $authenticated = true;
+                    $authenticatingecs = $settings->get_id();
                     break;
                 }
             } catch (campusconnect_connect_exception $e) {
@@ -103,7 +106,17 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             return;
         }
 
-        //We're now authenticated! Let's create/find the user:
+        //We've now confirmed authentication! Let's create/find the user:
+        if (!isset($paramassoc['ecs_uid_hash'])) {
+            return;
+        }
+        $uidhash = $paramassoc['ecs_uid_hash'];
+        $username = $this->username_from_params($uidhash, $authenticatingecs);
+        echo $username;
+
+        print_object($paramassoc);
+        print_object($auth);
+        print_object($foundecs);
     }
 
     /**
@@ -122,6 +135,27 @@ class auth_plugin_campusconnect extends auth_plugin_base {
      */
     function get_userinfo($username) {
         return array();
+    }
+
+
+    //Local functions
+
+    /*
+     * Generate Moodle username from an array of query parameters and ECS id
+     * @param string $uidhash - an 'ecs_uid_hash' from the url params
+     * @param int $ecsid - the ECS that authenticated the user
+     */
+
+    private function username_from_params($uidhash, $ecsid) {
+        $split = explode('_usr_', $uidhash);
+        if (count($split) != 2) {
+            return 'campusconnect_' . sha1($uidhash);
+        }
+        $remoteuserid = $split[1];
+        if (strlen($remoteuserid) > 40) {
+            $remoteuserid = sha1($remoteuserid);
+        }
+        return 'campusconnect_ecs' . $ecsid . '_usr' . $remoteuserid;
     }
 
 }

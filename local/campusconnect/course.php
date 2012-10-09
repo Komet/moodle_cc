@@ -64,7 +64,7 @@ class campusconnect_course {
 
         $coursedata = self::map_course_settings($course, $ecssettings);
         if (self::get_by_resourceid($resourceid, $ecssettings->get_id())) {
-            throw new campusconnect_course_exception("Cannot create a courselink to resource $resourceid - it already exists.");
+            throw new campusconnect_course_exception("Cannot create a course from resource $resourceid - it already exists.");
         }
 
         /** @var $categories campusconnect_course_category[] */
@@ -169,7 +169,7 @@ class campusconnect_course {
                 $newcategories[] = $category;
             }
         }
-        self::remove_allocations($currcourses, $existingcategoryids, $unchangedcategories, $newcategories);
+        self::remove_allocations($currcourses, $existingcategoryids, $unchangedcategories, $newcategories, $ecssettings->get_id() < 0);
 
         // Update all the existing crs records.
         foreach ($currcourses as $currcourse) {
@@ -259,7 +259,8 @@ class campusconnect_course {
     public static function delete($resourceid, campusconnect_ecssettings $ecssettings) {
         global $DB;
 
-        if ($currcourse = self::get_by_resourceid($resourceid, $ecssettings->get_id())) {
+        $currcourses = self::get_by_resourceid($resourceid, $ecssettings->get_id());
+        foreach ($currcourses as $currcourse) {
             if ($ecssettings->get_id() > 0) {
                 // Nasty hack for unit testing - 'delete_course' is too complex to
                 // be practical to mock up the database responses
@@ -402,6 +403,7 @@ class campusconnect_course {
      * Use the 'allocation' section of the course resource to determine the category ID to create the course in.
      * The category will be created, if required.
      * @param stdClass $course
+     * @param campusconnect_ecssettings $ecssettings
      * @return campusconnect_course_category[] empty if the directory is not yet mapped, so the course cannot be created
      */
     protected static function get_categories(stdClass $course, campusconnect_ecssettings $ecssettings) {
@@ -425,8 +427,10 @@ class campusconnect_course {
      * @param int[] $removecategoryids mapping local_campusconnect_crs.id => categoryid
      * @param campusconnect_course_category[] $unchangedcategories
      * @param campusconnect_course_category[] $newcategories
+     * @param bool $unittest set if doing unit testing
+     * @throws coding_exception
      */
-    protected static function remove_allocations(&$currcourses, &$removecategoryids, &$unchangedcategories, &$newcategories) {
+    protected static function remove_allocations(&$currcourses, &$removecategoryids, &$unchangedcategories, &$newcategories, $unittest = false) {
         global $DB;
 
         if (empty($removecategoryids)) {
@@ -454,7 +458,12 @@ class campusconnect_course {
 
                     // The existing course (which was an internal link) is no longer needed - delete it and the crs record.
                     $removecourseid = $currcourses[$removecrsid]->courseid;
-                    delete_course($removecourseid, false);
+                    if (!$unittest) {
+                        delete_course($removecourseid, false);
+                    } else {
+                        /** @noinspection PhpUndefinedMethodInspection */
+                        $DB->mock_delete_course($removecourseid);
+                    }
                     $DB->delete_records('local_campusconnect_crs', array('id' => $removecrsid));
                     unset($currcourses[$removecrsid]);
                 }
@@ -472,7 +481,12 @@ class campusconnect_course {
                 $DB->set_field('course', 'category', $newcategory->get_categoryid(), array('id' => $currcourse->courseid));
             } else {
                 // No newly-mapped category => just remove the course completely.
-                delete_course($currcourse->courseid, false);
+                if (!$unittest) {
+                    delete_course($currcourse->courseid, false);
+                } else {
+                    /** @noinspection PhpUndefinedMethodInspection */
+                    $DB->mock_delete_course($currcourse->courseid);
+                }
                 $DB->delete_records('local_campusconnnect_crs', array('id' => $rcrsid));
                 unset($currcourses[$rcrsid]);
             }

@@ -393,7 +393,7 @@ class local_campusconnect_directorytree_test extends UnitTestCase {
         $DB->setReturnValue('get_records', array()); // Get directory trees
         $DB->expectAt(0, 'insert_record', array('local_campusconnect_dirroot', $expecteddata));
 
-        campusconnect_directorytree::refresh_from_ecs();
+        campusconnect_directorytree::refresh_from_ecs($this->settings[2]);
     }
 
     function test_directorytree_refresh_update() {
@@ -446,7 +446,7 @@ class local_campusconnect_directorytree_test extends UnitTestCase {
         $DB->setReturnValue('get_records', array());
         $DB->expectAt(0, 'set_field', array('local_campusconnect_dirroot', 'title', $dirtree->title, array('id' => -2)));
 
-        campusconnect_directorytree::refresh_from_ecs();
+        campusconnect_directorytree::refresh_from_ecs($this->settings[2]);
     }
 
     function test_directorytree_refresh_delete() {
@@ -482,7 +482,7 @@ class local_campusconnect_directorytree_test extends UnitTestCase {
         $DB->setReturnValue('get_records', array());
         $DB->expectAt(0, 'set_field', array('local_campusconnect_dirroot', 'mappingmode', campusconnect_directorytree::MODE_DELETED, array('id' => -2)));
 
-        campusconnect_directorytree::refresh_from_ecs();
+        campusconnect_directorytree::refresh_from_ecs($this->settings[2]);
     }
 
     function test_directorytree_directory_create() {

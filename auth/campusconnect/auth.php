@@ -10,10 +10,14 @@ if (!defined('MOODLE_INTERNAL')) {
     die('Direct access to this script is forbidden.'); ///  It must be included from a Moodle page
 }
 
+require_once($CFG->libdir.'/authlib.php');
+
 /**
  * CampusConnect authentication plugin.
  */
 class auth_plugin_campusconnect extends auth_plugin_base {
+
+    static $authenticateduser;
 
     /**
      * Constructor.
@@ -31,6 +35,12 @@ class auth_plugin_campusconnect extends auth_plugin_base {
      * @return bool Authentication success or failure.
      */
     function user_login($username, $password) {
+        if (isset(auth_plugin_campusconnect::$authenticateduser)
+            && is_object(auth_plugin_campusconnect::$authenticateduser)
+            && isset(auth_plugin_campusconnect::$authenticateduser->id)
+        ) {
+            return true;
+        }
         return false;
     }
 
@@ -114,26 +124,35 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         $username = $this->username_from_params($uidhash, $authenticatingecs);
 
         //If user does not exist, create:
-        if (!$user = $DB->get_record('user', array('username' => $username))) {
-            $user = new stdClass();
-            $user->username = $username;
+        if (!$ccuser = get_complete_user_data('username', $username)){
+            $ccuser = new stdClass();
+            $ccuser->username = $username;
             $requiredfields = array('firstname', 'lastname', 'email');
-            foreach($requiredfields as $field) {
-                $user->{$field} = isset($paramassoc['ecs_' . $field]) ? $paramassoc['ecs_' . $field] : '';
+            foreach ($requiredfields as $field) {
+                $ccuser->{$field} = isset($paramassoc['ecs_'.$field]) ? $paramassoc['ecs_'.$field] : '';
             }
-            $user->modified   = time();
-            $user->confirmed  = 1;
-            $user->auth       = $this->authtype;
-            $user->mnethostid = $CFG->mnet_localhost_id;
-            $user->lang = $CFG->lang;
-            if(!$id = $DB->insert_record('user', $user)) {
+            $ccuser->modified = time();
+            $ccuser->confirmed = 1;
+            $ccuser->auth = $this->authtype;
+            $ccuser->mnethostid = $CFG->mnet_localhost_id;
+            $ccuser->lang = $CFG->lang;
+            if (!$id = $DB->insert_record('user', $ccuser)) {
                 print_error('errorcreatinguser', 'auth_campusconnect');
             }
-            $user = $DB->get_record('user', array('id' => $id));
+            $ccuser = get_complete_user_data('id', $id);
         }
 
         //Activate if inactive:
+        if ($ccuser->suspended) {
+            $DB->set_field('user', 'suspended', '0', array('id' => $ccuser->id));
+            $ccuser->suspended = 0;
+        }
 
+        //Let index.php know that user is authenticated:
+        global $frm, $user;
+        $frm = (object)array('username' => $ccuser->username, 'password' => '');
+        $user = clone($ccuser);
+        auth_plugin_campusconnect::$authenticateduser = clone($ccuser);
     }
 
     /**
@@ -154,7 +173,6 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         return array();
     }
 
-
     //Local functions
 
     /*
@@ -166,13 +184,13 @@ class auth_plugin_campusconnect extends auth_plugin_base {
     private function username_from_params($uidhash, $ecsid) {
         $split = explode('_usr_', $uidhash);
         if (count($split) != 2) {
-            return 'campusconnect_' . sha1($uidhash);
+            return 'campusconnect_'.sha1($uidhash);
         }
         $remoteuserid = $split[1];
-        if (strlen($remoteuserid) > 40) {
+        if (strlen($remoteuserid)>40) {
             $remoteuserid = sha1($remoteuserid);
         }
-        return 'campusconnect_ecs' . $ecsid . '_usr' . $remoteuserid;
+        return 'campusconnect_ecs'.$ecsid.'_usr'.$remoteuserid;
     }
 
 }

@@ -27,7 +27,12 @@
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot.'/local/campusconnect/courselink.php');
+require_once($CFG->dirroot.'/local/campusconnect/course.php');
 
 function extern_server_course($course) {
-    return campusconnect_courselink::check_redirect($course->id);
+    if ($url = campusconnect_courselink::check_redirect($course->id)) {
+        return $url;
+    }
+
+    return campusconnect_course::check_redirect($course->id);
 }

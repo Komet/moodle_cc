@@ -18,14 +18,10 @@
 /**
  * Strings for component 'auth_campusconnect', language 'en', branch 'MOODLE_20_STABLE'
  *
- * @package    auth
- * @subpackage campusconnect
+ * @package    campusconnect
  * @copyright  2012 Synergy Learning
  */
 
-$string['pluginname'] = 'CampusConnect';
 $string['auth_campusconnectdescription'] = 'Authenticates user from another participant by verifying ECS hash in the URL against the ECS server';
-
-
-//Errors
 $string['errorcreatinguser'] = 'Error creating user';
+$string['pluginname'] = 'CampusConnect';

@@ -1,8 +1,7 @@
 <?php
 
 /**
- * @package    auth
- * @subpackage campusconnect
+ * @package    campusconnect
  * @copyright  2012 Synergy Learning
  */
 

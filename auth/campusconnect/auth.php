@@ -10,10 +10,14 @@ if (!defined('MOODLE_INTERNAL')) {
     die('Direct access to this script is forbidden.'); ///  It must be included from a Moodle page
 }
 
+require_once($CFG->libdir.'/authlib.php');
+
 /**
  * CampusConnect authentication plugin.
  */
 class auth_plugin_campusconnect extends auth_plugin_base {
+
+    static $authenticateduser;
 
     /**
      * Constructor.
@@ -31,6 +35,12 @@ class auth_plugin_campusconnect extends auth_plugin_base {
      * @return bool Authentication success or failure.
      */
     function user_login($username, $password) {
+        if (isset(auth_plugin_campusconnect::$authenticateduser)
+            && is_object(auth_plugin_campusconnect::$authenticateduser)
+            && isset(auth_plugin_campusconnect::$authenticateduser->id)
+        ) {
+            return true;
+        }
         return false;
     }
 
@@ -53,16 +63,16 @@ class auth_plugin_campusconnect extends auth_plugin_base {
      *
      */
     function loginpage_hook() {
-        global $SESSION, $CFG;
+        global $SESSION, $CFG, $DB;
 
         if (!isset($SESSION) || !isset($SESSION->wantsurl)) {
             return;
         }
-        $urlquery = parse_url($SESSION->wantsurl, PHP_URL_QUERY);
-        if (empty($urlquery)) {
+        $urlparse = parse_url($SESSION->wantsurl);
+        if (!is_array($urlparse) || !isset($urlparse['query'])) {
             return;
         }
-        $urlquery = str_replace('&amp;', '&', $urlquery);
+        $urlquery = str_replace('&amp;', '&', $urlparse['query']);
         $queryparams = explode('&', $urlquery);
         $paramassoc = array();
         foreach ($queryparams as $paramval) {
@@ -112,11 +122,31 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         }
         $uidhash = $paramassoc['ecs_uid_hash'];
         $username = $this->username_from_params($uidhash, $authenticatingecs);
-        echo $username;
 
-        print_object($paramassoc);
-        print_object($auth);
-        print_object($foundecs);
+        //If user does not exist, create:
+        if (!$ccuser = get_complete_user_data('username', $username)){
+            $ccuser = new stdClass();
+            $ccuser->username = $username;
+            $requiredfields = array('firstname', 'lastname', 'email');
+            foreach ($requiredfields as $field) {
+                $ccuser->{$field} = isset($paramassoc['ecs_'.$field]) ? $paramassoc['ecs_'.$field] : '';
+            }
+            $ccuser->modified = time();
+            $ccuser->confirmed = 1;
+            $ccuser->auth = $this->authtype;
+            $ccuser->mnethostid = $CFG->mnet_localhost_id;
+            $ccuser->lang = $CFG->lang;
+            if (!$id = $DB->insert_record('user', $ccuser)) {
+                print_error('errorcreatinguser', 'auth_campusconnect');
+            }
+            $ccuser = get_complete_user_data('id', $id);
+        }
+
+        //Let index.php know that user is authenticated:
+        global $frm, $user;
+        $frm = (object)array('username' => $ccuser->username, 'password' => '');
+        $user = clone($ccuser);
+        auth_plugin_campusconnect::$authenticateduser = clone($ccuser);
     }
 
     /**
@@ -124,7 +154,28 @@ class auth_plugin_campusconnect extends auth_plugin_base {
      *
      */
     function prelogout_hook() {
-        global $CFG;
+        global $CFG, $USER, $DB;
+        if ($USER->auth != $this->authtype) {
+            return;
+        }
+
+        //Am I currently enrolled?
+        if(isset($USER->enrol) && isset($USER->enrol['enrolled']) && count($USER->enrol['enrolled'])) {
+            return;
+        }
+
+        //Currently not enrolled - have I ever enrolled in anything?
+        if ($DB->record_exists('log', array('userid' => $USER->id, 'action' => 'enrol'))) {
+            return;
+        }
+
+        //OK, delete:
+        $this->user_predelete_dataprotect($USER->id);
+        $user = $DB->get_record('user', array('id' => $USER->id));
+        delete_user($user);
+
+        //Delete logs
+        $DB->delete_records('log', array('userid' => $user->id));
     }
 
     /**
@@ -137,7 +188,6 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         return array();
     }
 
-
     //Local functions
 
     /*
@@ -149,13 +199,32 @@ class auth_plugin_campusconnect extends auth_plugin_base {
     private function username_from_params($uidhash, $ecsid) {
         $split = explode('_usr_', $uidhash);
         if (count($split) != 2) {
-            return 'campusconnect_' . sha1($uidhash);
+            return 'campusconnect_'.sha1($uidhash);
         }
         $remoteuserid = $split[1];
-        if (strlen($remoteuserid) > 40) {
+        if (strlen($remoteuserid)>40) {
             $remoteuserid = sha1($remoteuserid);
         }
-        return 'campusconnect_ecs' . $ecsid . '_usr' . $remoteuserid;
+        return 'campusconnect_ecs'.$ecsid.'_usr'.$remoteuserid;
     }
 
+    /*
+     * Removes all personal data from a user table
+     * Used to apply data protection laws
+     * Call *BEFORE* calling delete_user()
+     * @param int $userid
+     */
+    private function user_predelete_dataprotect($userid) {
+        global $DB;
+        $user = new stdClass();
+        $user->id = $userid;
+        $user->email = random_string(10) . '@' . random_string(5) . '.com';
+        $fieldstoclear = array('idnumber', 'firstname', 'lastname',
+                               'yahoo', 'aim', 'msn', 'phone1', 'phone2','institution', 'department',
+                               'address', 'city', 'country', 'lastip', 'url', 'description', 'imagealt');
+        foreach ($fieldstoclear as $fieldname) {
+            $user->{$fieldname} = '';
+        }
+        $DB->update_record('user', $user);
+    }
 }

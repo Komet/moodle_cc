@@ -25,3 +25,7 @@
 
 $string['pluginname'] = 'CampusConnect';
 $string['auth_campusconnectdescription'] = 'Authenticates user from another participant by verifying ECS hash in the URL against the ECS server';
+
+
+//Errors
+$string['errorcreatinguser'] = 'Error creating user';

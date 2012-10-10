@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/campusconnect/db" VERSION="20121008" COMMENT="XMLDB file for Moodle local/campusconnect"
+<XMLDB PATH="local/campusconnect/db" VERSION="20121010" COMMENT="XMLDB file for Moodle local/campusconnect"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -151,10 +151,13 @@
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="courseid"/>
         <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the course that has been created" PREVIOUS="id" NEXT="resourceid"/>
-        <FIELD NAME="resourceid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The resourceid on the ECS server" PREVIOUS="courseid" NEXT="ecsid"/>
-        <FIELD NAME="ecsid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ECS server this course came from" PREVIOUS="resourceid" NEXT="mid"/>
+        <FIELD NAME="resourceid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The resourceid on the ECS server" PREVIOUS="courseid" NEXT="cmsid"/>
+        <FIELD NAME="cmsid" TYPE="text" LENGTH="medium" NOTNULL="false" SEQUENCE="false" COMMENT="The ID by which the course is known on the CMS" PREVIOUS="resourceid" NEXT="ecsid"/>
+        <FIELD NAME="ecsid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ECS server this course came from" PREVIOUS="cmsid" NEXT="mid"/>
         <FIELD NAME="mid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The participant this course came from" PREVIOUS="ecsid" NEXT="internallink"/>
-        <FIELD NAME="internallink" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" DEFAULT="0" SEQUENCE="false" COMMENT="Is this an internal link, or is it the 'real' course?" PREVIOUS="mid"/>
+        <FIELD NAME="internallink" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" DEFAULT="0" SEQUENCE="false" COMMENT="Is this an internal link, or is it the 'real' course?" PREVIOUS="mid" NEXT="urlresourceid"/>
+        <FIELD NAME="urlresourceid" TYPE="int" LENGTH="10" NOTNULL="false" UNSIGNED="false" DEFAULT="0" SEQUENCE="false" COMMENT="The resourceid for the course_url resource sent back to the ECS server" PREVIOUS="internallink" NEXT="urlstatus"/>
+        <FIELD NAME="urlstatus" TYPE="int" LENGTH="4" NOTNULL="false" UNSIGNED="false" DEFAULT="0" SEQUENCE="false" COMMENT="Does the course_url need updating on the ECS server (0 = up to date; 1 = created; 2 = updated; 3 = deleted)" PREVIOUS="urlresourceid"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id" NEXT="courseid"/>

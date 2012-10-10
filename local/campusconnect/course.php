@@ -98,14 +98,19 @@ class campusconnect_course {
             $ins = new stdClass();
             $ins->courseid = $course->id;
             $ins->resourceid = $resourceid;
+            $ins->cmsid = isset($course->basicData->id) ? $course->basicData->id : '';
             $ins->ecsid = $ecssettings->get_id();
             $ins->mid = $mid;
             $ins->internallink = $internallink;
 
-            $DB->insert_record('local_campusconnect_crs', $ins);
+            $ins->id = $DB->insert_record('local_campusconnect_crs', $ins);
 
             if (!$internallink) {
                 $internallink = $course->id; // Point all subsequent courses at the first one (the 'real' course).
+
+                // Let the ECS server know about the created link.
+                $courseurl = new campusconnect_course_url($ins->id);
+                $courseurl->add();
             }
         }
 
@@ -134,7 +139,6 @@ class campusconnect_course {
             throw new campusconnect_course_exception("Received update course event from non-CMS participant");
         }
 
-        $coursedata = self::map_course_settings($course, $ecssettings);
         $currcourses = self::get_by_resourceid($resourceid, $ecssettings->get_id());
         if (empty($currcourses)) {
             return self::create($resourceid, $ecssettings, $course, $transferdetails);
@@ -171,6 +175,8 @@ class campusconnect_course {
         }
         self::remove_allocations($currcourses, $existingcategoryids, $unchangedcategories, $newcategories, $ecssettings->get_id() < 0);
 
+        $coursedata = self::map_course_settings($course, $ecssettings);
+
         // Update all the existing crs records.
         foreach ($currcourses as $currcourse) {
             if (!$DB->record_exists('course', array('id' => $currcourse->courseid))) {
@@ -196,7 +202,16 @@ class campusconnect_course {
                 $upd = new stdClass();
                 $upd->id = $currcourse->id;
                 $upd->courseid = $course->id;
+                if (isset($course->basicData->id)) {
+                    $upd->cmsid = $course->basicData->id;
+                }
                 $DB->update_record('local_campusconnect_crs', $upd);
+
+                if ($currcourse->internallink == 0) {
+                    // Let the ECS server know about the updated link.
+                    $courseurl = new campusconnect_course_url($currcourse->id);
+                    $courseurl->update();
+                }
 
             } else {
                 // Course still exists - update it.
@@ -209,6 +224,20 @@ class campusconnect_course {
                     global $DB;
                     /** @noinspection PhpUndefinedMethodInspection */
                     $DB->mock_update_course($coursedata);
+                }
+
+                // The cms course id has changed (not sure if this should ever happen, but handle it anyway)
+                if (isset($course->basicData->id) && $course->basicData->id != $currcourse->cmsid) {
+                    $upd = new stdClass();
+                    $upd->id = $currcourse->id;
+                    $upd->cmsid = $course->basicData->id;
+                    $DB->update_record('local_campusconnect_crs', $upd);
+
+                    if ($currcourse->internallink == 0) {
+                        // Let the ECS server know about the updated link.
+                        $courseurl = new campusconnect_course_url($currcourse->id);
+                        $courseurl->update();
+                    }
                 }
             }
         }
@@ -240,6 +269,7 @@ class campusconnect_course {
                 $ins = new stdClass();
                 $ins->courseid = $course->id;
                 $ins->resourceid = $resourceid;
+                $ins->cmsid = isset($course->basicData->id) ? $course->basicData->id : '';
                 $ins->ecsid = $ecsid;
                 $ins->mid = $mid;
                 $ins->internallink = $internallink;
@@ -269,7 +299,13 @@ class campusconnect_course {
                 /** @noinspection PhpUndefinedMethodInspection */
                 $DB->mock_delete_course($currcourse->courseid);
             }
-            $DB->delete_records('local_campusconnect_crs', array('id' => $currcourse->id));
+            if ($currcourse->internallink == 0) {
+                // Leave the course_url code to delete the record once it has informed the ECS
+                $courseurl = new campusconnect_course_url($currcourse->id);
+                $courseurl->delete();
+            } else {
+                $DB->delete_records('local_campusconnect_crs', array('id' => $currcourse->id));
+            }
         }
 
         return true;
@@ -526,5 +562,157 @@ class campusconnect_course_category {
      */
     public function get_order() {
         return $this->order;
+    }
+}
+
+/**
+ * Looks after passing the course URL back to the ECS when a course is created
+ */
+class campusconnect_course_url {
+
+    const STATUS_UPTODATE = 0;
+    const STATUS_CREATED = 1;
+    const STATUS_UPDATED = 2;
+    const STATUS_DELETED = 3;
+
+    protected $crs;
+
+    public function __construct($crsid) {
+        $this->crs = $this->get_record($crsid);
+    }
+
+    /**
+     * Notify the ECS that the requested course has been created
+     */
+    public function add() {
+        if ($this->crs->urlstatus != self::STATUS_UPTODATE) {
+            throw new campusconnect_course_exception("campusconnect_course_url::add - unexpected status for newly created crs record ($this->crs->id)");
+        }
+        if ($this->crs->urlresourcid != 0) {
+            throw new campusconnect_course_exception("campusconnect_course_url::add - newly created crs record should not have a urlresourceid ($this->crs->id)");
+        }
+        $this->set_status(self::STATUS_CREATED);
+    }
+
+    /**
+     * Notify the ECS that the URL of the course has changed
+     */
+    public function update() {
+        if ($this->crs->urlstatus == self::STATUS_CREATED || $this->crs->urlstatus == self::STATUS_UPDATED) {
+            return; // Nothing to do - updates already pending.
+        }
+        if ($this->crs->urlstatus == self::STATUS_DELETED) {
+            throw new campusconnect_course_exception("campusconnect_course_url::update - attempting to update crs record ($this->crs->id) that is scheduled for deletion");
+        }
+        if ($this->crs->urlresourceid) {
+            $this->set_status(self::STATUS_UPDATED);
+        } else {
+            // Catching odd situations in which no URL has been created yet, so switching to CREATE instead of UPDATE
+            $this->set_status(self::STATUS_CREATED);
+        }
+    }
+
+    /**
+     * Notify the ECS that this course has been deleted
+     */
+    public function delete() {
+        global $DB;
+
+        if ($this->crs->urlstatus == self::STATUS_CREATED) {
+            // Never reached the ECS server - just delete it.
+            $DB->delete_records('local_campusconnect_crs', array('id' => $this->crs->id));
+            return;
+        }
+        if ($this->crs->urlresourceid == 0) {
+            throw new campusconnect_course_exception("campusconnect_course_url::delete - cannot delete record on ECS with no urlresourceid ($this->crs->id)");
+        }
+
+        $this->set_status(self::STATUS_DELETED);
+    }
+
+    /**
+     * @param campusconnect_connect $connect
+     */
+    public static function update_ecs(campusconnect_connect $connect) {
+        global $DB;
+
+        /** @var $cms campusconnect_participantsettings */
+        $cms = campusconnect_participantsettings::get_cms_participant();
+
+        if ($connect->get_ecs_id() != $cms->get_ecs_id()) {
+            return; // Not updating the ECS that the CMS is on.
+        }
+
+        $courseurls = $DB->get_records_select('local_campusconnect_crs', 'ecsid = ? AND urlstatus <> ?',
+                                              array($connect->get_ecs_id(), self::STATUS_UPTODATE));
+        foreach ($courseurls as $courseurl) {
+            if ($courseurl->urlstatus == self::STATUS_DELETED) {
+                // Delete from ECS then delete the local record
+                $connect->delete_resource($courseurl->resourceid, campusconnect_event::RES_COURSE_URL);
+                $DB->delete_records('local_campusconnect_crs', array('id' => $courseurl->id));
+                continue;
+            }
+
+            // Prepare the course_url data object
+            $moodleurl = new moodle_url('/course/view.php', array('id' => $courseurl->courseid));
+            $data = new stdClass();
+            $data->cms_course_id = $courseurl->cmsid.''; // Convert to string if 'NULL'
+            $data->ecs_course_url = $connect->get_resource_url($courseurl->resourceid, campusconnect_event::RES_COURSE);
+            $data->lms_course_url = $moodleurl->out();
+
+            if ($courseurl->urlstatus == self::STATUS_UPDATED) {
+                if (!$courseurl->resourceid) {
+                    $courseurl->urlstatus = self::STATUS_CREATED;
+                    debugging("campusconnect_course_url::update_ecs - cannot update course url ({$courseurl->id}) without resourceid (creating new resource instead)");
+                }
+            }
+
+            // Update ECS server.
+            if ($courseurl->urlstatus == self::STATUS_CREATED) {
+                $urlresourceid = $connect->add_resource(campusconnect_event::RES_COURSE_URL, $data, null, $cms->get_mid());
+            }
+            if ($courseurl->urlstatus == self::STATUS_UPDATED) {
+                $connect->update_resource($courseurl->resourceid, campusconnect_event::RES_COURSE_URL, $data, null, $cms->get_mid());
+            }
+
+            // Update local crs record.
+            $upd = new stdClass();
+            $upd->id = $courseurl->id;
+            $upd->urlstatus = self::STATUS_UPTODATE;
+            if (!empty($urlresourceid)) {
+                $upd->urlresourceid = $urlresourceid;
+            }
+            $DB->update_record('local_campusconnect_crs', $upd);
+        }
+    }
+
+    /**
+     * @param $crsid
+     * @return mixed
+     * @throws campusconnect_course_exception
+     */
+    protected function get_record($crsid) {
+        global $DB;
+
+        $crs = $DB->get_record('local_campusconnect_crs', array('id' => $crsid), '*', MUST_EXIST);
+        if ($crs->internallink != 0) {
+            throw new campusconnect_course_exception("Should not be sending course_url resources for internal course links (crsid = $crsid)");
+        }
+
+        return $crs;
+    }
+
+    protected function set_status($status) {
+        global $DB;
+
+        $upd = new stdClass();
+        $upd->id = $this->crs->id;
+        $upd->urlstatus = $status;
+        if ($status == self::STATUS_DELETED) {
+            $upd->courseid = 0; // Remove the rest of the details, as they are no longer needed.
+            $upd->resourceid = 0;
+            $upd->internallink = 0;
+        }
+        $DB->update_record('local_campusconnect_crs', $upd);
     }
 }

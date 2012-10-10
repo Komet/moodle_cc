@@ -371,5 +371,40 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2012100800, 'local', 'campusconnect');
     }
 
+    if ($oldversion < 2012101000) {
+
+        // Define field urlresourceid to be added to local_campusconnect_crs
+        $table = new xmldb_table('local_campusconnect_crs');
+
+        $field = new xmldb_field('urlresourceid', XMLDB_TYPE_INTEGER, '10', null, null, null, '0', 'internallink');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Define field urlstatus to be added to local_campusconnect_crs
+        $field = new xmldb_field('urlstatus', XMLDB_TYPE_INTEGER, '4', null, null, null, '0', 'urlresourceid');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012101000, 'local', 'campusconnect');
+    }
+
+    if ($oldversion < 2012101001) {
+
+        // Define field cmsid to be added to local_campusconnect_crs
+        $table = new xmldb_table('local_campusconnect_crs');
+        $field = new xmldb_field('cmsid', XMLDB_TYPE_TEXT, 'medium', null, null, null, null, 'resourceid');
+
+        // Conditionally launch add field cmsid
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012101001, 'local', 'campusconnect');
+    }
+
     return true;
 }

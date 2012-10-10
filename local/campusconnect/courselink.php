@@ -162,7 +162,7 @@ class campusconnect_courselink {
      * @param int $resourceid the id of this link on the ECS server
      * @param campusconnect_ecssettings $settings the settings for this ECS server
      * @param object $courselink the details of the course from the ECS server
-     * @param mixed campusconnect_details | null $transferdetails the details of where the link came from / went to
+     * @param mixed $transferdetails campusconnect_details | null the details of where the link came from / went to
      * @param int $mid set when doing a full update (and $transferdetails = null)
      * @return bool true if successfully updated
      */

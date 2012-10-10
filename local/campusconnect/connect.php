@@ -350,6 +350,20 @@ class campusconnect_connect {
     }
 
     /**
+     * Generate the correct URL for a given resource. Note this does not check that the resource exists, it
+     * combines the parameters with the base URL to generate the URL.
+     * @param int $id the resourceid of the resource
+     * @param string $type
+     * @return string
+     */
+    public function get_resource_url($id, $type) {
+        if (!campusconnect_event::is_valid_resource($type)) {
+            throw new coding_exception("get_resource: unknown resource type $type");
+        }
+        return "{$type}/{$id}";
+    }
+
+    /**
      * Internal functions to check / parse the results
      */
 

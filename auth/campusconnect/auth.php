@@ -68,11 +68,11 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         if (!isset($SESSION) || !isset($SESSION->wantsurl)) {
             return;
         }
-        $urlquery = parse_url($SESSION->wantsurl, PHP_URL_QUERY);
-        if (empty($urlquery)) {
+        $urlparse = parse_url($SESSION->wantsurl);
+        if (!is_array($urlparse) || !isset($urlparse['query'])) {
             return;
         }
-        $urlquery = str_replace('&amp;', '&', $urlquery);
+        $urlquery = str_replace('&amp;', '&', $urlparse['query']);
         $queryparams = explode('&', $urlquery);
         $paramassoc = array();
         foreach ($queryparams as $paramval) {
@@ -142,12 +142,6 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             $ccuser = get_complete_user_data('id', $id);
         }
 
-        //Activate if inactive:
-        if ($ccuser->suspended) {
-            $DB->set_field('user', 'suspended', '0', array('id' => $ccuser->id));
-            $ccuser->suspended = 0;
-        }
-
         //Let index.php know that user is authenticated:
         global $frm, $user;
         $frm = (object)array('username' => $ccuser->username, 'password' => '');
@@ -160,7 +154,28 @@ class auth_plugin_campusconnect extends auth_plugin_base {
      *
      */
     function prelogout_hook() {
-        global $CFG;
+        global $CFG, $USER, $DB;
+        if ($USER->auth != $this->authtype) {
+            return;
+        }
+
+        //Am I currently enrolled?
+        if(isset($USER->enrol) && isset($USER->enrol['enrolled']) && count($USER->enrol['enrolled'])) {
+            return;
+        }
+
+        //Currently not enrolled - have I ever enrolled in anything?
+        if ($DB->record_exists('log', array('userid' => $USER->id, 'action' => 'enrol'))) {
+            return;
+        }
+
+        //OK, delete:
+        $this->user_predelete_dataprotect($USER->id);
+        $user = $DB->get_record('user', array('id' => $USER->id));
+        delete_user($user);
+
+        //Delete logs
+        $DB->delete_records('log', array('userid' => $user->id));
     }
 
     /**
@@ -193,4 +208,23 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         return 'campusconnect_ecs'.$ecsid.'_usr'.$remoteuserid;
     }
 
+    /*
+     * Removes all personal data from a user table
+     * Used to apply data protection laws
+     * Call *BEFORE* calling delete_user()
+     * @param int $userid
+     */
+    private function user_predelete_dataprotect($userid) {
+        global $DB;
+        $user = new stdClass();
+        $user->id = $userid;
+        $user->email = random_string(10) . '@' . random_string(5) . '.com';
+        $fieldstoclear = array('idnumber', 'firstname', 'lastname',
+                               'yahoo', 'aim', 'msn', 'phone1', 'phone2','institution', 'department',
+                               'address', 'city', 'country', 'lastip', 'url', 'description', 'imagealt');
+        foreach ($fieldstoclear as $fieldname) {
+            $user->{$fieldname} = '';
+        }
+        $DB->update_record('user', $user);
+    }
 }

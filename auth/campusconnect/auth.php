@@ -189,6 +189,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
      */
     function cron() {
         global $CFG, $DB;
+        require_once($CFG->dirroot.'\local\campusconnect\connect.php');
 
         //Find users whose session should have expired by now
         $params = array(
@@ -202,15 +203,17 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         AND usr.lastaccess < :minaccess
         AND usr.auth = :auth
         AND NOT EXISTS (
-          SELECT *
-          FROM {user_enrolments} uen
+          SELECT * FROM {user_enrolments} uen
           WHERE uen.userid = usr.id
         )
         AND NOT EXISTS (
-          SELECT *
-          FROM {log} lg
+          SELECT * FROM {log} lg
           WHERE lg.userid = usr.id
           AND lg.action = 'enrol'
+        )
+        AND NOT EXISTS (
+          SELECT * FROM {sessions} ssn
+          WHERE ssn.userid = usr.id
         )
         ";
         $deleteusers = $DB->get_records_sql($sql, $params);
@@ -219,6 +222,52 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             $this->user_dataprotect_delete($deleteuser);
         }
 
+        //Make users who haven't enrolled in a long time inactive
+        $ecslist = campusconnect_ecssettings::list_ecs();
+        foreach ($ecslist as $ecsid => $ecsname) {
+            //Get the activation period
+            $settings = new campusconnect_ecssettings($ecsid);
+            $monthsago = $settings->get_import_period();
+            $month = date('n') - $monthsago;
+            $year = date('Y');
+            $day = date('j');
+            if ($month < 1) {
+                $year += floor(($month -1) / 12);
+                $month = $month % 12 + 12;
+            }
+            $acivationdate = mktime(date('H'), date('i'), date('s'), $month, $day, $year);
+            $params = array(
+                'auth' => $this->authtype,
+                'userprefix' => 'campusconnect_ecs' . $settings->get_id() . '_%',
+                'acivationdate' => $acivationdate
+            );
+            $sql = "
+            UPDATE {user} usr
+            SET suspended = 1
+            WHERE usr.deleted = 0
+            AND usr.auth = :auth
+            AND usr.suspended = 0
+            AND usr.username LIKE :userprefix
+            AND (
+              EXISTS (
+                SELECT * FROM {user_enrolments} uen
+                WHERE uen.userid = usr.id
+              )
+              OR EXISTS (
+                SELECT * FROM {log} lg
+                WHERE lg.userid = usr.id
+                AND lg.action = 'enrol'
+              )
+            )
+            AND NOT EXISTS (
+              SELECT * FROM {log} lg2
+              WHERE lg2.userid = usr.id
+              AND lg2.action = 'enrol'
+              AND lg2.time > :acivationdate
+            )
+            ";
+        }
+        $DB->execute($sql, $params);
 
         //TODO change cron time to 5 minutes
 
@@ -234,15 +283,16 @@ class auth_plugin_campusconnect extends auth_plugin_base {
      */
 
     private function username_from_params($uidhash, $ecsid) {
+        $prefix = 'campusconnect_ecs' . $ecsid . '_';
         $split = explode('_usr_', $uidhash);
         if (count($split) != 2) {
-            return 'campusconnect_'.sha1($uidhash);
+            return $prefix . sha1($uidhash);
         }
         $remoteuserid = $split[1];
         if (strlen($remoteuserid)>40) {
             $remoteuserid = sha1($remoteuserid);
         }
-        return 'campusconnect_ecs'.$ecsid.'_usr'.$remoteuserid;
+        return $prefix .'usr'.$remoteuserid;
     }
 
     /*

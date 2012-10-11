@@ -447,16 +447,20 @@ class campusconnect_participantsettings {
     public static function get_cms_participant() {
         global $DB;
 
-        $participant = $DB->get_records('local_campusconnect_part', array('import' => 1, 'importtype' => self::IMPORT_CMS));
-        if (count($participant) > 1) {
-            throw new coding_exception('There should only ever be one participant set to IMPORT_CMS');
+        static $participant = null;
+
+        if (is_null($participant)) {
+            $participant = $DB->get_records('local_campusconnect_part', array('import' => 1, 'importtype' => self::IMPORT_CMS));
+            if (count($participant) > 1) {
+                throw new coding_exception('There should only ever be one participant set to IMPORT_CMS');
+            }
+
+            $participant = reset($participant);
+            if ($participant) {
+                $participant = new campusconnect_participantsettings($participant);
+            }
         }
 
-        $participant = reset($participant);
-        if ($participant) {
-            return new campusconnect_participantsettings($participant);
-        }
-
-        return false;
+        return $participant;
     }
 }

@@ -40,9 +40,10 @@ class campusconnect_event {
     const RES_DIRECTORYTREE = 'campusconnect/directory_trees';
     const RES_COURSE = 'campusconnect/courses';
     const RES_COURSE_MEMBERS = 'campusconnect/course_members';
+    const RES_COURSE_URL = 'campusconnect/course_urls';
 
     protected static $validstatus = array(self::STATUS_CREATED, self::STATUS_UPDATED, self::STATUS_DESTROYED);
-    protected static $validresources = array(self::RES_COURSELINK, self::RES_DIRECTORYTREE, self::RES_COURSE, self::RES_COURSE_MEMBERS);
+    protected static $validresources = array(self::RES_COURSELINK, self::RES_DIRECTORYTREE, self::RES_COURSE, self::RES_COURSE_MEMBERS, self::RES_COURSE_URL);
 
     protected $resource;
     protected $resourceid;

@@ -197,8 +197,10 @@ class campusconnect_receivequeue {
                     $fixcourses = true;
                 }
                 break;
+            case campusconnect_event::RES_COURSE_URL:
+            case campusconnect_event::RES_COURSE_MEMBERS:
             default:
-                throw new campusconnect_receivequeue_exception("Unknown event resource: ".$event->get_resource_type());
+                debugging("Unexpected incoming event of type: ".$event->get_resource_type());
                 break;
             }
 

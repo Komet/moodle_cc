@@ -121,13 +121,13 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         }
         $uidhash = $paramassoc['ecs_uid_hash'];
         $username = $this->username_from_params($uidhash, $authenticatingecs);
+        $basicuserfields = array('firstname', 'lastname', 'email');
 
         //If user does not exist, create:
         if (!$ccuser = get_complete_user_data('username', $username)){
             $ccuser = new stdClass();
             $ccuser->username = $username;
-            $requiredfields = array('firstname', 'lastname', 'email');
-            foreach ($requiredfields as $field) {
+            foreach ($basicuserfields as $field) {
                 $ccuser->{$field} = isset($paramassoc['ecs_'.$field]) ? $paramassoc['ecs_'.$field] : '';
             }
             $ccuser->modified = time();
@@ -139,6 +139,18 @@ class auth_plugin_campusconnect extends auth_plugin_base {
                 print_error('errorcreatinguser', 'auth_campusconnect');
             }
             $ccuser = get_complete_user_data('id', $id);
+        }
+
+        //Do we need to update details?
+        $needupdate = false;
+        foreach ($basicuserfields as $field) {
+            if (isset($paramassoc['ecs_'.$field]) && $paramassoc['ecs_'.$field] != $ccuser->{$field}) {
+                $ccuser->{$field} = $paramassoc['ecs_'.$field];
+                $needupdate = true;
+            }
+        }
+        if ($needupdate) {
+            $DB->update_record('user', $ccuser);
         }
 
         //Let index.php know that user is authenticated:
@@ -184,8 +196,9 @@ class auth_plugin_campusconnect extends auth_plugin_base {
     }
 
     /*
-     * Cron - delete users who timed out and never enrolled
-     * And inactivate users who haven't been active for some time
+     * Cron - delete users who timed out and never enrolled,
+     * Inactivate users who haven't been active for some time
+     * And notify relevant users about users created
      */
     function cron() {
         global $CFG, $DB;
@@ -252,8 +265,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
               EXISTS (
                 SELECT * FROM {user_enrolments} uen
                 WHERE uen.userid = usr.id
-              )
-              OR EXISTS (
+              ) OR EXISTS (
                 SELECT * FROM {log} lg
                 WHERE lg.userid = usr.id
                 AND lg.action = 'enrol'
@@ -268,6 +280,19 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             ";
         }
         $DB->execute($sql, $params);
+
+        //Notify relevant users about new accounts
+        if (!$lastsent = get_config('auth_campusconnect', 'lastnewusersemailsent')) {
+            $lastsent = 0;
+        }
+        $sendupto = time() - 1;
+        $params = array(
+            'auth' => $this->authtype,
+            'lastsent' => $lastsent,
+            'sendupto' => $sendupto
+        );
+
+        set_config('lastnewusersemailsent', $sendupto, 'auth_campusconnect');
 
         //TODO change cron time to 5 minutes
 

@@ -169,12 +169,8 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         }
 
         //OK, delete:
-        $this->user_predelete_dataprotect($USER->id);
         $user = $DB->get_record('user', array('id' => $USER->id));
-        delete_user($user);
-
-        //Delete logs
-        $DB->delete_records('log', array('userid' => $user->id));
+        $this->user_dataprotect_delete($user);
     }
 
     /**
@@ -185,6 +181,48 @@ class auth_plugin_campusconnect extends auth_plugin_base {
      */
     function get_userinfo($username) {
         return array();
+    }
+
+    /*
+     * Cron - delete users who timed out and never enrolled
+     * And inactivate users who haven't been active for some time
+     */
+    function cron() {
+        global $CFG, $DB;
+
+        //Find users whose session should have expired by now
+        $params = array(
+            'minaccess' => time() - $CFG->sessiontimeout,
+            'auth' => $this->authtype,
+        );
+        $sql = "
+        SELECT usr.*
+        FROM {user} usr
+        WHERE deleted = 0
+        AND usr.lastaccess < :minaccess
+        AND usr.auth = :auth
+        AND NOT EXISTS (
+          SELECT *
+          FROM {user_enrolments} uen
+          WHERE uen.userid = usr.id
+        )
+        AND NOT EXISTS (
+          SELECT *
+          FROM {log} lg
+          WHERE lg.userid = usr.id
+          AND lg.action = 'enrol'
+        )
+        ";
+        $deleteusers = $DB->get_records_sql($sql, $params);
+        foreach ($deleteusers as $deleteuser) {
+            mtrace(get_string('deletinguser', 'auth_campusconnect'). ': '. $deleteuser->id);
+            $this->user_dataprotect_delete($deleteuser);
+        }
+
+
+        //TODO change cron time to 5 minutes
+
+        return true;
     }
 
     //Local functions
@@ -208,16 +246,14 @@ class auth_plugin_campusconnect extends auth_plugin_base {
     }
 
     /*
-     * Removes all personal data from a user table
-     * Used to apply data protection laws
-     * Call *BEFORE* calling delete_user()
-     * @param int $userid
+     * Removes all personal information from a user table, deletes the user and all logs
+     * @param object $user
      */
-    private function user_predelete_dataprotect($userid) {
+    private function user_dataprotect_delete($user) {
         global $DB;
-        $user = new stdClass();
-        $user->id = $userid;
-        $user->email = random_string(10) . '@' . random_string(5) . '.com';
+
+        //Clean personal information:
+        $user->email = 'usr' . $user->id . '@' . 'usr' . $user->id . '.com';
         $fieldstoclear = array('idnumber', 'firstname', 'lastname',
                                'yahoo', 'aim', 'msn', 'phone1', 'phone2','institution', 'department',
                                'address', 'city', 'country', 'lastip', 'url', 'description', 'imagealt');
@@ -225,5 +261,11 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             $user->{$fieldname} = '';
         }
         $DB->update_record('user', $user);
+
+        //Set to deleted:
+        delete_user($user);
+
+        //Delete logs:
+        $DB->delete_records('log', array('userid' => $user->id));
     }
 }

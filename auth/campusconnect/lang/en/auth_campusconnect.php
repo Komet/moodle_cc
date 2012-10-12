@@ -23,6 +23,9 @@
  */
 
 $string['auth_campusconnectdescription'] = 'Authenticates user from another participant by verifying ECS hash in the URL against the ECS server';
+$string['usernamecantfindecs'] = 'Could not find ECS id in username';
 $string['deletinguser'] = 'Deleting user';
 $string['errorcreatinguser'] = 'Error creating user';
+$string['newusernotifysubject'] = 'CampusConnect user created';
+$string['newusernotifybody'] = 'A new user was created by SSO login from another CampusConnect participant: {$a->firstname} {$a->lastname}.';
 $string['pluginname'] = 'CampusConnect';

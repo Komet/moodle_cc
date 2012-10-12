@@ -99,7 +99,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
                 $auth = $connect->get_auth($hash);
                 if (is_object($auth) && isset($auth->hash)) {
                     $authenticated = true;
-                    $authenticatingecs = $settings->get_id();
+                    $authenticatingecs = $ecsid;
                     break;
                 }
             } catch (campusconnect_connect_exception $e) {
@@ -135,6 +135,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             $ccuser->auth = $this->authtype;
             $ccuser->mnethostid = $CFG->mnet_localhost_id;
             $ccuser->lang = $CFG->lang;
+            $ccuser->timecreated = time();
             if (!$id = $DB->insert_record('user', $ccuser)) {
                 print_error('errorcreatinguser', 'auth_campusconnect');
             }
@@ -237,6 +238,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
 
         //Make users who haven't enrolled in a long time inactive
         $ecslist = campusconnect_ecssettings::list_ecs();
+        $ecsemails = array(); //We'll need it for later
         foreach ($ecslist as $ecsid => $ecsname) {
             //Get the activation period
             $settings = new campusconnect_ecssettings($ecsid);
@@ -251,7 +253,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             $acivationdate = mktime(date('H'), date('i'), date('s'), $month, $day, $year);
             $params = array(
                 'auth' => $this->authtype,
-                'userprefix' => 'campusconnect_ecs' . $settings->get_id() . '_%',
+                'userprefix' => 'campusconnect_ecs' . $ecsid . '_%',
                 'acivationdate' => $acivationdate
             );
             $sql = "
@@ -278,8 +280,11 @@ class auth_plugin_campusconnect extends auth_plugin_base {
               AND lg2.time > :acivationdate
             )
             ";
+            $DB->execute($sql, $params);
+
+            //For later:
+            $ecsemails[$ecsid] = $settings->get_notify_users();
         }
-        $DB->execute($sql, $params);
 
         //Notify relevant users about new accounts
         if (!$lastsent = get_config('auth_campusconnect', 'lastnewusersemailsent')) {
@@ -291,6 +296,36 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             'lastsent' => $lastsent,
             'sendupto' => $sendupto
         );
+        $sql = "
+        SELECT usr.*
+        FROM {user} usr
+        WHERE usr.auth = :auth
+        AND deleted = 0
+        AND usr.timecreated > :lastsent
+        AND usr.timecreated <= :sendupto
+        ";
+        $newusers = $DB->get_records_sql($sql, $params);
+        $adminuser = get_admin();
+        $notified = array();
+        foreach ($newusers as $newuser) {
+            $subject = get_string('newusernotifysubject', 'auth_campusconnect');
+            $messagetext = get_string('newusernotifybody', 'auth_campusconnect', $newuser);
+            $usernamesplit = explode('_', $newuser->username);
+            if (!isset($usernamesplit[1]) || substr($usernamesplit[1], 0, 3) != 'ecs') {
+                mtrace('usernamecantfindecs', 'auth_campusconnect'). ': ' . $newuser->username;
+            }
+            $ecsid = (int)str_replace('ecs', '', $usernamesplit[1]);
+            if (!isset($ecslist[$ecsid])) {
+                mtrace('usernamecantfindecs', 'auth_campusconnect'). ': ' . $newuser->username;
+            }
+            if (!isset($notified[$ecsid])) {
+                list($in, $params) = $DB->get_in_or_equal($ecsemails[$ecsid]);
+                $notified[$ecsid] = $DB->get_records_select('user', "username $in", $params);
+            }
+            foreach ($notified[$ecsid] as $recepient) {
+                email_to_user($recepient, $adminuser, $subject, $messagetext);
+            }
+        }
 
         set_config('lastnewusersemailsent', $sendupto, 'auth_campusconnect');
 

@@ -329,8 +329,6 @@ class auth_plugin_campusconnect extends auth_plugin_base {
 
         set_config('lastnewusersemailsent', $sendupto, 'auth_campusconnect');
 
-        //TODO change cron time to 5 minutes
-
         return true;
     }
 

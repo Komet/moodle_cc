@@ -23,8 +23,8 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2012101000;        // The current plugin version (Date: YYYYMMDDXX)
+$plugin->version   = 2012101200;        // The current plugin version (Date: YYYYMMDDXX)
 $plugin->requires  = 2011112900;        // Requires this Moodle version
-$plugin->cron      = 1;
+$plugin->cron      = 300;
 $plugin->component = 'auth_campusconnect';        // Full name of the plugin (used for diagnostics)
 $plugin->dependencies = array('local_campusconnect' => 2012100200);

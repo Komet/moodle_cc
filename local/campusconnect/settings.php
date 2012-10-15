@@ -80,4 +80,8 @@ if ($hassiteconfig) {
     $ADMIN->add('campusconnect', new admin_externalpage('campusconnectdirectorymapping',
                                                         get_string('directorymapping', 'local_campusconnect'),
                                                         new moodle_url('/local/campusconnect/admin/directorytree.php')));
+
+    $ADMIN->add('campusconnect', new admin_externalpage('campusconnectrolemapping',
+                                                        get_string('rolemapping', 'local_campusconnect'),
+                                                        new moodle_url('/local/campusconnect/admin/rolemapping.php')));
 }

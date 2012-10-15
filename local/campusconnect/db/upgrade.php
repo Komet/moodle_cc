@@ -406,5 +406,45 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2012101001, 'local', 'campusconnect');
     }
 
+    if ($oldversion < 2012101500) {
+
+        // Changing type of field cmsid on table local_campusconnect_crs to char
+        $table = new xmldb_table('local_campusconnect_crs');
+        $field = new xmldb_field('cmsid', XMLDB_TYPE_CHAR, '255', null, null, null, null, 'resourceid');
+        $dbman->change_field_type($table, $field);
+
+        // Add an index to the CMSid field
+        $index = new xmldb_index('cmsid', XMLDB_INDEX_NOTUNIQUE, array('cmsid'));
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012101500, 'local', 'campusconnect');
+    }
+
+    if ($oldversion < 2012101501) {
+        // Define table local_campusconnect_mbr to be created
+        $table = new xmldb_table('local_campusconnect_mbr');
+
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', XMLDB_UNSIGNED, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('resourceid', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('cmscourseid', XMLDB_TYPE_CHAR, '255', null, null, null, null);
+        $table->add_field('personid', XMLDB_TYPE_CHAR, '255', null, null, null, null);
+        $table->add_field('role', XMLDB_TYPE_CHAR, '255', null, null, null, null);
+        $table->add_field('status', XMLDB_TYPE_INTEGER, '4', null, null, null, null);
+
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+        $table->add_index('personid', XMLDB_INDEX_NOTUNIQUE, array('personid'));
+
+        // Conditionally launch create table for local_campusconnect_mbr
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012101501, 'local', 'campusconnect');
+    }
+
     return true;
 }

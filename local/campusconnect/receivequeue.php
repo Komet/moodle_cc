@@ -32,6 +32,7 @@ require_once($CFG->dirroot.'/local/campusconnect/courselink.php');
 require_once($CFG->dirroot.'/local/campusconnect/directorytree.php');
 require_once($CFG->dirroot.'/local/campusconnect/details.php');
 require_once($CFG->dirroot.'/local/campusconnect/course.php');
+require_once($CFG->dirroot.'/local/campusconnect/membership.php');
 
 class campusconnect_receivequeue_exception extends moodle_exception {
     function __construct($msg) {
@@ -197,8 +198,10 @@ class campusconnect_receivequeue {
                     $fixcourses = true;
                 }
                 break;
-            case campusconnect_event::RES_COURSE_URL:
             case campusconnect_event::RES_COURSE_MEMBERS:
+                $this->process_members_event($event);
+                break;
+            case campusconnect_event::RES_COURSE_URL:
             default:
                 debugging("Unexpected incoming event of type: ".$event->get_resource_type());
                 break;
@@ -343,5 +346,45 @@ class campusconnect_receivequeue {
             mtrace("CampusConnect: unable to update course - directory not yet mapped");
         }
         return $status;
+    }
+
+    /**
+     * Process events related to course members
+     * @param campusconnect_event $event the event to process
+     * @return bool true if successful
+     */
+    protected function process_members_event(campusconnect_event $event) {
+        $settings = new campusconnect_ecssettings($event->get_ecs_id());
+        $status = $event->get_status();
+
+        // Delete events do not need to retrieve the resource.
+        if ($status == campusconnect_event::STATUS_DESTROYED) {
+            mtrace("CampusConnect: delete members: ".$event->get_resource_id()."\n");
+            campusconnect_membership::delete($event->get_resource_id(), $settings);
+            return true;
+        }
+
+        if ($status != campusconnect_event::STATUS_CREATED &&
+            $status != campusconnect_event::STATUS_UPDATED) {
+            throw new campusconnect_receivequeue_exception("Unknown event status: ".$event->get_status());
+        }
+
+        // Retrieve the resource.
+        $connect = new campusconnect_connect($settings);
+        $resource = $connect->get_resource($event->get_resource_id(), campusconnect_event::RES_COURSE_MEMBERS);
+        if ($resource) {
+            $details = $connect->get_resource($event->get_resource_id(), campusconnect_event::RES_COURSE_MEMBERS, true);
+        } else {
+            return true; // The resource no longer exists - assume we will process the 'delete' event in a moment.
+        }
+
+        // Process the create/update event.
+        if ($status == campusconnect_event::STATUS_CREATED) {
+            mtrace("CampusConnect: create course members: ".$event->get_resource_id()."\n");
+            return campusconnect_membership::create($event->get_resource_id(), $settings, $resource, $details);
+        }
+
+        mtrace("CampusConnect: update course: ".$event->get_resource_id()."\n");
+        return campusconnect_membership::update($event->get_resource_id(), $settings, $resource, $details);
     }
 }

@@ -1,0 +1,283 @@
+<?php
+// This file is part of the CampusConnect plugin for Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * Handles the importing of membership lists from the ECS
+ *
+ * @package   local_campusconnect
+ * @copyright 2012 Davo Smith, Synergy Learning
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+defined('MOODLE_INTERNAL') || die();
+
+/**
+ * Exception thrown by the campusconnect_courselink object
+ */
+class campusconnect_membership_exception extends moodle_exception {
+    /**
+     * Throw a new exception
+     * @param string $msg
+     */
+    function __construct($msg) {
+        parent::__construct('error', 'local_campusconnect', '', $msg);
+    }
+}
+
+/**
+ * Looks after membership update requests.
+ */
+class campusconnect_membership {
+
+    const STATUS_ASSIGNED = 0;
+    const STATUS_CREATED = 1;
+    const STATUS_UPDATED = 2;
+    const STATUS_DELETED = 3;
+
+    /**
+     * Functions to create & update membership lists based on events from the ECS
+     */
+
+    /**
+     * Create a new membership list
+     * @param int $resourceid the resourceid on the ECS server
+     * @param campusconnect_ecssettings $ecssettings
+     * @param object $membership the details of the membership list
+     * @param campusconnect_details $transferdetails
+     * @return bool true if successful
+     */
+    public static function create($resourceid, campusconnect_ecssettings $ecssettings, $membership, campusconnect_details $transferdetails) {
+        global $DB;
+
+        $cms = campusconnect_participantsettings::get_cms_participant();
+        $mid = $transferdetails->get_sender_mid();
+        $ecsid = $ecssettings->get_id();
+        if (!$cms || $cms->get_mid() != $mid || $cms->get_ecs_id() != $ecsid) {
+            throw new campusconnect_course_exception("Received create membership event from non-CMS participant");
+        }
+
+        if (self::get_by_resourceid($resourceid)) {
+            throw new campusconnect_course_exception("Cannot create a membership list from resource $resourceid - it already exists.");
+        }
+
+        $ins = new stdClass();
+        $ins->resourceid = $resourceid;
+        $ins->cmscourseid = $membership->courseID;
+        $ins->status = self::STATUS_CREATED;
+
+        foreach ($membership->members as $member) {
+            // TODO - process the $member->parallelGroup values
+            $ins->personid = $member->personID;
+            $ins->role = $member->courseRole;
+
+            $DB->insert_record('local_campusconnect_mbr', $ins);
+        }
+
+        return true;
+    }
+
+    /**
+     * Update an existing membership list
+     * @param int $resourceid the resourceid on the ECS server
+     * @param campusconnect_ecssettings $ecssettings
+     * @param object $membership the details of the membership list
+     * @param campusconnect_details $transferdetails
+     * @return bool true if successful
+     */
+    public static function update($resourceid, campusconnect_ecssettings $ecssettings, $membership, campusconnect_details $transferdetails) {
+        global $DB;
+
+        $cms = campusconnect_participantsettings::get_cms_participant();
+        $mid = $transferdetails->get_sender_mid();
+        $ecsid = $ecssettings->get_id();
+        if (!$cms || $cms->get_mid() != $mid || $cms->get_ecs_id() != $ecsid) {
+            throw new campusconnect_course_exception("Received create membership event from non-CMS participant");
+        }
+
+        $currmembers = self::get_by_resourceid($resourceid);
+        if (!$currmembers) {
+            return self::create($resourceid, $ecssettings, $membership, $transferdetails);
+        }
+
+        // Check the courseID first
+        $sortedcurrmembers = array();
+        foreach ($currmembers as $currmember) {
+            if ($currmember->cmscourseid != $membership->courseID) {
+                // The courseid has changed (not sure if this is allowed, but deal with it anyway)
+                // => mark the enrolment to be deleted (a new enrolment will be created below)
+                if ($currmember->status != self::STATUS_DELETED) {
+                    if ($currmember->status == self::STATUS_CREATED) {
+                        // Record created, but never used => just delete the record
+                        $DB->delete_records('local_campusconnect_mbr', array('id' => $currmember->id));
+                    } else {
+                        // Record created & used => mark for deletion
+                        $upd = new stdClass();
+                        $upd->id = $currmember->id;
+                        $upd->status = self::STATUS_DELETED;
+                        $DB->update_record('local_campusconnect_mbr', $upd);
+                    }
+                }
+            } else {
+                $sortedcurrmembers[$currmember->personid] = $currmember;
+            }
+        }
+
+        // Now compare the membership lists - add new members, update roles for existing members, remove expired members
+        foreach ($membership->members as $member) {
+            if (array_key_exists($member->personID, $sortedcurrmembers)) {
+                // Existing member - check if the role has changed.
+                $curr = $sortedcurrmembers[$member->personID];
+                if ($curr->role == $member->courseRole && $curr->status != self::STATUS_DELETED) {
+                    // Unchanged role assignment - nothing to update.
+                } else {
+                    $upd = new stdClass();
+                    $upd->id = $curr->id;
+                    $upd->role = $member->courseRole;
+                    if ($curr->status != self::STATUS_CREATED) {
+                        $upd->status = self::STATUS_UPDATED;
+                    }
+                    $DB->update_record('local_campusconnect_mbr', $upd);
+                }
+                unset($sortedcurrmembers[$member->personID]); // Remove from list, so not deleted at the end.
+            } else {
+                // New member
+                $ins = new stdClass();
+                $ins->resourceid = $resourceid;
+                $ins->cmscourseid = $membership->courseID;
+                $ins->status = self::STATUS_CREATED;
+                $ins->personid = $member->personID;
+                $ins->role = $member->courseRole;
+
+                $DB->insert_record('local_campusconnect_mbr', $ins);
+            }
+        }
+
+        // Remove any members who are no longer in the list.
+        foreach ($sortedcurrmembers as $removedmember) {
+            if ($removedmember->status == self::STATUS_CREATED) {
+                // Record was created but never processed - just delete it.
+                $DB->delete_records('local_campusconnect_mbr', array('id' => $removedmember->id));
+            } else if ($removedmember->status != self::STATUS_DELETED) {
+                // Mark record as ready for deletion.
+                $upd = new stdClass();
+                $upd->id = $removedmember->id;
+                $upd->status = self::STATUS_DELETED;
+                $DB->update_record('local_campusconnect_mbr', $upd);
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Mark a membership list entry as deleted (the record will be deleted once the enrolment changes have
+     * been processed)
+     * @param int $resourceid - the ID on the ECS server
+     * @param campusconnect_ecssettings $ecssettings - the ECS being connected to
+     * @return bool true if successful
+     */
+    public static function delete($resourceid, campusconnect_ecssettings $ecssettings) {
+        global $DB;
+
+        $currmembers = self::get_by_resourceid($resourceid);
+        foreach ($currmembers as $currmember) {
+            if ($currmember->status == self::STATUS_CREATED) {
+                $DB->delete_records('local_campusconnect_mbr', array('id' => $currmember->id));
+            } else {
+                if ($currmember->status != self::STATUS_DELETED) {
+                    $upd = new stdClass();
+                    $upd->id = $currmember->id;
+                    $upd->status = self::STATUS_DELETED;
+                    $DB->update_record('local_campusconnect_mbr', $upd);
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Functions to process membership list items and assign roles to the users
+     */
+    public static function assign_all_roles(campusconnect_ecssettings $ecssettings) {
+        /** @var $cms campusconnect_participantsettings */
+        $cms = campusconnect_participantsettings::get_cms_participant();
+        if (!$cms || $cms->get_ecs_id() != $ecssettings->get_id()) {
+            return; // Not processing the CMS's ECS at the moment.
+        }
+
+        // Load membership list items from the database (which have status != ASSIGNED)
+
+        // Get a list of all affected users
+
+        // Call 'assign_role' on each of them
+    }
+
+    /**
+     * Process the 'create user' event and see if the new user already has an assigned role in the membership list
+     * @param $user
+     */
+    public static function assign_user_roles($user) {
+
+    }
+
+    /**
+     * Take a list of personids given by the ECS and return a list of Moodle userids that these relate to
+     * @param string[] $personids
+     * @return int[] the Moodle userids: personid => userid
+     */
+    protected static function get_userids_from_personids($personids) {
+        return array();
+    }
+
+    /**
+     * Returns a list of requested role assignments for a given user
+     * @param $user
+     * @return campusconnect_membership_item[]
+     */
+    protected static function get_assignments_for_user($user) {
+
+    }
+
+    protected static function get_by_resourceid($resourceid) {
+        global $DB;
+        return $DB->get_records('local_campusconnect_mbr', array('resourceid' => $resourceid));
+    }
+}
+
+class campusconnect_membership_item {
+    protected $userid;
+    protected $role;
+
+    public function __construct($data) {
+        $this->userid = $data->userid;
+        $this->role = $data->role;
+    }
+
+    public function get_userid() {
+        return $this->userid;
+    }
+
+    public function get_role() {
+
+        $roles = array('student' => 5, 'teacher' => 3);
+        $roleid = $roles[$this->role];
+
+        // TODO - use the proper mapping class
+        return $roleid;
+    }
+
+}

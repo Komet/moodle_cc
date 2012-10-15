@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/campusconnect/db" VERSION="20121010" COMMENT="XMLDB file for Moodle local/campusconnect"
+<XMLDB PATH="local/campusconnect/db" VERSION="20121015" COMMENT="XMLDB file for Moodle local/campusconnect"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -147,7 +147,7 @@
         <INDEX NAME="rootid" UNIQUE="false" FIELDS="rootid"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="local_campusconnect_crs" COMMENT="Stores information about courses created by campusconnect" PREVIOUS="local_campusconnect_dir">
+    <TABLE NAME="local_campusconnect_crs" COMMENT="Stores information about courses created by campusconnect" PREVIOUS="local_campusconnect_dir" NEXT="local_campusconnect_rolemap">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="courseid"/>
         <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the course that has been created" PREVIOUS="id" NEXT="resourceid"/>
@@ -162,6 +162,16 @@
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id" NEXT="courseid"/>
         <KEY NAME="courseid" TYPE="foreign-unique" FIELDS="courseid" REFTABLE="course" REFFIELDS="id" PREVIOUS="primary"/>
+      </KEYS>
+    </TABLE>
+    <TABLE NAME="local_campusconnect_rolemap" COMMENT="Role mapping" PREVIOUS="local_campusconnect_crs">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="ccrolename"/>
+        <FIELD NAME="ccrolename" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" PREVIOUS="id" NEXT="moodleroleid"/>
+        <FIELD NAME="moodleroleid" TYPE="int" LENGTH="10" NOTNULL="false" UNSIGNED="true" SEQUENCE="false" PREVIOUS="ccrolename"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
       </KEYS>
     </TABLE>
   </TABLES>

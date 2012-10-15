@@ -406,5 +406,26 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2012101001, 'local', 'campusconnect');
     }
 
+    if ($oldversion < 2012101500) {
+
+        // Define table local_campusconnect_rolemap to be created
+        $table = new xmldb_table('local_campusconnect_rolemap');
+
+        // Adding fields to table local_campusconnect_rolemap
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', XMLDB_UNSIGNED, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('ccrolename', XMLDB_TYPE_CHAR, '255', null, null, null, null);
+        $table->add_field('moodleroleid', XMLDB_TYPE_INTEGER, '10', XMLDB_UNSIGNED, null, null, null);
+
+        // Adding keys to table local_campusconnect_rolemap
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+
+        // Conditionally launch create table for local_campusconnect_rolemap
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012101500, 'local', 'campusconnect');
+    }
     return true;
 }

@@ -1,5 +1,5 @@
 <?php
-// This file is part of the CampusConnect plugin for Moodle - http://moodle.org/
+// This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -15,16 +15,29 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * version file for CampusConnect
+ * Settings page for campus connect
  *
- * @package    local_campusconnect
+ * @package    admin_campusconnect
  * @copyright  2012 Synergy Learning
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-$plugin->version = 2012101502;
-$plugin->requires = 2011120100; // Moodle 2.2+
-$plugin->cron = 1; // Run every second (or as oftern as cron is run)
-$plugin->component = 'local_campusconnect';
-$plugin->maturity = MATURITY_ALPHA;
-$plugin->release = '2.2+ (Build: 2012101502)';
+require_once(dirname(__FILE__).'/../../../config.php');
+
+global $CFG, $PAGE, $OUTPUT;
+
+require_once($CFG->libdir.'/adminlib.php');
+require_once($CFG->dirroot.'/local/campusconnect/connect.php');
+
+$PAGE->set_url(new moodle_url('/local/campusconnect/admin/rolemapping.php'));
+$PAGE->set_context(context_system::instance());
+
+admin_externalpage_setup('campusconnectrolemapping');
+
+// Output starts here.
+echo $OUTPUT->header();
+echo $OUTPUT->heading(get_string('pluginname', 'local_campusconnect'));
+
+echo $OUTPUT->heading(get_string('rolemapping', 'local_campusconnect'), 4);
+
+echo $OUTPUT->footer();

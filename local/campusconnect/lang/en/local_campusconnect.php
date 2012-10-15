@@ -153,6 +153,7 @@ $string['remapdirectory'] = 'Remap directory';
 $string['remotefieldnotfound'] = 'The remote field {$a} does not exist';
 $string['roleassignments'] = 'Role Assignments';
 $string['roleassignmentsdesc'] = 'The chosen role will be assigned to newly created ECS user accounts';
+$string['rolemapping'] = 'Role Mapping';
 $string['seconds'] = 'seconds';
 $string['settings'] = 'Settings';
 $string['showmapping'] = 'Show mapping';

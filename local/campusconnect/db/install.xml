@@ -147,7 +147,6 @@
         <INDEX NAME="rootid" UNIQUE="false" FIELDS="rootid"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="local_campusconnect_crs" COMMENT="Stores information about courses created by campusconnect" PREVIOUS="local_campusconnect_dir" NEXT="local_campusconnect_mbr">
     <TABLE NAME="local_campusconnect_crs" COMMENT="Stores information about courses created by campusconnect" PREVIOUS="local_campusconnect_dir" NEXT="local_campusconnect_rolemap">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="courseid"/>
@@ -165,7 +164,7 @@
         <KEY NAME="courseid" TYPE="foreign-unique" FIELDS="courseid" REFTABLE="course" REFFIELDS="id" PREVIOUS="primary"/>
       </KEYS>
     </TABLE>
-    <TABLE NAME="local_campusconnect_rolemap" COMMENT="Role mapping" PREVIOUS="local_campusconnect_crs">
+    <TABLE NAME="local_campusconnect_rolemap" COMMENT="Role mapping" PREVIOUS="local_campusconnect_crs" NEXT="local_campusconnect_mbr">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="ccrolename"/>
         <FIELD NAME="ccrolename" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" PREVIOUS="id" NEXT="moodleroleid"/>
@@ -178,7 +177,7 @@
         <INDEX NAME="cmsid" UNIQUE="false" FIELDS="cmsid"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="local_campusconnect_mbr" COMMENT="Stored details of requested membership lists from the ECS" PREVIOUS="local_campusconnect_crs">
+    <TABLE NAME="local_campusconnect_mbr" COMMENT="Stored details of requested membership lists from the ECS" PREVIOUS="local_campusconnect_rolemap">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="resourceid"/>
         <FIELD NAME="resourceid" TYPE="int" LENGTH="10" NOTNULL="false" UNSIGNED="false" SEQUENCE="false" COMMENT="The resourceid for this membership list on the ECS" PREVIOUS="id" NEXT="cmscourseid"/>

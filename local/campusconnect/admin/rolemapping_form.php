@@ -15,35 +15,32 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Settings page for campus connect
+ * ECS settings page for campus connect
  *
  * @package    admin_campusconnect
  * @copyright  2012 Synergy Learning
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-require_once(dirname(__FILE__).'/../../../config.php');
-require_once($CFG->dirroot.'/local/campusconnect/admin/rolemapping_form.php');
+defined('MOODLE_INTERNAL') || die();
 
-global $CFG, $PAGE, $OUTPUT;
+global $CFG;
 
-require_once($CFG->libdir.'/adminlib.php');
-require_once($CFG->dirroot.'/local/campusconnect/connect.php');
+require_once($CFG->libdir."/formslib.php");
+require_once($CFG->dirroot.'/local/campusconnect/ecssettings.php'); // For AUTH_xx definitions
 
-$PAGE->set_url(new moodle_url('/local/campusconnect/admin/rolemapping.php'));
-$PAGE->set_context(context_system::instance());
+class campusconnect_rolemapping_form extends moodleform {
 
-admin_externalpage_setup('campusconnectrolemapping');
+    public function definition() {
+        global $DB;
 
-//load form
-$form = new campusconnect_rolemapping_form();
+        $roles = $DB->get_records('role');
+        $mappings = $DB->get_records('local_campusconnect_rolemap');
 
-// Output starts here.
-echo $OUTPUT->header();
-echo $OUTPUT->heading(get_string('pluginname', 'local_campusconnect'));
+        $mform = $this->_form;
 
-echo $OUTPUT->heading(get_string('rolemapping', 'local_campusconnect'), 4);
+        $mform->addElement('header', 'rolemappingsettings', get_string('rolemapping', 'local_campusconnect'));
 
-$form->display();
-
-echo $OUTPUT->footer();
+        $this->add_action_buttons();
+    }
+}

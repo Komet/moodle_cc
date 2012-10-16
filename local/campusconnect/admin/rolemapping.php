@@ -43,7 +43,6 @@ $DB->execute("DELETE FROM {local_campusconnect_rolemap} WHERE moodleroleid NOT I
 
 //Load form:
 $form = new campusconnect_rolemapping_form();
-$form->set_data($mappings);
 if($data = $form->get_data()) {
     $newmappings = array();
     if (isset($data->mapping)) {
@@ -86,6 +85,7 @@ if($data = $form->get_data()) {
         }
     }
 }
+$form->set_data($mappings);
 
 // Output starts here.
 echo $OUTPUT->header();

@@ -40,12 +40,17 @@ class campusconnect_rolemapping_form extends moodleform {
     }
 
     function set_data($default_values) {
-        $this->mappings = array_values($default_values);
+        $this->mappings = $default_values;
         parent::set_data($default_values);
     }
 
     function definition_after_data() {
         $mform = $this->_form;
+
+        if (!isset($this->mappings)) {
+            global $DB;
+            $this->mappings = $DB->get_records_menu('local_campusconnect_rolemap', array(), 'ccrolename', 'ccrolename, moodleroleid');
+        }
 
         //Create repeating mapping elements
         $ccrolename = &$mform->createElement('text', 'ccrolename', get_string('ccrolename', 'local_campusconnect'));
@@ -57,9 +62,13 @@ class campusconnect_rolemapping_form extends moodleform {
         $this->repeat_elements($repeatels, count($this->mappings) + 3, array(), 'numtexts', 'addtexts', 3);
 
         //Default mappings:
-//print_object($mform);
-        foreach ($this->mappings as $key => $mapping) {
-            $mform->getElement('mapping[0]');
+        $id = 0;
+        foreach ($this->mappings as $ccrolename => $moodleroleid) {
+            $group = $mform->getElement('mapping['.$id.']');
+            $elements = $group->getElements();
+            $elements[0]->setValue($ccrolename);
+            $elements[1]->setValue($moodleroleid);
+            $id++;
         }
     }
 }

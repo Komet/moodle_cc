@@ -34,19 +34,32 @@ class campusconnect_rolemapping_form extends moodleform {
     public function definition() {
         global $DB;
 
-        $roles = $DB->get_records_menu('role', array(), 'id', 'id, name');
-        $mappings = $DB->get_records('local_campusconnect_rolemap');
+        $this->roles = $DB->get_records_menu('role', array(), 'id', 'id, name');
 
+        $this->add_action_buttons();
+    }
+
+    function set_data($default_values) {
+        $this->mappings = array_values($default_values);
+        parent::set_data($default_values);
+    }
+
+    function definition_after_data() {
         $mform = $this->_form;
 
+        //Create repeating mapping elements
         $ccrolename = &$mform->createElement('text', 'ccrolename', get_string('ccrolename', 'local_campusconnect'));
-        $moodleroleid = &$mform->createElement('select', 'moodleroleid', get_string('moodlerole', 'local_campusconnect'), $roles);
+        $moodleroleid = &$mform->createElement('select', 'moodleroleid', get_string('moodlerole', 'local_campusconnect'), $this->roles);
         $mapping = new MoodleQuickForm_group('mapping', null, array($ccrolename, $moodleroleid));
         $repeatels = array(
             $mapping
         );
-        $this->repeat_elements($repeatels, count($mappings) + 3, array(), 'numtexts', 'addtexts', 3);
+        $this->repeat_elements($repeatels, count($this->mappings) + 3, array(), 'numtexts', 'addtexts', 3);
 
-        $this->add_action_buttons();
+        //Default mappings:
+//print_object($mform);
+        foreach ($this->mappings as $key => $mapping) {
+            $mform->getElement('mapping[0]');
+        }
     }
 }

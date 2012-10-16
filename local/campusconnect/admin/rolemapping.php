@@ -35,10 +35,56 @@ $PAGE->set_context(context_system::instance());
 
 admin_externalpage_setup('campusconnectrolemapping');
 
-//load form
+//Load existing data:
+$mappings = $DB->get_records_menu('local_campusconnect_rolemap', array(), 'ccrolename', 'ccrolename, moodleroleid');
+
+//In case roles have been deleted:
+$DB->execute("DELETE FROM {local_campusconnect_rolemap} WHERE moodleroleid NOT IN (SELECT id FROM {role})");
+
+//Load form:
 $form = new campusconnect_rolemapping_form();
+$form->set_data($mappings);
 if($data = $form->get_data()) {
-    print_object($data);
+    $newmappings = array();
+    if (isset($data->mapping)) {
+        foreach ($data->mapping as $newmapping) {
+            if (!isset($newmapping['ccrolename']) || !isset($newmapping['moodleroleid'])) {
+                continue;
+            }
+            $ccrolename = trim($newmapping['ccrolename']);
+            $moodleroleid = $newmapping['moodleroleid'];
+            if ($ccrolename == '' || !is_number($moodleroleid)) {
+                continue;
+            }
+            $newmappings[$ccrolename] = $moodleroleid;
+        }
+    }
+
+    //Deleted and changed:
+    foreach ($mappings as $ccrolename => $moodleroleid) {
+        if (isset($newmappings[$ccrolename])) {
+            $params = array(
+                'moodleroleid' => $moodleroleid,
+                'ccrolename' => $ccrolename,
+            );
+            $DB->execute("UPDATE {local_campusconnect_rolemap} SET moodleroleid = :moodleroleid WHERE ccrolename = :ccrolename", $params);
+        } else {
+            $DB->delete_records('local_campusconnect_rolemap', array('ccrolename' => $ccrolename));
+            unset($mappings[$ccrolename]);
+        }
+    }
+
+    //New:
+    foreach ($newmappings as $ccrolename => $moodleroleid) {
+        if (!isset($mappings[$ccrolename])) {
+            $toinsert = (object)array(
+                'ccrolename' => $ccrolename,
+                'moodleroleid' => $moodleroleid,
+            );
+            $DB->insert_record('local_campusconnect_rolemap', $toinsert);
+            $mappings[$ccrolename] = $moodleroleid;
+        }
+    }
 }
 
 // Output starts here.

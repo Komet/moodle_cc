@@ -147,7 +147,7 @@ function local_campusconnect_refresh_ecs(campusconnect_ecssettings $ecssettings,
     if ($output) {
         echo html_writer::tag('p', get_string('refresh_processcourse', 'local_campusconnect'));
     }
-    //$ret->course = campusconnect_membership::refresh_from_ecs($ecssettings);
+    $ret->course = campusconnect_membership::refresh_from_ecs($ecssettings);
 
 
     // Resync all imported course links

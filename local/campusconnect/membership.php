@@ -210,6 +210,68 @@ class campusconnect_membership {
     }
 
     /**
+     * Update all courses from the ECS
+     * @param campusconnect_ecssettings $ecssettings
+     * @return object containing: ->created - array of created resource ids
+     *                            ->updated - array of updated resource ids
+     *                            ->deleted - array of deleted resource ids
+     */
+    public static function refresh_from_ecs(campusconnect_ecssettings $ecssettings) {
+        global $DB;
+
+        $ret = (object)array('created' => array(), 'updated' => array(), 'deleted' => array());
+
+        // Get the CMS participant.
+        /** @var $cms campusconnect_participantsettings */
+        if (!$cms = campusconnect_participantsettings::get_cms_participant()) {
+            return $ret;
+        }
+        if ($cms->get_ecs_id() != $ecssettings->get_id()) {
+            // Not refreshing the ECS that the CMS is attached to
+            return $ret;
+        }
+
+        // Get full list of courselinks from this ECS.
+        $memberships = $DB->get_records('local_campusconnect_mbr', array(), '', 'DISTINCT resourceid');
+
+        // Get full list of courselink resources shared with us.
+        $connect = new campusconnect_connect($ecssettings);
+        $servermemberships = $connect->get_resource_list(campusconnect_event::RES_COURSE_MEMBERS);
+
+        // Go through all the links from the server and compare to what we have locally.
+        foreach ($servermemberships->get_ids() as $resourceid) {
+            $details = $connect->get_resource($resourceid, campusconnect_event::RES_COURSE_MEMBERS, false);
+            $transferdetails = $connect->get_resource($resourceid, campusconnect_event::RES_COURSE_MEMBERS, true);
+
+            // Check if we already have this locally.
+            if (isset($memberships[$resourceid])) {
+                self::update($resourceid, $ecssettings, $details, $transferdetails);
+                $ret->updated[] = $resourceid;
+                unset($memberships[$resourceid]); // So we can delete anything left in the list at the end.
+            } else {
+                // We don't already have this membership list
+                if (empty($details)) {
+                    continue; // This probably shouldn't occur, but we're just going to ignore it.
+                }
+
+                self::create($resourceid, $ecssettings, $details, $transferdetails);
+                $ret->created[] = $resourceid;
+            }
+        }
+
+        // Delete any membership lists still in our local list (they have either been deleted remotely, or they are from
+        // a CMS we no longer import memberships from).
+        foreach ($memberships as $membership) {
+            self::delete($membership->resourceid, $ecssettings);
+            $ret->deleted[] = $membership->resourceid;
+        }
+
+        self::assign_all_roles($ecssettings, false);
+
+        return $ret;
+    }
+
+    /**
      * Functions to process membership list items and assign roles to the users
      */
     public static function assign_all_roles(campusconnect_ecssettings $ecssettings, $output = false) {

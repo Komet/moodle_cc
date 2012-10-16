@@ -106,7 +106,7 @@ class campusconnect_course {
             $ins->id = $DB->insert_record('local_campusconnect_crs', $ins);
 
             if (!$internallink) {
-                $internallink = $course->id; // Point all subsequent courses at the first one (the 'real' course).
+                $internallink = $newcourse->id; // Point all subsequent courses at the first one (the 'real' course).
 
                 // Let the ECS server know about the created link.
                 $courseurl = new campusconnect_course_url($ins->id);

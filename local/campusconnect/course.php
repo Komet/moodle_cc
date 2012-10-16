@@ -64,7 +64,8 @@ class campusconnect_course {
 
         $coursedata = self::map_course_settings($course, $ecssettings);
         if (self::get_by_resourceid($resourceid, $ecssettings->get_id())) {
-            throw new campusconnect_course_exception("Cannot create a course from resource $resourceid - it already exists.");
+            debugging("Cannot create a course from resource $resourceid - it already exists.");
+            return false;
         }
 
         /** @var $categories campusconnect_course_category[] */
@@ -338,7 +339,7 @@ class campusconnect_course {
 
         // Get full list of courselinks from this ECS.
         $courses = $DB->get_records('local_campusconnect_crs', array('ecsid' => $cms->get_ecs_id(), 'mid' => $cms->get_mid()),
-                                    '', 'resourceid');
+                                    '', 'DISTINCT resourceid');
 
         // Get full list of courselink resources shared with us.
         $connect = new campusconnect_connect($ecssettings);
@@ -709,7 +710,7 @@ class campusconnect_course_url {
                 $urlresourceid = $connect->add_resource(campusconnect_event::RES_COURSE_URL, $data, null, $cms->get_mid());
             }
             if ($courseurl->urlstatus == self::STATUS_UPDATED) {
-                $connect->update_resource($courseurl->resourceid, campusconnect_event::RES_COURSE_URL, $data, null, $cms->get_mid());
+                $connect->update_resource($courseurl->urlresourceid, campusconnect_event::RES_COURSE_URL, $data, null, $cms->get_mid());
             }
 
             // Update local crs record.
@@ -721,6 +722,110 @@ class campusconnect_course_url {
             }
             $DB->update_record('local_campusconnect_crs', $upd);
         }
+    }
+
+    /**
+     * Get list of course URLS from ECS - delete any that should not be there any more, create
+     * any that should be there and update all others
+     * @param campusconnect_connect $connect
+     * @return object an object containing: ->created = array of resourceids created
+     *                            ->updated = array of resourceids updated
+     *                            ->deleted = array of resourceids deleted
+     */
+    public static function refresh_ecs(campusconnect_connect $connect) {
+        global $DB;
+
+        $ret = (object)array('created' => array(), 'updated' => array(), 'deleted' => array());
+
+        return $ret; // This function does not work, as pulling a list of courseurls from the ECS server does not include our links.
+
+/*        $cms = campusconnect_participantsettings::get_cms_participant();
+        if ($connect->get_ecs_id() != $cms->get_ecs_id()) {
+            return $ret; // Not updating the ECS that the CMS is on.
+        }
+
+        // Start by updating ECS with any recent changes.
+        self::update_ecs($connect);
+
+        // Get a list of MIDs that this site is known by.
+        $mymids = array();
+        $knownmids = array();
+        $memberships = $connect->get_memberships();
+        foreach ($memberships as $membership) {
+            foreach ($membership->participants as $participant) {
+                if ($participant->itsyou) {
+                    $mymids[] = $participant->mid;
+                } else {
+                    $knownmids[] = $participant->mid;
+                }
+            }
+        }
+
+        // Get a list of the courses we have exported.
+        $exportedcourseurls = $DB->get_records_select('local_campusconnect_crs', "ecsid = :ecsid AND urlresourceid <> 0",
+                                                      array('ecsid' => $connect->get_ecs_id()), '',
+                                                      'urlresourceid, id, courseid, cmsid, resourceid');
+        $exportedresourceids = array_keys($exportedcourseurls);
+
+        // Check all the resources on the server against our local list.
+        $resources = $connect->get_resource_list(campusconnect_event::RES_COURSE_URL);
+        foreach ($resources->get_ids() as $resourceid) {
+            $transferdetails = $connect->get_resource($resourceid, campusconnect_event::RES_COURSE_URL, true);
+            if (!$transferdetails->sent_by_me($mymids)) {
+                continue; // Not one of this VLE's resources.
+            }
+
+            if (!array_key_exists($resourceid, $exportedresourceids)) {
+                // This VLE does not have that course url - need remove from ECS.
+                // (Not that this should ever happen).
+                $connect->delete_resource($resourceid, campusconnect_event::RES_COURSE_URL);
+                $ret->deleted[] = $resourceid;
+            } else {
+                // Course url is present in VLE and on ECS - update with latest details.
+                $courseid = $exportedcourseurls[$resourceid]->courseid;
+                $cmsid = $exportedcourseurls[$resourceid]->cmsid;
+                $courseresourceid = $exportedcourseurls[$resourceid]->resourceid;
+
+                $moodleurl = new moodle_url('/course/view.php', array('id' => $courseid));
+                $data = new stdClass();
+                $data->cms_course_id = $cmsid.''; // Convert to string if 'NULL'
+                $data->ecs_course_url = $connect->get_resource_url($courseresourceid, campusconnect_event::RES_COURSE);
+                $data->lms_course_url = $moodleurl->out();
+
+                $connect->update_resource($resourceid, campusconnect_event::RES_COURSE_URL, $data, null, $cms->get_mid());
+
+                $exportedcourseurls[$resourceid]->updated = true;
+                $ret->updated[] = $resourceid;
+            }
+        }
+
+        // Check for any course urls that were not found on the ECS.
+        foreach ($exportedcourseurls as $exportedcourseurl) {
+            if (!empty($exportedcourseurl->updated)) {
+                continue; // Already updated.
+            }
+
+            // Course not found on ECS - add it (should not happen).
+            $courseid = $exportedcourseurl->courseid;
+            $cmsid = $exportedcourseurl->cmsid;
+            $courseresourceid = $exportedcourseurl->resourceid;
+
+            $moodleurl = new moodle_url('/course/view.php', array('id' => $courseid));
+            $data = new stdClass();
+            $data->cms_course_id = $cmsid.''; // Convert to string if 'NULL'
+            $data->ecs_course_url = $connect->get_resource_url($courseresourceid, campusconnect_event::RES_COURSE);
+            $data->lms_course_url = $moodleurl->out();
+
+            $resourceid = $connect->add_resource(campusconnect_event::RES_COURSE_URL, $data, null, $cms->get_mid());
+
+            $upd = new stdClass();
+            $upd->id = $exportedcourseurl->id;
+            $upd->urlresourceid = $resourceid;
+            $DB->update_record('local_campusconnect_crs', $upd);
+            $ret->created[] = $resourceid;
+        }
+
+        return $ret;*/
     }
 
     /**

@@ -418,27 +418,31 @@ class campusconnect_directorytree {
     /**
      * Full update of all directory trees from ECS
      * @param campusconnect_ecssettings $ecssettings
-     * @return bool - true if update enabled
+     * @return object an object containing: ->created = array of resourceids created
+     *                            ->updated = array of resourceids updated
+     *                            ->deleted = array of resourceids deleted
      */
     public static function refresh_from_ecs(campusconnect_ecssettings $ecssettings) {
         global $DB;
 
+        $ret = (object)array('created' => array(), 'updated' => array(), 'deleted' => array());
+
         if (!self::enabled()) {
-            return false; // Mapping disabled.
+            return $ret; // Mapping disabled.
         }
 
         /** @var $cms campusconnect_participantsettings */
         if (! $cms = campusconnect_participantsettings::get_cms_participant()) {
-            return false;
+            return $ret;
         }
 
         if ($cms->get_ecs_id() != $ecssettings->get_id()) {
-            return false; // Not refreshing the ECS the CMS is connected to.
+            return $ret; // Not refreshing the ECS the CMS is connected to.
         }
 
         // Gather directory changes from the ECS server.
         if (!$ecssettings->is_enabled()) {
-            return false; // Ignore disabled ECS.
+            return $ret; // Ignore disabled ECS.
         }
 
         $trees = $DB->get_records('local_campusconnect_dirroot');
@@ -470,11 +474,13 @@ class campusconnect_directorytree {
                 // Update existing tree.
                 $currenttrees[$directory->id]->set_title($directory->title);
                 $currenttrees[$directory->id]->set_still_exists(); // So we can track any trees that no longer exist on ECS.
+                $ret->updated[] = $currenttrees[$directory->id]->resourceid;
             } else {
                 // Create new tree.
                 $newtree = new campusconnect_directorytree();
                 $newtree->create($resourceid, $directory->id, $directory->title, $cms->get_ecs_id(), $cms->get_mid());
                 $currenttrees[$newtree->get_root_id()] = $newtree;
+                $ret->created[] = $newtree->resourceid;
             }
         }
 
@@ -485,6 +491,7 @@ class campusconnect_directorytree {
         foreach ($currenttrees as $tree) {
             if (!$tree->still_exists()) {
                 $tree->delete(); // Will also delete any contained directories.
+                $ret->deleted[] = $tree->resourceid;
             } else {
                 campusconnect_directory::remove_missing_directories($tree->get_root_id());
             }
@@ -492,7 +499,7 @@ class campusconnect_directorytree {
 
         // Look for any directories mapped on to categories that no longer exist.
         self::check_all_mappings();
-        return true;
+        return $ret;
     }
 
     /**

@@ -131,7 +131,27 @@ if ($ecsid = optional_param('refresh', null, PARAM_INT)) {
     echo $OUTPUT->heading(get_string('refreshing', 'local_campusconnect', $ecssettings->get_name()), 3);
 
     echo $OUTPUT->box_start();
-    local_campusconnect_refresh_ecs($ecssettings, true);
+    $ret = local_campusconnect_refresh_ecs($ecssettings, true);
+
+    $table = new html_table();
+    $table->head = array(
+        '',
+        get_string('created', 'local_campusconnect'),
+        get_string('updated', 'local_campusconnect'),
+        get_string('deleted', 'local_campusconnect')
+    );
+    $table->data = array();
+
+    foreach ($ret as $item => $data) {
+        $row = array(
+            $item,
+            count($data->created),
+            count($data->updated),
+            count($data->deleted)
+        );
+        $table->data[] = $row;
+    }
+    echo html_writer::table($table);
 
     $redir = new moodle_url($PAGE->url, array('refreshdone' => $ecsid));
     echo $OUTPUT->continue_button($redir);

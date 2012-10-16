@@ -15,31 +15,18 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * List events handled by campusconnect
+ * CampusConnect enrolment plugin version specification.
  *
- * @package    local_campusconnect
- * @copyright  2012 Synergy Learning
+ * @package    enrol_campusconnect
+ * @copyright  2012 Davo Smith, Synergy Learning
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-$handlers = array(
-    'course_updated' => array(
-        'handlerfile' => '/local/campusconnect/export.php',
-        'handlerfunction' => 'campusconnect_export::course_updated',
-        'schedule' => 'instant',
-    ),
-
-    'course_deleted' => array(
-        'handlerfile' => '/local/campusconnect/export.php',
-        'handlerfunction' => 'campusconnect_export::course_deleted',
-        'schedule' => 'instant',
-    ),
-
-    'user_created' => array(
-        'handlerfile' => '/local/campusconnect/membership.php',
-        'handlerfunction' => 'campusconnect_membership::assign_user_roles',
-        'schedule' => 'instant'
-    )
-);
+$plugin->version   = 2012101600;        // The current plugin version (Date: YYYYMMDDXX)
+$plugin->requires = 2011120100; // Moodle 2.2+
+$plugin->cron = 0; // No cron
+$plugin->component = 'enrol_campusconnect';
+$plugin->maturity = MATURITY_ALPHA;
+$plugin->release = '2.2+ (Build: 2012101600)';

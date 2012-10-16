@@ -137,11 +137,24 @@ function local_campusconnect_refresh_ecs(campusconnect_ecssettings $ecssettings,
     }
     $ret->course = campusconnect_course::refresh_from_ecs($ecssettings);
 
+    // Resync all exported course urls
+    if ($output) {
+        echo html_writer::tag('p', get_string('refresh_processcourseurl', 'local_campusconnect'));
+    }
+    $ret->courseurl = campusconnect_course_url::refresh_ecs($connect);
+
+    // Resync all imported course memberships
+    if ($output) {
+        echo html_writer::tag('p', get_string('refresh_processcourse', 'local_campusconnect'));
+    }
+    $ret->course = campusconnect_membership::refresh_from_ecs($ecssettings);
+
+
     // Resync all imported course links
     if ($output) {
         echo html_writer::tag('p', get_string('refresh_processcourselinks', 'local_campusconnect'));
     }
     $ret->courselink = campusconnect_courselink::refresh_from_ecs($ecssettings);
 
-    return true;
+    return $ret;
 }

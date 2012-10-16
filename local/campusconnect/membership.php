@@ -210,9 +210,89 @@ class campusconnect_membership {
     }
 
     /**
+     * Update all courses from the ECS
+     * @param campusconnect_ecssettings $ecssettings
+     * @return object containing: ->created - array of created resource ids
+     *                            ->updated - array of updated resource ids
+     *                            ->deleted - array of deleted resource ids
+     */
+    public static function refresh_from_ecs(campusconnect_ecssettings $ecssettings) {
+        global $DB;
+
+        $ret = (object)array('created' => array(), 'updated' => array(), 'deleted' => array());
+
+        // Get the CMS participant.
+        /** @var $cms campusconnect_participantsettings */
+        if (!$cms = campusconnect_participantsettings::get_cms_participant()) {
+            return $ret;
+        }
+        if ($cms->get_ecs_id() != $ecssettings->get_id()) {
+            // Not refreshing the ECS that the CMS is attached to
+            return $ret;
+        }
+
+        // Get full list of courselinks from this ECS.
+        $memberships = $DB->get_records('local_campusconnect_mbr', array(), '', 'DISTINCT resourceid');
+
+        // Get full list of courselink resources shared with us.
+        $connect = new campusconnect_connect($ecssettings);
+        $servermemberships = $connect->get_resource_list(campusconnect_event::RES_COURSE_MEMBERS);
+
+        // Go through all the links from the server and compare to what we have locally.
+        foreach ($servermemberships->get_ids() as $resourceid) {
+            $details = $connect->get_resource($resourceid, campusconnect_event::RES_COURSE_MEMBERS, false);
+            $transferdetails = $connect->get_resource($resourceid, campusconnect_event::RES_COURSE_MEMBERS, true);
+
+            // Check if we already have this locally.
+            if (isset($memberships[$resourceid])) {
+                self::update($resourceid, $ecssettings, $details, $transferdetails);
+                $ret->updated[] = $resourceid;
+                unset($memberships[$resourceid]); // So we can delete anything left in the list at the end.
+            } else {
+                // We don't already have this membership list
+                if (empty($details)) {
+                    continue; // This probably shouldn't occur, but we're just going to ignore it.
+                }
+
+                self::create($resourceid, $ecssettings, $details, $transferdetails);
+                $ret->created[] = $resourceid;
+            }
+        }
+
+        // Delete any membership lists still in our local list (they have either been deleted remotely, or they are from
+        // a CMS we no longer import memberships from).
+        foreach ($memberships as $membership) {
+            self::delete($membership->resourceid, $ecssettings);
+            $ret->deleted[] = $membership->resourceid;
+        }
+
+        self::assign_all_roles($ecssettings, false);
+
+        return $ret;
+    }
+
+    /**
      * Functions to process membership list items and assign roles to the users
      */
-    public static function assign_all_roles(campusconnect_ecssettings $ecssettings) {
+    public static function assign_all_roles(campusconnect_ecssettings $ecssettings, $output = false) {
+        global $DB;
+
+        // Check the enrolment plugin is enabled and we are on the correct ECS for processing course members.
+
+        if (!enrol_is_enabled('campusconnect')) {
+            if ($output) {
+                mtrace("CampusConnect enrolment plugin not enabled - no enrolments will take place\n");
+            }
+            return;
+        }
+        /** @var $enrol enrol_plugin */
+        if (!$enrol = enrol_get_plugin('campusconnect')) {
+            if ($output) {
+                mtrace("CampusConnect enrolment cannot be loaded - no enrolments will take place\n");
+            }
+            return;
+        }
+
         /** @var $cms campusconnect_participantsettings */
         $cms = campusconnect_participantsettings::get_cms_participant();
         if (!$cms || $cms->get_ecs_id() != $ecssettings->get_id()) {
@@ -220,18 +300,202 @@ class campusconnect_membership {
         }
 
         // Load membership list items from the database (which have status != ASSIGNED)
+        $memberships = $DB->get_records_select('local_campusconnect_mbr', 'status != ?', array(self::STATUS_ASSIGNED));
+        if (empty($memberships)) {
+            return;
+        }
 
         // Get a list of all affected users
+        $personids = array();
+        $cmscourseids = array();
+        foreach ($memberships as $membership) {
+            $personids[$membership->personid] = $membership->personid;
+            $cmscourseids[$membership->cmscourseid] = $membership->cmscourseid;
+        }
+        $userids = self::get_userids_from_personids($personids);
 
-        // Call 'assign_role' on each of them
+        // Get a list of all the courses to enrol users into
+        $courseids = campusconnect_course::get_courseids_from_cmscourseids($cmscourseids);
+
+        if (empty($userids) || empty($courseids)) {
+            return; // No existing users in the list of personids or no existing courses to enrol them onto.
+        }
+
+        // Get a list of the enrol instances for 'campusconnect' in these courses.
+        list($csql, $params) = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED);
+        $enrolinstances = $DB->get_records_select('enrol', "enrol = 'campusconnect' AND courseid $csql",
+                                                  $params, 'sortorder, id ASC');
+        $courseenrol = array();
+        foreach ($enrolinstances as $enrolinstance) {
+            if (!isset($courseenrol[$enrolinstance->courseid])) {
+                $courseenrol[$enrolinstance->courseid] = $enrolinstance;
+            }
+        }
+
+        // Call 'assign_role' on each of them.
+        foreach ($memberships as $membership) {
+            if (!isset($userids[$membership->personid])) {
+                if ($output) {
+                    mtrace("User '{$membership->personid}' not found - skipping");
+                }
+                continue; // User doesn't (yet) exist - skip them.
+            }
+            $userid = $userids[$membership->personid];
+            if (!isset($courseids[$membership->cmscourseid])) {
+                if ($output) {
+                    mtrace("Course '{$membership->cmscourseid}' not found - skipping");
+                }
+                continue; // Course doesn't (yet) exist - skip it.
+            }
+            $courseid = $courseids[$membership->cmscourseid];
+            if (!isset($courseenrol[$courseid])) {
+                // No CampusConnect enrolment instance - add one.
+                if (!$enrolinstance = self::add_enrol_instance($courseid, $enrol)) {
+                    if ($output) {
+                        mtrace("Unable to add CampusConnect enrolment to course $courseid\n");
+                    }
+                    continue;
+                }
+                $courseenrol[$courseid] = $enrolinstance;
+            }
+            $enrolinstance = $courseenrol[$courseid];
+            $roleid = self::get_roleid($membership->role);
+
+            if ($output) {
+                mtrace("Enroling user '{$membership->personid}' ({$userid}) in course '{$membership->cmscourseid}' ({$courseid}) with role '{$membership->role}' ({$roleid})");
+            }
+            $enrol->enrol_user($enrolinstance, $userid, $roleid);
+
+            $upd = new stdClass();
+            $upd->id = $membership->id;
+            $upd->status = self::STATUS_ASSIGNED;
+            $DB->update_record('local_campusconnect_mbr', $upd);
+        }
+    }
+
+    /**
+     * Process the 'create course' event and see if any user memberships have already been sent for this course
+     * @param object $course
+     * @return bool true if successful
+     */
+    public static function assign_course_users($course, $cmscourseid) {
+        global $DB;
+
+        $memberships = self::get_by_cmscourseids(array($cmscourseid));
+        if (empty($memberships)) {
+            return true;
+        }
+
+        if (!enrol_is_enabled('campusconnect')) {
+            return true;
+        }
+        /** @var $enrol enrol_plugin */
+        if (!$enrol = enrol_get_plugin('campusconnect')) {
+            return true;
+        }
+
+        // Get a list of all affected users
+        $personids = array();
+        foreach ($memberships as $membership) {
+            $personids[$membership->personid] = $membership->personid;
+        }
+        $userids = self::get_userids_from_personids($personids);
+
+        // Get a list of the enrol instances for 'campusconnect' in these courses.
+        $enrolinstance = $DB->get_records('enrol', array('enrol' => 'campusconnect', 'courseid' => $course->id),
+                                          'sortorder, id ASC', '*', 0, 1);
+        if (empty($enrolinstance)) {
+            $enrolinstance = self::add_enrol_instance($course->id, $enrol);
+        } else {
+            $enrolinstance = reset($enrolinstance);
+        }
+
+        // Call 'assign_role' on each of them.
+        foreach ($memberships as $membership) {
+            if (!isset($userids[$membership->personid])) {
+                continue; // User doesn't (yet) exist - skip them.
+            }
+            $userid = $userids[$membership->personid];
+            $roleid = self::get_roleid($membership->role);
+
+            $enrol->enrol_user($enrolinstance, $userid, $roleid);
+
+            $upd = new stdClass();
+            $upd->id = $membership->id;
+            $upd->status = self::STATUS_ASSIGNED;
+            $DB->update_record('local_campusconnect_mbr', $upd);
+        }
+
+        return true;
     }
 
     /**
      * Process the 'create user' event and see if the new user already has an assigned role in the membership list
-     * @param $user
+     * @param object $user
+     * @return bool true if successful
      */
     public static function assign_user_roles($user) {
+        global $DB;
 
+        $memberships = self::get_by_user($user);
+        if (empty($memberships)) {
+            return true;
+        }
+
+        if (!enrol_is_enabled('campusconnect')) {
+            return true;
+        }
+        /** @var $enrol enrol_plugin */
+        if (!$enrol = enrol_get_plugin('campusconnect')) {
+            return true;
+        }
+
+        // Get a list of all the courses to enrol the user into
+        $cmscourseids = array();
+        foreach ($memberships as $membership) {
+            $cmscourseids[$membership->cmscourseid] = $membership->cmscourseid;
+        }
+        $courseids = campusconnect_course::get_courseids_from_cmscourseids($cmscourseids);
+        if (empty($courseids)) {
+            return true; // No existing courses to enrol them onto.
+        }
+
+        // Get a list of the enrol instances for 'campusconnect' in these courses.
+        list($csql, $params) = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED);
+        $enrolinstances = $DB->get_records_select('enrol', "enrol = 'campusconnect' AND courseid $csql",
+                                                  $params, 'sortorder, id ASC');
+        $courseenrol = array();
+        foreach ($enrolinstances as $enrolinstance) {
+            if (!isset($courseenrol[$enrolinstance->courseid])) {
+                $courseenrol[$enrolinstance->courseid] = $enrolinstance;
+            }
+        }
+
+        // Call 'assign_role' on each of them.
+        foreach ($memberships as $membership) {
+            if (!isset($courseids[$membership->cmscourseid])) {
+                continue; // Course doesn't (yet) exist - skip it.
+            }
+            $courseid = $courseids[$membership->cmscourseid];
+            if (!isset($courseenrol[$courseid])) {
+                // No CampusConnect enrolment instance - add one.
+                if (!$enrolinstance = self::add_enrol_instance($courseid, $enrol)) {
+                    continue;
+                }
+                $courseenrol[$courseid] = $enrolinstance;
+            }
+            $enrolinstance = $courseenrol[$courseid];
+            $roleid = self::get_roleid($membership->role);
+
+            $enrol->enrol_user($enrolinstance, $user->id, $roleid);
+
+            $upd = new stdClass();
+            $upd->id = $membership->id;
+            $upd->status = self::STATUS_ASSIGNED;
+            $DB->update_record('local_campusconnect_mbr', $upd);
+        }
+
+        return true;
     }
 
     /**
@@ -240,44 +504,103 @@ class campusconnect_membership {
      * @return int[] the Moodle userids: personid => userid
      */
     protected static function get_userids_from_personids($personids) {
-        return array();
+        // Assumes, for now, that the 'personids' are the 'usernames' of the users.
+        global $DB;
+
+        if (empty($personids)) {
+            return array();
+        }
+
+        list($psql, $params) = $DB->get_in_or_equal($personids);
+        return $DB->get_records_select_menu('user', "username $psql", $params, '', 'username, id');
     }
 
     /**
      * Returns a list of requested role assignments for a given user
      * @param $user
-     * @return campusconnect_membership_item[]
+     * @return object[] the local_campusconnect_mbr that relate to the given user
      */
-    protected static function get_assignments_for_user($user) {
-
+    protected static function get_by_user($user) {
+        // Assumes, for now, that the 'personids' are the 'usernames' of the users.
+        global $DB;
+        return $DB->get_records_select('local_campusconnect_mbr', "personid = :username AND (status = :created OR status = :updated)",
+                                       array('username' => $user->username, 'created' => self::STATUS_CREATED,
+                                            'updated' => self::STATUS_UPDATED));
     }
 
+    /**
+     * Returns a list of role assignments for a given course
+     * @param $course
+     * @return object[] the local_campusconnect_mbr that relate to the given course
+     */
+    protected static function get_by_course($course) {
+        $cmscourseids = campusconnect_course::get_cmscourseids_from_courseids(array($course->id));
+
+        return self::get_by_cmscourseids($cmscourseids);
+    }
+
+    /**
+     * Return a list of the local_campusconnect_mbr records for the given cmscourseids
+     * @param int[] $cmscourseids
+     * @return object[]
+     */
+    protected static function get_by_cmscourseids($cmscourseids) {
+        global $DB;
+        if (empty($cmscourseids)) {
+            return array();
+        }
+        list($csql, $params) = $DB->get_in_or_equal($cmscourseids, SQL_PARAMS_NAMED);
+        $params['created'] = self::STATUS_CREATED;
+        $params['updated'] = self::STATUS_UPDATED;
+        return $DB->get_records_select('local_campusconnect_mbr', "cmscourseid $csql AND
+                                                                   (status = :created OR status = :updated)",
+                                       $params);
+    }
+
+    /**
+     * Get the membership object from the resourceid
+     * @param $resourceid
+     * @return array
+     */
     protected static function get_by_resourceid($resourceid) {
         global $DB;
         return $DB->get_records('local_campusconnect_mbr', array('resourceid' => $resourceid));
     }
-}
 
-class campusconnect_membership_item {
-    protected $userid;
-    protected $role;
+    /**
+     * Add a new instance of the CampusConnect enrol plugin to the given course and return the instance data
+     * @param int $courseid the course to add the plugin to
+     * @param enrol_plugin $enrol optional - the enrol plugin object to use
+     * @return mixed object|false
+     */
+    protected static function add_enrol_instance($courseid, enrol_plugin $enrol = null) {
+        global $DB;
 
-    public function __construct($data) {
-        $this->userid = $data->userid;
-        $this->role = $data->role;
+        if (is_null($enrol)) {
+            if (!$enrol = enrol_get_plugin('campusconnect')) {
+                return false;
+            }
+        }
+        if (!$course = $DB->get_record('course', array('id' => $courseid), '*', MUST_EXIST)) {
+            return false;
+        }
+        if (!$enrolid = $enrol->add_default_instance($course)) {
+            return false;
+        }
+
+        return $DB->get_record('enrol', array('id' => $enrolid));
     }
 
-    public function get_userid() {
-        return $this->userid;
-    }
-
-    public function get_role() {
-
+    /**
+     * Map the role onto the Moodle role
+     * @param string $role role taken from the course_membership message
+     * @return int Moodle roleid to map this user onto
+     */
+    protected static function get_roleid($role) {
         $roles = array('student' => 5, 'teacher' => 3);
-        $roleid = $roles[$this->role];
+        $roleid = $roles[$role];
 
         // TODO - use the proper mapping class
         return $roleid;
     }
-
 }

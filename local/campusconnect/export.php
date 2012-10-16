@@ -410,7 +410,9 @@ class campusconnect_export {
 
         $ret = (object)array('created' => array(), 'updated' => array(), 'deleted' => array());
 
-        // Start by updating ECS with any recent changes.
+        return $ret; // This function does not work, as pulling a list of courselinks from the ECS server does not include our links.
+
+/*        // Start by updating ECS with any recent changes.
         self::update_ecs($connect);
 
         // Get a list of MIDs that this site is known by.
@@ -440,7 +442,7 @@ class campusconnect_export {
                 continue; // Not one of this VLE's resources.
             }
 
-            if (!array_key_exists($resourceid, $exportedresourceids)) {
+            if (!in_array($resourceid, $exportedresourceids)) {
                 // This VLE does not have that course - need remove from ECS.
                 // (Not that this should ever happen).
                 $connect->delete_resource($resourceid, campusconnect_event::RES_COURSELINK);
@@ -503,7 +505,7 @@ class campusconnect_export {
             $ret->created[] = $resourceid;
         }
 
-        return $ret;
+        return $ret;*/
     }
 
     /**

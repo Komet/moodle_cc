@@ -23,6 +23,7 @@
  */
 
 require_once(dirname(__FILE__).'/../../../config.php');
+require_once($CFG->dirroot.'/local/campusconnect/admin/rolemapping_form.php');
 
 global $CFG, $PAGE, $OUTPUT;
 
@@ -34,10 +35,18 @@ $PAGE->set_context(context_system::instance());
 
 admin_externalpage_setup('campusconnectrolemapping');
 
+//load form
+$form = new campusconnect_rolemapping_form();
+if($data = $form->get_data()) {
+    print_object($data);
+}
+
 // Output starts here.
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('pluginname', 'local_campusconnect'));
 
 echo $OUTPUT->heading(get_string('rolemapping', 'local_campusconnect'), 4);
+
+$form->display();
 
 echo $OUTPUT->footer();

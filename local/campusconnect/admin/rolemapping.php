@@ -65,11 +65,15 @@ if($data = $form->get_data()) {
     //Deleted and changed:
     foreach ($mappings as $ccrolename => $moodleroleid) {
         if (isset($newmappings[$ccrolename])) {
+            if ($newmappings[$ccrolename] == $moodleroleid) {
+                continue;
+            }
             $params = array(
-                'moodleroleid' => $moodleroleid,
+                'moodleroleid' => $newmappings[$ccrolename],
                 'ccrolename' => $ccrolename,
             );
             $DB->execute("UPDATE {local_campusconnect_rolemap} SET moodleroleid = :moodleroleid WHERE ccrolename = :ccrolename", $params);
+            $mappings[$ccrolename] = $newmappings[$ccrolename];
         } else {
             $DB->delete_records('local_campusconnect_rolemap', array('ccrolename' => $ccrolename));
             unset($mappings[$ccrolename]);
@@ -87,8 +91,8 @@ if($data = $form->get_data()) {
             $mappings[$ccrolename] = $moodleroleid;
         }
     }
+    redirect($CFG->wwwroot . '/local/campusconnect/admin/rolemapping.php');
 }
-$form->set_data($mappings);
 
 // Output starts here.
 echo $OUTPUT->header();

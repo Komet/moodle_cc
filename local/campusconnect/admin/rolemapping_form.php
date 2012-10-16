@@ -35,8 +35,6 @@ class campusconnect_rolemapping_form extends moodleform {
         global $DB;
 
         $this->roles = $DB->get_records_menu('role', array(), 'id', 'id, name');
-
-        $this->add_action_buttons();
     }
 
     function set_data($default_values) {
@@ -70,5 +68,7 @@ class campusconnect_rolemapping_form extends moodleform {
             $elements[1]->setValue($moodleroleid);
             $id++;
         }
+
+        $this->add_action_buttons();
     }
 }

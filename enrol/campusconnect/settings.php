@@ -1,4 +1,5 @@
 <?php
+
 // This file is part of the CampusConnect plugin for Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -15,31 +16,17 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * List events handled by campusconnect
+ * CampusConnect enrolment plugin settings and presets.
  *
- * @package    local_campusconnect
- * @copyright  2012 Synergy Learning
+ * @package    enrol_campusconnect
+ * @copyright  2012 Davo Smith, Synergy Learning
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-$handlers = array(
-    'course_updated' => array(
-        'handlerfile' => '/local/campusconnect/export.php',
-        'handlerfunction' => 'campusconnect_export::course_updated',
-        'schedule' => 'instant',
-    ),
+if ($ADMIN->fulltree) {
 
-    'course_deleted' => array(
-        'handlerfile' => '/local/campusconnect/export.php',
-        'handlerfunction' => 'campusconnect_export::course_deleted',
-        'schedule' => 'instant',
-    ),
+    $settings->add(new admin_setting_heading('enrol_campusconnect_settings', '', get_string('pluginname_desc', 'enrol_campusconnect')));
+}
 
-    'user_created' => array(
-        'handlerfile' => '/local/campusconnect/membership.php',
-        'handlerfunction' => 'campusconnect_membership::assign_user_roles',
-        'schedule' => 'instant'
-    )
-);

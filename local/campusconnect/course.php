@@ -85,18 +85,18 @@ class campusconnect_course {
                     $num++;
                     $coursedata->shortname = "{$baseshortname}_{$num}";
                 }
-                $course = create_course($coursedata);
+                $newcourse = create_course($coursedata);
             } else {
                 // Nasty hack for unit testing - 'create_course' is too complex to
                 // be practical to mock up the database responses
                 global $DB;
-                $course = $coursedata;
+                $newcourse = $coursedata;
                 /** @noinspection PhpUndefinedMethodInspection */
-                $course->id = $DB->mock_create_course($coursedata);
+                $newcourse->id = $DB->mock_create_course($coursedata);
             }
 
             $ins = new stdClass();
-            $ins->courseid = $course->id;
+            $ins->courseid = $newcourse->id;
             $ins->resourceid = $resourceid;
             $ins->cmsid = isset($course->basicData->id) ? $course->basicData->id : '';
             $ins->ecsid = $ecssettings->get_id();
@@ -111,6 +111,9 @@ class campusconnect_course {
                 // Let the ECS server know about the created link.
                 $courseurl = new campusconnect_course_url($ins->id);
                 $courseurl->add();
+
+                // Process any existing enrolment requests for this course
+                campusconnect_membership::assign_course_users($newcourse, $ins->cmsid);
             }
         }
 
@@ -188,20 +191,20 @@ class campusconnect_course {
                         $num++;
                         $coursedata->shortname = "{$baseshortname}_{$num}";
                     }
-                    $course = create_course($coursedata);
+                    $newcourse = create_course($coursedata);
                 } else {
                     // Nasty hack for unit testing - 'create_course' is too complex to
                     // be practical to mock up the database responses
                     global $DB;
-                    $course = $coursedata;
+                    $newcourse = $coursedata;
                     /** @noinspection PhpUndefinedMethodInspection */
-                    $course->id = $DB->mock_create_course($coursedata);
+                    $newcourse->id = $DB->mock_create_course($coursedata);
                 }
 
                 // Update the course record to point at this new course.
                 $upd = new stdClass();
                 $upd->id = $currcourse->id;
-                $upd->courseid = $course->id;
+                $upd->courseid = $newcourse->id;
                 if (isset($course->basicData->id)) {
                     $upd->cmsid = $course->basicData->id;
                 }
@@ -255,19 +258,19 @@ class campusconnect_course {
                         $num++;
                         $coursedata->shortname = "{$baseshortname}_{$num}";
                     }
-                    $course = create_course($coursedata);
+                    $newcourse = create_course($coursedata);
                 } else {
                     // Nasty hack for unit testing - 'create_course' is too complex to
                     // be practical to mock up the database responses
                     global $DB;
-                    $course = $coursedata;
+                    $newcourse = $coursedata;
                     /** @noinspection PhpUndefinedMethodInspection */
-                    $course->id = $DB->mock_create_course($coursedata);
+                    $newcourse->id = $DB->mock_create_course($coursedata);
                 }
 
                 // Create a new crs record to redirect to the internallink course
                 $ins = new stdClass();
-                $ins->courseid = $course->id;
+                $ins->courseid = $newcourse->id;
                 $ins->resourceid = $resourceid;
                 $ins->cmsid = isset($course->basicData->id) ? $course->basicData->id : '';
                 $ins->ecsid = $ecsid;
@@ -294,7 +297,7 @@ class campusconnect_course {
             if ($ecssettings->get_id() > 0) {
                 // Nasty hack for unit testing - 'delete_course' is too complex to
                 // be practical to mock up the database responses
-                delete_course($currcourse->courseid);
+                delete_course($currcourse->courseid, false);
             } else {
                 /** @noinspection PhpUndefinedMethodInspection */
                 $DB->mock_delete_course($currcourse->courseid);
@@ -398,6 +401,40 @@ class campusconnect_course {
             return false; // This is the 'real' course - no redirect needed
         }
         return new moodle_url('/course/view.php', array('id' => $course->internallink));
+    }
+
+    /**
+     * Given a list of courseids from the CMS, return the Moodle course ids that these map onto
+     * @param int[] $cmscourseids
+     * @return int[] mapping CMS courseid => Moodle courseid
+     */
+    public static function get_courseids_from_cmscourseids(array $cmscourseids) {
+        global $DB;
+
+        if (empty($cmscourseids)) {
+            return array();
+        }
+
+        list($csql, $params) = $DB->get_in_or_equal($cmscourseids);
+        return $DB->get_records_select_menu('local_campusconnect_crs', "cmsid $csql AND internallink = 0", $params,
+                                            '', 'cmsid, courseid');
+    }
+
+    /**
+     * Given a list of Moodle courseids, return the CMS course ids that these map onto
+     * @param int[] $cmscourseids
+     * @return int[] mapping CMS courseid => Moodle courseid
+     */
+    public static function get_cmscourseids_from_courseids(array $courseids) {
+        global $DB;
+
+        if (empty($courseids)) {
+            return array();
+        }
+
+        list($csql, $params) = $DB->get_in_or_equal($courseids);
+        return $DB->get_records_select_menu('local_campusconnect_crs', "courseid $csql AND internallink = 0", $params,
+                                            '', 'courseid, cmsid');
     }
 
     /**
@@ -588,7 +625,7 @@ class campusconnect_course_url {
         if ($this->crs->urlstatus != self::STATUS_UPTODATE) {
             throw new campusconnect_course_exception("campusconnect_course_url::add - unexpected status for newly created crs record ($this->crs->id)");
         }
-        if ($this->crs->urlresourcid != 0) {
+        if ($this->crs->urlresourceid != 0) {
             throw new campusconnect_course_exception("campusconnect_course_url::add - newly created crs record should not have a urlresourceid ($this->crs->id)");
         }
         $this->set_status(self::STATUS_CREATED);

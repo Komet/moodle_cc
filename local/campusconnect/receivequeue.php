@@ -181,6 +181,7 @@ class campusconnect_receivequeue {
      */
     public function process_queue(campusconnect_ecssettings $ecssettings = null) {
         $fixcourses = false;
+        $enrolusers = false;
 
         while ($event = $this->get_event_from_queue($ecssettings)) {
             $success = true;
@@ -200,6 +201,7 @@ class campusconnect_receivequeue {
                 break;
             case campusconnect_event::RES_COURSE_MEMBERS:
                 $this->process_members_event($event);
+                $enrolusers = true;
                 break;
             case campusconnect_event::RES_COURSE_URL:
             default:
@@ -219,6 +221,10 @@ class campusconnect_receivequeue {
 
         if ($fixcourses && !$this->unittest) { // Avoid fix_course_sortorder in unit tests.
             fix_course_sortorder();
+        }
+        if ($enrolusers) {
+            // There was a change in course members - time to process the enrolments.
+            campusconnect_membership::assign_all_roles($ecssettings, true);
         }
     }
 
@@ -313,7 +319,7 @@ class campusconnect_receivequeue {
 
         // Delete events do not need to retrieve the resource.
         if ($status == campusconnect_event::STATUS_DESTROYED) {
-            mtrace("CampusConnect: delete directory: ".$event->get_resource_id()."\n");
+            mtrace("CampusConnect: delete course: ".$event->get_resource_id()."\n");
             campusconnect_course::delete($event->get_resource_id(), $settings);
             return true;
         }

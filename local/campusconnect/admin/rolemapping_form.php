@@ -27,19 +27,25 @@ defined('MOODLE_INTERNAL') || die();
 global $CFG;
 
 require_once($CFG->libdir."/formslib.php");
-require_once($CFG->dirroot.'/local/campusconnect/ecssettings.php'); // For AUTH_xx definitions
+require_once($CFG->libdir."/form/group.php");
 
 class campusconnect_rolemapping_form extends moodleform {
 
     public function definition() {
         global $DB;
 
-        $roles = $DB->get_records('role');
+        $roles = $DB->get_records_menu('role', array(), 'id', 'id, name');
         $mappings = $DB->get_records('local_campusconnect_rolemap');
 
         $mform = $this->_form;
 
-        $mform->addElement('header', 'rolemappingsettings', get_string('rolemapping', 'local_campusconnect'));
+        $ccrolename = &$mform->createElement('text', 'ccrolename', get_string('ccrolename', 'local_campusconnect'));
+        $moodleroleid = &$mform->createElement('select', 'moodleroleid', get_string('moodlerole', 'local_campusconnect'), $roles);
+        $mapping = new MoodleQuickForm_group('mapping', null, array($ccrolename, $moodleroleid));
+        $repeatels = array(
+            $mapping
+        );
+        $this->repeat_elements($repeatels, count($mappings) + 3, array(), 'numtexts', 'addtexts', 3);
 
         $this->add_action_buttons();
     }

@@ -22,7 +22,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-$plugin->version = 2012101502;
+$plugin->version = 2012101503;
 $plugin->requires = 2011120100; // Moodle 2.2+
 $plugin->cron = 1; // Run every second (or as oftern as cron is run)
 $plugin->component = 'local_campusconnect';

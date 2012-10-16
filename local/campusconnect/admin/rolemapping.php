@@ -37,6 +37,9 @@ admin_externalpage_setup('campusconnectrolemapping');
 
 //load form
 $form = new campusconnect_rolemapping_form();
+if($data = $form->get_data()) {
+    print_object($data);
+}
 
 // Output starts here.
 echo $OUTPUT->header();

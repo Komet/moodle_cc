@@ -593,6 +593,16 @@ class campusconnect_metadata {
                 }
             }
         }
+
+        // Fix up the status field
+        if ($this->external) {
+            if ($remotedetails->status == 'offline') {
+                $course->visible = 0;
+            } else {
+                $course->visible = 1;
+            }
+        }
+
         return $course;
     }
 
@@ -684,6 +694,15 @@ class campusconnect_metadata {
                 }
             }
             $remotedetails->$field = $value;
+        }
+
+        // Fix up the status field
+        if ($this->external) {
+            if ($course->visible) {
+                $remotedetails->status = 'online';
+            } else {
+                $remotedetails->status = 'offline';
+            }
         }
 
         return $remotedetails;

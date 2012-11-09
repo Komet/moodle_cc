@@ -29,6 +29,14 @@ defined('MOODLE_INTERNAL') || die();
  * @param string $role
  */
 function get_roleid($role) {
-    global $DB;
-    return $DB->get_field('local_campusconnect_rolemap', 'moodleroleid', array('ccrolename' => $role));
+    //Cash entire mapping
+    static $mapping = null;
+    if(is_null($mapping)) {
+        global $DB;
+        $mapping = $DB->get_records_menu('local_campusconnect_rolemap', null, '', 'ccrolename, moodleroleid');
+    }
+    if (isset($mapping[$role])) {
+        return $mapping[$role];
+    }
+    return false;
 }

@@ -87,7 +87,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         }
         $hash = $paramassoc['ecs_hash'];
 
-        require_once($CFG->dirroot.'\local\campusconnect\connect.php');
+        require_once($CFG->dirroot.'/local/campusconnect/connect.php');
         $connecterrors = false;
         $authenticated = false;
         $ecslist = campusconnect_ecssettings::list_ecs();

@@ -295,20 +295,16 @@ class campusconnect_course {
 
         $currcourses = self::get_by_resourceid($resourceid, $ecssettings->get_id());
         foreach ($currcourses as $currcourse) {
-            if ($ecssettings->get_id() > 0) {
-                // Nasty hack for unit testing - 'delete_course' is too complex to
-                // be practical to mock up the database responses
-                delete_course($currcourse->courseid, false);
-            } else {
-                /** @noinspection PhpUndefinedMethodInspection */
-                $DB->mock_delete_course($currcourse->courseid);
-            }
             if ($currcourse->internallink == 0) {
+                // Do not actually delete the 'real' course
+
                 // Leave the course_url code to delete the record once it has informed the ECS
                 $courseurl = new campusconnect_course_url($currcourse->id);
                 $courseurl->delete();
             } else {
+                // Delete the internal links
                 $DB->delete_records('local_campusconnect_crs', array('id' => $currcourse->id));
+                delete_course($currcourse->courseid, false);
             }
         }
 
@@ -423,7 +419,7 @@ class campusconnect_course {
 
     /**
      * Given a list of Moodle courseids, return the CMS course ids that these map onto
-     * @param int[] $cmscourseids
+     * @param int[] $courseids
      * @return int[] mapping CMS courseid => Moodle courseid
      */
     public static function get_cmscourseids_from_courseids(array $courseids) {

@@ -28,7 +28,7 @@ defined('MOODLE_INTERNAL') || die();
  * For a given CampusConnect role, return the id of its role mapping (or false when not found)
  * @param string $role
  */
-function get_roleid($role) {
+function campusconnect_get_roleid($role) {
     //Cash entire mapping
     static $mapping = null;
     if(is_null($mapping)) {

@@ -348,6 +348,7 @@ class campusconnect_membership {
                 continue; // Course doesn't (yet) exist - skip it.
             }
             $courseid = $courseids[$membership->cmscourseid];
+
             if (!isset($courseenrol[$courseid])) {
                 // No CampusConnect enrolment instance - add one.
                 if (!$enrolinstance = self::add_enrol_instance($courseid, $enrol)) {
@@ -359,23 +360,47 @@ class campusconnect_membership {
                 $courseenrol[$courseid] = $enrolinstance;
             }
             $enrolinstance = $courseenrol[$courseid];
-            $roleid = self::get_roleid($membership->role);
 
-            if ($output) {
-                mtrace("Enroling user '{$membership->personid}' ({$userid}) in course '{$membership->cmscourseid}' ({$courseid}) with role '{$membership->role}' ({$roleid})");
+            if ($membership->status == self::STATUS_DELETED) {
+                // Deleted => unenrol user, then remove mbr record.
+                if ($output) {
+                    mtrace("Unenroling user '{$membership->personid}' ({$userid}) from course '{$membership->cmscourseid}' ({$courseid})");
+                }
+                $enrol->unenrol_user($enrolinstance, $userid);
+
+                $DB->delete_records('local_campusconnect_mbr', array('id' => $membership->id));
+            } else {
+                $roleid = self::get_roleid($membership->role);
+                if ($membership->status == self::STATUS_UPDATED) {
+                    // Updated => change the user's role (this will remove any other 'enrol_campusconnect' roles from this course.
+                    if ($output) {
+                        mtrace("Changing role for user '{$membership->personid}' ({$userid}) in course '{$membership->cmscourseid}' ({$courseid}) to role '{$membership->role}' ({$roleid})");
+                    }
+                    $context = context_course::instance($courseid);
+                    role_unassign_all(array('contextid' => $context->id, 'userid' => $userid,
+                                           'component' => 'enrol_campusconnect', 'itemid' => $enrolinstance->id));
+                    role_assign($roleid, $userid, $context->id, 'enrol_campusconnect', $enrolinstance->id);
+
+                } else {
+                    // Created => enrol the user with the given role.
+                    if ($output) {
+                        mtrace("Enroling user '{$membership->personid}' ({$userid}) in course '{$membership->cmscourseid}' ({$courseid}) with role '{$membership->role}' ({$roleid})");
+                    }
+                    $enrol->enrol_user($enrolinstance, $userid, $roleid);
+                }
+
+                $upd = new stdClass();
+                $upd->id = $membership->id;
+                $upd->status = self::STATUS_ASSIGNED;
+                $DB->update_record('local_campusconnect_mbr', $upd);
             }
-            $enrol->enrol_user($enrolinstance, $userid, $roleid);
-
-            $upd = new stdClass();
-            $upd->id = $membership->id;
-            $upd->status = self::STATUS_ASSIGNED;
-            $DB->update_record('local_campusconnect_mbr', $upd);
         }
     }
 
     /**
      * Process the 'create course' event and see if any user memberships have already been sent for this course
      * @param object $course
+     * @param $cmscourseid
      * @return bool true if successful
      */
     public static function assign_course_users($course, $cmscourseid) {
@@ -597,10 +622,23 @@ class campusconnect_membership {
      * @return int Moodle roleid to map this user onto
      */
     protected static function get_roleid($role) {
-        $roles = array('student' => 5, 'teacher' => 3);
-        $roleid = $roles[$role];
+        global $CFG, $DB;
+        require_once($CFG->dirroot.'/local/campusconnect/rolemap.php');
 
-        // TODO - use the proper mapping class
-        return $roleid;
+        if ($roleid = campusconnect_get_roleid($role)) {
+            return $roleid;
+        }
+
+        static $defaultroleid = null;
+        if (is_null($defaultroleid)) {
+            /** @var $cmsparticipant campusconnect_participantsettings */
+            $cmsparticipant = campusconnect_participantsettings::get_cms_participant();
+            $ecsid = $cmsparticipant->get_ecs_id();
+            $ecssettings = new campusconnect_ecssettings($ecsid);
+            $defaultrole = $ecssettings->get_import_role();
+            $defaultroleid = $DB->get_field('role', 'id', array('shortname' => $defaultrole));
+        }
+
+        return $defaultroleid;
     }
 }

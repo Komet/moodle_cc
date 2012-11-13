@@ -203,7 +203,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
      */
     function cron() {
         global $CFG, $DB;
-        require_once($CFG->dirroot.'\local\campusconnect\connect.php');
+        require_once($CFG->dirroot.'/local/campusconnect/connect.php');
 
         //Find users whose session should have expired by now
         $params = array(

@@ -410,7 +410,7 @@ class campusconnect_courselink {
             if (self::INCLUDE_LEGACY_PARAMS) {
                 $url .= 'ecs_hash='.$hash.'&';
             }
-            $url .= 'ecs_url_hash='.self::get_encoded_hash_url($courselink, $hash);
+            $url .= 'ecs_hash_url='.self::get_encoded_hash_url($courselink, $hash);
             $url .= '&'.self::get_user_data($USER);
         }
 

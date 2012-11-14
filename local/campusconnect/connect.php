@@ -133,6 +133,27 @@ class campusconnect_connect {
     }
 
     /**
+     * Generates a hash of the URL and userdata which can be used to authenticate the data after calling get_auth
+     * @param string $url
+     * @param array $userdata
+     * @return string
+     */
+    public static function generate_realm($url, $userdata) {
+        $str = $url;
+        $params = array('ecs_login', 'ecs_firstname', 'ecs_lastname', 'ecs_email', 'ecs_institution', 'ecs_uid_hash', 'ecs_uid');
+        foreach ($params as $param) {
+            if (!isset($userdata[$param])) {
+                if ($param == 'ecs_uid_hash') {
+                    continue; // OK to miss out the deprecated 'ecs_uid_hash'
+                }
+                throw new coding_exception("generate_realm - required field '{$param}' missing from the userdata");
+            }
+            $str .= $userdata[$param];
+        }
+        return sha1($str);
+    }
+
+    /**
      * Get a list of all the event queues (not supported by ECS server?)
      * @return object list of queues
      */

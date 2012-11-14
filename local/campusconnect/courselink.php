@@ -411,12 +411,12 @@ class campusconnect_courselink {
             } else {
                 $url .= '?';
             }
-            $hash = self::get_ecs_hash($courselink);
+            $hash = self::get_ecs_hash($courselink, $USER);
             if (self::INCLUDE_LEGACY_PARAMS) {
                 $url .= 'ecs_hash='.$hash.'&';
             }
             $url .= 'ecs_hash_url='.self::get_encoded_hash_url($courselink, $hash);
-            $url .= '&'.self::get_user_data($USER);
+            $url .= '&'.self::get_user_data_params($USER);
         }
 
         return $url;
@@ -425,14 +425,17 @@ class campusconnect_courselink {
     /**
      * Internal - generate an authentication hash for the given
      * course link
-     * @param $courselink
+     * @param object $courselink
+     * @param object $user
      * @return string
      */
-    protected static function get_ecs_hash($courselink) {
+    protected static function get_ecs_hash($courselink, $user) {
         $ecssettings = new campusconnect_ecssettings($courselink->ecsid);
         $connect = new campusconnect_connect($ecssettings);
 
-        $post = (object)array('url' => $courselink->url);
+        $userdata = self::get_user_data($user);
+        $realm = campusconnect_connect::generate_realm($courselink->url, $userdata);
+        $post = (object)array('realm' => $realm, 'url' => $courselink->url); // TODO davo - remove 'url' once ECS updated
 
         return $connect->add_auth($post, $courselink->mid);
     }
@@ -451,9 +454,9 @@ class campusconnect_courselink {
     }
 
     /**
-     * Internal - generate the user data to append to the courselink URL to allow SSO
+     * Generate an array containing all the userdata fields
      * @param object $user
-     * @return string
+     * @return array
      */
     protected static function get_user_data($user) {
         global $CFG;
@@ -468,6 +471,17 @@ class campusconnect_courselink {
         if (self::INCLUDE_LEGACY_PARAMS) {
             $userdata['ecs_uid_hash'] = $uid_hash;
         }
+
+        return $userdata;
+    }
+
+    /**
+     * Internal - generate the user data to append to the courselink URL to allow SSO
+     * @param object $user
+     * @return string
+     */
+    protected static function get_user_data_params($user) {
+        $userdata = self::get_user_data($user);
         $userdata = array_map('urlencode', $userdata);
 
         return http_build_query($userdata);

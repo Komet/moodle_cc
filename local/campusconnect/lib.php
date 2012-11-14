@@ -57,6 +57,9 @@ function local_campusconnect_cron() {
 
             campusconnect_directorytree::check_all_mappings();
 
+            mtrace("Emailing any necessary notifications for '".$ecssettings->get_name()."'");
+            campusconnect_notification::send_notifications($ecssettings);
+
             $ecssettings->update_last_cron();
         }
     }

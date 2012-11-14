@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/campusconnect/db" VERSION="20121015" COMMENT="XMLDB file for Moodle local/campusconnect"
+<XMLDB PATH="local/campusconnect/db" VERSION="20121114" COMMENT="XMLDB file for Moodle local/campusconnect"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -177,7 +177,7 @@
         <INDEX NAME="cmsid" UNIQUE="false" FIELDS="cmsid"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="local_campusconnect_mbr" COMMENT="Stored details of requested membership lists from the ECS" PREVIOUS="local_campusconnect_rolemap">
+    <TABLE NAME="local_campusconnect_mbr" COMMENT="Stored details of requested membership lists from the ECS" PREVIOUS="local_campusconnect_rolemap" NEXT="local_campusconnect_notify">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="resourceid"/>
         <FIELD NAME="resourceid" TYPE="int" LENGTH="10" NOTNULL="false" UNSIGNED="false" SEQUENCE="false" COMMENT="The resourceid for this membership list on the ECS" PREVIOUS="id" NEXT="cmscourseid"/>
@@ -191,6 +191,20 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="personid" UNIQUE="false" FIELDS="personid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_campusconnect_notify" COMMENT="Stores a list of notifications to send out to users." PREVIOUS="local_campusconnect_mbr">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="ecsid"/>
+        <FIELD NAME="ecsid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ECS that this notification relates to" PREVIOUS="id" NEXT="type"/>
+        <FIELD NAME="type" TYPE="int" LENGTH="4" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The type of notification to send out." PREVIOUS="ecsid" NEXT="data"/>
+        <FIELD NAME="data" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the relevant object to send information about" PREVIOUS="type"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="ecsid_type" UNIQUE="false" FIELDS="ecsid, type" COMMENT="Allows you to quickly get all the notifications of a particular type for an ECS"/>
       </INDEXES>
     </TABLE>
   </TABLES>

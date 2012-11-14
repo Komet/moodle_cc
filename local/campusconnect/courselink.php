@@ -154,6 +154,10 @@ class campusconnect_courselink {
             $ins->mid = $mid;
 
             $DB->insert_record('local_campusconnect_clink', $ins);
+
+            campusconnect_notification::queue_message($settings->get_id(),
+                                                      campusconnect_notification::MESSAGE_IMPORT_COURSELINK,
+                                                      $course->id);
         }
 
         return true;

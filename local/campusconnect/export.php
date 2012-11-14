@@ -289,7 +289,9 @@ class campusconnect_export {
      * @param array $unittestdata - course data to use when unit testing
      */
     public static function update_ecs(campusconnect_connect $connect, $unittestdata = null) {
-        global $DB;
+        global $DB, $CFG;
+
+        require_once($CFG->dirroot.'/local/campusconnect/notify.php');
 
         // Get a list of all the courses that need updating on the ECS server.
         $updated = $DB->get_records_select('local_campusconnect_export', 'ecsid = :ecsid AND status <> :uptodate',
@@ -316,6 +318,10 @@ class campusconnect_export {
             // Update ECS server.
             if ($export->status == self::STATUS_CREATED) {
                 $resourceid = $connect->add_resource(campusconnect_event::RES_COURSELINK, $data, null, $export->mids);
+
+                campusconnect_notification::queue_message($connect->get_ecs_id(),
+                                                          campusconnect_notification::MESSAGE_EXPORT_COURSELINK,
+                                                          $course->id);
             }
             if ($export->status == self::STATUS_UPDATED) {
                 $connect->update_resource($export->resourceid, campusconnect_event::RES_COURSELINK, $data, null, $export->mids);

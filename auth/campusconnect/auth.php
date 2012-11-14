@@ -82,28 +82,63 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             $paramassoc[$split[0]] = urldecode(urldecode($split[1]));
         }
 
-        if (!isset($paramassoc['ecs_hash'])) {
-            return;
-        }
-        $hash = $paramassoc['ecs_hash'];
-
         require_once($CFG->dirroot.'/local/campusconnect/connect.php');
         $connecterrors = false;
         $authenticated = false;
         $ecslist = campusconnect_ecssettings::list_ecs();
         $authenticatingecs = null;
-        foreach ($ecslist as $ecsid => $ecsname) {
-            $settings = new campusconnect_ecssettings($ecsid);
-            try {
-                $connect = new campusconnect_connect($settings);
-                $auth = $connect->get_auth($hash);
-                if (is_object($auth) && isset($auth->hash)) {
-                    $authenticated = true;
-                    $authenticatingecs = $ecsid;
-                    break;
+        if (isset($paramassoc['ecs_hash_url'])) {
+
+            // Newer 'ecs_hash_url' param included => use this to determine the ECS to authenticate against.
+            $hashurl = $paramassoc['ecs_hash_url'];
+            $matches = array();
+            if (!preg_match('|(.*)/sys/auths/(.*)|', $hashurl, $matches)) {
+                return; // Not able to parse the 'ecs_hash_url' successfully.
+            }
+            $baseurl = $matches[1];
+            $hash = $matches[2];
+
+            $ecslist = campusconnect_ecssettings::list_ecs();
+            foreach ($ecslist as $ecsid => $ecsname) {
+                $settings = new campusconnect_ecssettings($ecsid);
+                if ($settings->get_url() == $baseurl) {
+                    // Found an ECS with matching URL - attempt to authenticate the hash.
+                    try {
+                        $connect = new campusconnect_connect($settings);
+                        $auth = $connect->get_auth($hash);
+                        if (is_object($auth) && isset($auth->hash)) {
+                            $authenticated = true;
+                            $authenticatingecs = $ecsid;
+                            break;
+                        }
+                    } catch (campusconnect_connect_exception $e) {
+                        $connecterrors = true;
+                    }
                 }
-            } catch (campusconnect_connect_exception $e) {
-                $connecterrors = true;
+            }
+
+        } else {
+
+            // Fall back to the legacy 'ecs_hash' param
+            if (!isset($paramassoc['ecs_hash'])) {
+                return;
+            }
+            $hash = $paramassoc['ecs_hash'];
+
+            foreach ($ecslist as $ecsid => $ecsname) {
+                // Try each of the active ECS and see if the hash authenticates.
+                $settings = new campusconnect_ecssettings($ecsid);
+                try {
+                    $connect = new campusconnect_connect($settings);
+                    $auth = $connect->get_auth($hash);
+                    if (is_object($auth) && isset($auth->hash)) {
+                        $authenticated = true;
+                        $authenticatingecs = $ecsid;
+                        break;
+                    }
+                } catch (campusconnect_connect_exception $e) {
+                    $connecterrors = true;
+                }
             }
         }
 
@@ -116,10 +151,14 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         }
 
         //We've now confirmed authentication! Let's create/find the user:
-        if (!isset($paramassoc['ecs_uid_hash'])) {
-            return;
+        if (isset($paramassoc['ecs_uid'])) {
+            $uidhash = $paramassoc['ecs_uid']; // New name for the parameter.
+        } else {
+            if (!isset($paramassoc['ecs_uid_hash'])) {
+                return;
+            }
+            $uidhash = $paramassoc['ecs_uid_hash']; // Legacy name for the parameter.
         }
-        $uidhash = $paramassoc['ecs_uid_hash'];
         $username = $this->username_from_params($uidhash, $authenticatingecs);
         $basicuserfields = array('firstname', 'lastname', 'email');
 

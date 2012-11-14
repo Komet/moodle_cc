@@ -28,6 +28,7 @@ global $CFG;
 require_once($CFG->dirroot.'/local/campusconnect/participantsettings.php');
 require_once($CFG->dirroot.'/local/campusconnect/metadata.php');
 require_once($CFG->dirroot.'/course/lib.php');
+require_once($CFG->dirroot.'/local/campusconnect/notify.php');
 
 /**
  * Exception thrown by the campusconnect_courselink object

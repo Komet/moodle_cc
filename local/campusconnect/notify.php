@@ -28,15 +28,17 @@ class campusconnect_notification {
     const MESSAGE_IMPORT_COURSELINK = 1;
     const MESSAGE_EXPORT_COURSELINK = 2;
     const MESSAGE_NEW_USER = 3;
+    const MESSAGE_CREATE_COURSE = 4;
 
-    static $messagetypes = array(self::MESSAGE_IMPORT_COURSELINK, self::MESSAGE_EXPORT_COURSELINK, self::MESSAGE_NEW_USER);
+    static $messagetypes = array(self::MESSAGE_IMPORT_COURSELINK, self::MESSAGE_EXPORT_COURSELINK,
+                                 self::MESSAGE_NEW_USER, self::MESSAGE_CREATE_COURSE);
 
     /**
      * Queue a new notification to be sent out via email
      * @param int $ecsid the ECS this message relates to
      * @param int $type what the notification relates to (MESSAGE_IMPORT_COURSELINK, MESSAGE_EXPORT_COURSELINK,
      *                  MESSAGE_NEW_USER)
-     * @param int $data for courselinks: the ID of the Moodle course, for users: the ID of the new user
+     * @param int $dataid for courselinks: the ID of the Moodle course, for users: the ID of the new user
      */
     public static function queue_message($ecsid, $type, $dataid) {
         global $DB;
@@ -80,6 +82,13 @@ class campusconnect_notification {
                 'name' => 'firstname,lastname',
                 'url' => '/user/view.php',
                 'users' => $ecssettings->get_notify_users(),
+            ),
+            self::MESSAGE_CREATE_COURSE => (object)array(
+                'string' => 'course',
+                'table' => 'course',
+                'name' => 'fullname',
+                'url' => '/course/view.php',
+                'users' => $ecssettings->get_notify_content(),
             ),
         );
 

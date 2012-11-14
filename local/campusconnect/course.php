@@ -24,6 +24,9 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
+require_once($CFG->dirroot.'/local/campusconnect/notify.php');
+
 /**
  * Exception thrown by the campusconnect_courselink object
  */
@@ -36,7 +39,6 @@ class campusconnect_course_exception extends moodle_exception {
         parent::__construct('error', 'local_campusconnect', '', $msg);
     }
 }
-
 
 class campusconnect_course {
 
@@ -65,7 +67,7 @@ class campusconnect_course {
         $coursedata = self::map_course_settings($course, $ecssettings);
         if (self::get_by_resourceid($resourceid, $ecssettings->get_id())) {
             debugging("Cannot create a course from resource $resourceid - it already exists.");
-            return false;
+            return true; // The event should be removed from the queue, so we don't get this error again.
         }
 
         /** @var $categories campusconnect_course_category[] */
@@ -115,6 +117,10 @@ class campusconnect_course {
 
                 // Process any existing enrolment requests for this course
                 campusconnect_membership::assign_course_users($newcourse, $ins->cmsid);
+
+                campusconnect_notification::queue_message($ecssettings->get_id(),
+                                                          campusconnect_notification::MESSAGE_CREATE_COURSE,
+                                                          $newcourse->id);
             }
         }
 

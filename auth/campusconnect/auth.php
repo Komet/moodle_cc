@@ -351,11 +351,11 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             $messagetext = get_string('newusernotifybody', 'auth_campusconnect', $newuser);
             $usernamesplit = explode('_', $newuser->username);
             if (!isset($usernamesplit[1]) || substr($usernamesplit[1], 0, 3) != 'ecs') {
-                mtrace('usernamecantfindecs', 'auth_campusconnect'). ': ' . $newuser->username;
+                mtrace(get_string('usernamecantfindecs', 'auth_campusconnect'). ': ' . $newuser->username);
             }
             $ecsid = (int)str_replace('ecs', '', $usernamesplit[1]);
             if (!isset($ecslist[$ecsid])) {
-                mtrace('usernamecantfindecs', 'auth_campusconnect'). ': ' . $newuser->username;
+                mtrace(get_string('usernamecantfindecs', 'auth_campusconnect'). ': ' . $newuser->username);
             }
             if (!isset($notified[$ecsid])) {
                 list($in, $params) = $DB->get_in_or_equal($ecsemails[$ecsid]);

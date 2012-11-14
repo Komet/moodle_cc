@@ -148,6 +148,7 @@ $string['refresh_processcourselinks'] = 'Updating all imported course links';
 $string['refresh_processcourseurl'] = 'Updating all exported course urls';
 $string['refresh_processdirtree'] = 'Updating all directory trees';
 $string['refresh_processexport'] = 'Updating all exported courses';
+$string['refresh_processmembership'] = 'Updating all course membership';
 $string['refresh_processmessages'] = 'Processing event queue';
 $string['refreshdone'] = 'Refresh complete - all imported and exported content checked against ECS server \'{$a}\'';
 $string['refreshecs'] = 'Refresh all content';

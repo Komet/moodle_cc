@@ -210,7 +210,7 @@ class campusconnect_membership {
     }
 
     /**
-     * Update all courses from the ECS
+     * Update all membership lists from the ECS
      * @param campusconnect_ecssettings $ecssettings
      * @return object containing: ->created - array of created resource ids
      *                            ->updated - array of updated resource ids

@@ -149,7 +149,7 @@ class campusconnect_course {
             throw new campusconnect_course_exception("Received update course event from non-CMS participant");
         }
 
-        $currcourses = self::get_by_resourceid($resourceid, $ecssettings->get_id());
+        $currcourses = self::get_by_resourceid($resourceid, $ecsid);
         if (empty($currcourses)) {
             return self::create($resourceid, $ecssettings, $course, $transferdetails);
             //throw new campusconnect_course_exception("Cannot update course resource $resourceid - it doesn't exist");
@@ -283,8 +283,30 @@ class campusconnect_course {
                 $ins->ecsid = $ecsid;
                 $ins->mid = $mid;
                 $ins->internallink = $internallink;
-                $DB->insert_record('local_campusconnect_crs', $ins);
+                $ins->id = $DB->insert_record('local_campusconnect_crs', $ins);
+                $currcourses[] = $ins;
             }
+        }
+
+        // Check the 'real' course is in the first category in the list, if not, swap the course with one of the links.
+        $firstcategory = reset($categories);
+        $firstcategoryid = $firstcategory->get_categoryid();
+        $firstcourse = reset($currcourses);
+        $realcourseid = ($firstcourse->internallink == 0) ? $firstcourse->courseid : $firstcourse->internallink;
+        $realcategoryid = $DB->get_field('course', 'category', array('id' => $realcourseid), MUST_EXIST);
+        if ($realcategoryid != $firstcategoryid) {
+            // The 'real' course is not in the first category - find the course that is in that category and swap them.
+            $params = array('resourceid' => $resourceid, 'ecsid' => $ecsid, 'firstcategoryid' => $firstcategoryid);
+            $swapcourseid = $DB->get_field_sql('SELECT c.id
+                                                  FROM {course} c
+                                                  JOIN {local_campusconnect_crs} ccc ON c.id = ccc.courseid
+                                                 WHERE ccc.resourceid = :resourceid AND ccc.ecsid = :ecsid
+                                                   AND c.category = :firstcategoryid', $params, MUST_EXIST);
+
+            $realcourse = (object)array('id' => $realcourseid, 'category' => $firstcategoryid);
+            $swapcourse = (object)array('id' => $swapcourseid, 'category' => $realcategoryid);
+            $DB->update_record('course', $realcourse);
+            $DB->update_record('course', $swapcourse);
         }
 
         return true;

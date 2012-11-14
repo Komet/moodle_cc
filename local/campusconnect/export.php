@@ -130,7 +130,7 @@ class campusconnect_export {
 
     /**
      * Set the export status for an individual participant
-     * @param mixed string | campusconnect_participantsettings $identifier - ecsid_mid for the participant
+     * @param mixed $identifier string | campusconnect_participantsettings  - ecsid_mid for the participant
      * @param bool $export true to export to them, false to not export
      * @return void
      */
@@ -545,6 +545,8 @@ class campusconnect_export {
 
     /**
      * List all courses exported by this VLE
+     * @param int $ecsid optional
+     * @param int $mid optional
      * @return campusconnect_export[]
      */
     public static function list_all_exports($ecsid = null, $mid = null) {

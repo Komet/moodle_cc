@@ -81,7 +81,7 @@ class campusconnect_ecssettings {
 
     /**
      * Initialise a settings object
-     * @param int $ecsname optional - the ID of the ECS to load settings for
+     * @param int $ecsid optional - the ID of the ECS to load settings for
      * @param string $unittest optional - the ecsauth name to use for unit testing
      * @return void
      */

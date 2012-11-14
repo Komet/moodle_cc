@@ -231,6 +231,7 @@ class campusconnect_metadata {
 
     /**
      * Generate a default summary layout (could be used to reset back to the default)
+     * @param bool $external optional (default true)
      * @return string the default summary
      */
     public static function generate_default_summary($external = true) {
@@ -256,7 +257,7 @@ class campusconnect_metadata {
 
     /**
      * Delete all metadata mappings associated with the given ECS
-     * @param campusconnect_ecssettings $ecssettings the ECS to clear
+     * @param int $ecsid the ECS to clear
      */
     public static function delete_ecs_metadata_mappings($ecsid) {
         global $DB;

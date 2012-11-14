@@ -47,6 +47,8 @@ class campusconnect_courselink_exception extends moodle_exception {
  */
 class campusconnect_courselink {
 
+    const INCLUDE_LEGACY_PARAMS = true; // Include the legacy 'ecs_hash' and 'ecs_uid_hash' params in the courselink url.
+
     protected $recordid;
     protected $courseid;
     protected $url;
@@ -404,7 +406,11 @@ class campusconnect_courselink {
             } else {
                 $url .= '?';
             }
-            $url .= 'ecs_hash='.self::get_ecs_hash($courselink);
+            $hash = self::get_ecs_hash($courselink);
+            if (self::INCLUDE_LEGACY_PARAMS) {
+                $url .= 'ecs_hash='.$hash.'&';
+            }
+            $url .= 'ecs_url_hash='.self::get_encoded_hash_url($courselink, $hash);
             $url .= '&'.self::get_user_data($USER);
         }
 
@@ -427,6 +433,19 @@ class campusconnect_courselink {
     }
 
     /**
+     * Generate the correct encoded URL for the 'ecs_hash_url' param
+     * @param campusconnect_courselink $courselink
+     * @param string $hash
+     * @return string
+     */
+    protected static function get_encoded_hash_url($courselink, $hash) {
+        $ecssettings = new campusconnect_ecssettings($courselink->ecsid);
+        $ret = $ecssettings->get_url().'/sys/auths/'.$hash;
+
+        return urlencode($ret);
+    }
+
+    /**
      * Internal - generate the user data to append to the courselink URL to allow SSO
      * @param object $user
      * @return string
@@ -440,7 +459,10 @@ class campusconnect_courselink {
                           'ecs_lastname' => $user->lastname,
                           'ecs_email' => $user->email,
                           'ecs_institution' => '',
-                          'ecs_uid_hash' => $uid_hash);
+                          'ecs_uid' => $uid_hash);
+        if (self::INCLUDE_LEGACY_PARAMS) {
+            $userdata['ecs_uid_hash'] = $uid_hash;
+        }
         $userdata = array_map('urlencode', $userdata);
 
         return http_build_query($userdata);

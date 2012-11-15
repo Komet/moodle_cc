@@ -97,7 +97,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         $authenticated = false;
         $ecslist = campusconnect_ecssettings::list_ecs();
         $authenticatingecs = null;
-        if (isset($paramassoc['ecs_hash_url'])) {
+        if (!empty($paramassoc['ecs_hash_url'])) {
 
             // Newer 'ecs_hash_url' param included => use this to determine the ECS to authenticate against.
             $hashurl = $paramassoc['ecs_hash_url'];
@@ -136,7 +136,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         } else {
 
             // Fall back to the legacy 'ecs_hash' param
-            if (!isset($paramassoc['ecs_hash'])) {
+            if (empty($paramassoc['ecs_hash'])) {
                 return;
             }
             $hash = $paramassoc['ecs_hash'];
@@ -181,7 +181,10 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             }
             $uidhash = $paramassoc['ecs_uid_hash']; // Legacy name for the parameter.
         }
-        $username = $this->username_from_params($uidhash, $authenticatingecs);
+        if (!isset($paramassoc['ecs_login'])) {
+            return;
+        }
+        $username = $this->username_from_params($paramassoc['ecs_login'], $uidhash, $authenticatingecs);
         $basicuserfields = array('firstname', 'lastname', 'email');
 
         //If user does not exist, create:
@@ -227,7 +230,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
      *
      */
     function prelogout_hook() {
-        global $CFG, $USER, $DB;
+        global $USER, $DB;
         if ($USER->auth != $this->authtype) {
             return;
         }
@@ -311,37 +314,39 @@ class auth_plugin_campusconnect extends auth_plugin_base {
                 $year += floor(($month -1) / 12);
                 $month = $month % 12 + 12;
             }
-            $acivationdate = mktime(date('H'), date('i'), date('s'), $month, $day, $year);
-            $params = array(
-                'auth' => $this->authtype,
-                'userprefix' => 'campusconnect_ecs' . $ecsid . '_%',
-                'acivationdate' => $acivationdate
-            );
-            $sql = "
-            UPDATE {user} usr
-            SET suspended = 1
-            WHERE usr.deleted = 0
-            AND usr.auth = :auth
-            AND usr.suspended = 0
-            AND usr.username LIKE :userprefix
-            AND (
-              EXISTS (
-                SELECT * FROM {user_enrolments} uen
-                WHERE uen.userid = usr.id
-              ) OR EXISTS (
-                SELECT * FROM {log} lg
-                WHERE lg.userid = usr.id
-                AND lg.action = 'enrol'
-              )
-            )
-            AND NOT EXISTS (
-              SELECT * FROM {log} lg2
-              WHERE lg2.userid = usr.id
-              AND lg2.action = 'enrol'
-              AND lg2.time > :acivationdate
-            )
-            ";
-            $DB->execute($sql, $params);
+            $cutoff = mktime(date('H'), date('i'), date('s'), $month, $day, $year);
+            $sql = "SELECT u.id
+                      FROM {user} u
+                      JOIN {auth_campusconnect} ac ON u.username = ac.username AND ac.ecsid = :ecsid
+                     WHERE u.suspended = 0 AND u.deleted = 0
+                       AND (
+                         EXISTS (
+                           SELECT *
+                             FROM {user_enrolments} uen
+                            WHERE uen.userid = u.id
+                         ) OR EXISTS (
+                           SELECT *
+                             FROM {log} lg
+                            WHERE lg.userid = u.id
+                              AND lg.action = 'enrol'
+                         )
+                       )
+                       AND NOT EXISTS (
+                         SELECT *
+                           FROM {log} lg2
+                          WHERE lg2.userid = u.id
+                            AND lg2.action = 'enrol'
+                            AND lg2.time > :cutoff
+                       )
+                   ";
+            $params = array('ecsid' => $ecsid, 'cutoff' => $cutoff);
+            $userids = $DB->get_fieldset_sql($sql, $params);
+            if (!empty($userids)) {
+                list($usql, $params) = $DB->get_in_or_equal($userids);
+                $DB->execute("UPDATE {user} u
+                                 SET suspended = 1
+                               WHERE u $usql", $params);
+            }
 
             //For later:
             $ecsemails[$ecsid] = $settings->get_notify_users();
@@ -400,18 +405,34 @@ class auth_plugin_campusconnect extends auth_plugin_base {
      * @param string $uidhash - an 'ecs_uid_hash' from the url params
      * @param int $ecsid - the ECS that authenticated the user
      */
+    private function username_from_params($username, $uidhash, $ecsid) {
+        global $DB;
 
-    private function username_from_params($uidhash, $ecsid) {
-        $prefix = 'campusconnect_ecs' . $ecsid . '_';
-        $split = explode('_usr_', $uidhash);
-        if (count($split) != 2) {
-            return $prefix . sha1($uidhash);
+        // See if we already know about this user.
+        if ($ecsuser = $DB->get_record('auth_campusconnect', array('ecsid' => $ecsid, 'ecs_uid' => $uidhash))) {
+            return $ecsuser->username; // User has previously authenticated here - just return their previous username.
         }
-        $remoteuserid = $split[1];
-        if (strlen($remoteuserid)>40) {
-            $remoteuserid = sha1($remoteuserid);
+
+        // Generate a new username for this user.
+        $prefix = 'campusconnect_ecs'.$ecsid.'_';
+        $username = $prefix.$username;
+
+        // Make sure the username is unique.
+        $i = 1;
+        $finalusername = $username;
+        while ($DB->record_exists('user', array('username' => $finalusername))) {
+            $finalusername = $username.($i++);
         }
-        return $prefix .'usr'.$remoteuserid;
+
+        // Record the username for future reference.
+        $ins = new stdClass();
+        $ins->ecsid = $ecsid;
+        $ins->ecs_uid = $uidhash;
+        $ins->username = $finalusername;
+        $ins->id = $DB->insert_record('auth_campusconnect', $ins);
+
+        // Return the generated username.
+        return $finalusername;
     }
 
     /*

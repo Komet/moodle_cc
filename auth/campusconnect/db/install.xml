@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="auth/campusconnect/db" VERSION="20121115" COMMENT="XMLDB file for Moodle auth/campusconnect"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
+>
+  <TABLES>
+    <TABLE NAME="auth_campusconnect" COMMENT="Stores details of the UID and ECSID for users who arrive via ECS SSO.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="ecsid"/>
+        <FIELD NAME="ecsid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" PREVIOUS="id" NEXT="ecs_uid"/>
+        <FIELD NAME="ecs_uid" TYPE="char" LENGTH="60" NOTNULL="false" SEQUENCE="false" COMMENT="The UID by which the user is known on the remote system" PREVIOUS="ecsid" NEXT="username"/>
+        <FIELD NAME="username" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="The generated username for this user" PREVIOUS="ecs_uid"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id" NEXT="ecsid"/>
+        <KEY NAME="ecsid" TYPE="foreign" FIELDS="ecsid" REFTABLE="local_campusconnect_ecs" REFFIELDS="id" PREVIOUS="primary"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="ecs_uid" UNIQUE="true" FIELDS="ecs_uid"/>
+      </INDEXES>
+    </TABLE>
+  </TABLES>
+</XMLDB>

@@ -123,6 +123,7 @@ class campusconnect_connect {
             throw new campusconnect_connect_exception('get_auth - no auth hash given');
         }
         $this->init_connection('/sys/auths/'.$hash);
+        $this->set_delete();
 
         $result = $this->call();
         if (!$this->check_status(self::HTTP_CODE_OK)) {

@@ -435,7 +435,7 @@ class campusconnect_courselink {
 
         $userdata = self::get_user_data($user);
         $realm = campusconnect_connect::generate_realm($courselink->url, $userdata);
-        $post = (object)array('realm' => $realm, 'url' => $courselink->url); // TODO davo - remove 'url' once ECS updated
+        $post = (object)array('realm' => $realm);
 
         return $connect->add_auth($post, $courselink->mid);
     }
@@ -461,7 +461,8 @@ class campusconnect_courselink {
     protected static function get_user_data($user) {
         global $CFG;
 
-        $uid_hash = 'moodle_'.$CFG->wwwroot.'_usr_'.$user->id;
+        $siteid = substr(sha1($CFG->wwwroot), 0, 8); // Generate a unique ID from the site URL
+        $uid_hash = 'moodle_'.$siteid.'_usr_'.$user->id;
         $userdata = array('ecs_login' => $user->username,
                           'ecs_firstname' => $user->firstname,
                           'ecs_lastname' => $user->lastname,

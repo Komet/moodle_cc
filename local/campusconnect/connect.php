@@ -140,13 +140,14 @@ class campusconnect_connect {
      */
     public static function generate_realm($url, $userdata) {
         $str = $url;
-        $params = array('ecs_login', 'ecs_firstname', 'ecs_lastname', 'ecs_email', 'ecs_institution', 'ecs_uid_hash', 'ecs_uid');
+        $params = array('ecs_login', 'ecs_firstname', 'ecs_lastname', 'ecs_email', 'ecs_institution', 'ecs_uid');
         foreach ($params as $param) {
             if (!isset($userdata[$param])) {
-                if ($param == 'ecs_uid_hash') {
-                    continue; // OK to miss out the deprecated 'ecs_uid_hash'
+                if ($param == 'ecs_uid' && isset($userdata['ecs_uid_hash'])) {
+                    $param = 'ecs_uid_hash'; // Use the deprecated 'ecs_uid_hash', if 'ecs_uid' not found
+                } else {
+                    throw new coding_exception("generate_realm - required field '{$param}' missing from the userdata");
                 }
-                throw new coding_exception("generate_realm - required field '{$param}' missing from the userdata");
             }
             $str .= $userdata[$param];
         }

@@ -8,7 +8,7 @@
 if (!defined('MOODLE_INTERNAL')) {
     die('Direct access to this script is forbidden.'); ///  It must be included from a Moodle page
 }
-
+global $CFG;
 require_once($CFG->libdir.'/authlib.php');
 
 /**
@@ -82,6 +82,16 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             $paramassoc[$split[0]] = urldecode(urldecode($split[1]));
         }
 
+        // Check the incoming URL matches a valid Moodle course URL
+        if (!isset($paramassoc['id'])) {
+            return; // URL didn't include a course ID
+        }
+        $courseurl = new moodle_url('/course/view.php', array('id' => $paramassoc['id']));
+        $courseurl = $courseurl->out();
+        if (substr_compare($SESSION->wantsurl, $courseurl, 0, strlen($courseurl)) !== 0) {
+            return; // URL didn't match a Moodle course URL
+        }
+
         require_once($CFG->dirroot.'/local/campusconnect/connect.php');
         $connecterrors = false;
         $authenticated = false;
@@ -106,7 +116,13 @@ class auth_plugin_campusconnect extends auth_plugin_base {
                     try {
                         $connect = new campusconnect_connect($settings);
                         $auth = $connect->get_auth($hash);
-                        if (is_object($auth) && isset($auth->hash)) {
+                        if (is_object($auth) && isset($auth->hash) && $auth->hash == $hash) {
+                            if (isset($auth->realm)) {
+                                $realm = campusconnect_connect::generate_realm($courseurl, $paramassoc);
+                                if ($realm != $auth->realm) {
+                                    continue; // Params do not match those when the original hash was generated.
+                                }
+                            }
                             $authenticated = true;
                             $authenticatingecs = $ecsid;
                             break;
@@ -131,7 +147,13 @@ class auth_plugin_campusconnect extends auth_plugin_base {
                 try {
                     $connect = new campusconnect_connect($settings);
                     $auth = $connect->get_auth($hash);
-                    if (is_object($auth) && isset($auth->hash)) {
+                    if (is_object($auth) && isset($auth->hash) && ($auth->hash == $hash)) {
+                        if (isset($auth->realm)) {
+                            $realm = campusconnect_connect::generate_realm($courseurl, $paramassoc);
+                            if ($realm != $auth->realm) {
+                                continue;
+                            }
+                        }
                         $authenticated = true;
                         $authenticatingecs = $ecsid;
                         break;

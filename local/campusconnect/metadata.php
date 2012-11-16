@@ -485,13 +485,11 @@ class campusconnect_metadata {
     }
 
     /**
-     * Maps the remote details onto a course object
-     * @param object $remotedetails the details from the ECS server
-     * @return object the course details
+     * Convert the structured details into a flat array for easier processing
+     * @param stdClass $remotedetails
+     * @return array
      */
-    public function map_remote_to_course($remotedetails) {
-        // Copy all details out of structured object into flat array.
-        $details = array();
+    public function flatten_remote_data($remotedetails) {
         foreach ($remotedetails as $name => $value) {
             if ($name == 'basicData') {
                 foreach ($value as $fieldname => $fieldvalue) {
@@ -512,9 +510,9 @@ class campusconnect_metadata {
                 }
                 continue;
             }
-
             $details[$name] = $value;
         }
+
         // Convert dates, lists, etc. into suitable format for Moodle.
         $remotefields = $this->external ? self::$remotefieldsext : self::$remotefields;
         foreach ($remotefields as $fieldname => $fieldtype) {
@@ -556,7 +554,7 @@ class campusconnect_metadata {
                 case 'link':
                     $details[$fieldname] = html_writer::link($details[$fieldname]->href, $details[$fieldname]->title);
                     break;
-                case 'lang': // TODO - test if this needs any conversion.
+                case 'lang': // TODO davo - test if this needs any conversion.
                 case 'url':
                 case 'string':
                 default:
@@ -564,6 +562,17 @@ class campusconnect_metadata {
                 }
             }
         }
+    }
+
+    /**
+     * Maps the remote details onto a course object
+     * @param object $remotedetails the details from the ECS server
+     * @return object the course details
+     */
+    public function map_remote_to_course($remotedetails) {
+        // Copy all details out of structured object into flat array.
+        $details = $this->flatten_remote_data($remotedetails);
+        $remotefields = $this->external ? self::$remotefieldsext : self::$remotefields;
         // Copy details into course object, as specified by $this->importmappings.
         $course = new stdClass();
         foreach ($this->importmappings as $localfield => $remotefield) {

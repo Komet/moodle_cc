@@ -24,7 +24,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-class campusconnet_filtering {
+class campusconnect_filtering {
 
     static $config = null;
     static $globalsettings = array('enabled' => 'bool', 'defaultcategory' => 'int', 'usesinglecategory' => 'bool',
@@ -115,10 +115,11 @@ class campusconnet_filtering {
     /**
      * Saves all the global settings provided in the array. See campusconnect_filtering::$globalsetting for
      * a full list of the available settings.
-     * @param array $settings
+     * @param mixed $settings object|array
      * @throws coding_exception
      */
-    public static function save_global_settings(array $settings) {
+    public static function save_global_settings($settings) {
+        $settings = (array)$settings;
         foreach (self::$globalsettings as $name => $type) {
             if (!isset($settings[$name])) {
                 continue;

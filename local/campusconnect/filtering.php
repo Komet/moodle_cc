@@ -31,6 +31,95 @@ class campusconnect_filtering {
                                    'singlecategory' => 'int', 'attributes' => 'array');
 
     //////////////////////////////////////////////
+    // Using the course filtering
+    //////////////////////////////////////////////
+
+    /**
+     *
+     * @param $coursedata
+     * @param $ecssettings
+     * @return array
+     */
+    public static function get_categories($coursedata, $ecssettings) {
+        if (!self::enabled()) {
+            throw new coding_exception("Must not call get_categories() when course import filtering is disabled.");
+        }
+
+        $categories = array();
+        if ($createincategory = self::create_in_category()) {
+            $categories[] = $createincategory;
+        }
+
+        $meta = new campusconnect_metadata($ecssettings, false);
+        $metadata = $meta->flatten_remote_data($coursedata);
+        foreach (self::load_category_settings() as $categoryid => $attributes) {
+            if (self::check_filter_match($metadata, $attributes)) {
+                $categories[] = self::find_or_create_category($metadata, $attributes, $categoryid);
+            }
+        }
+
+        if (empty($categories)) {
+            $categories = array(self::get_default_category());
+        }
+        return $categories;
+    }
+
+    /**
+     * Check if a particular filter is matched by this course metadata.
+     *
+     * @param stdClass $coursedata the flattened metadata from the remote course
+     * @param stdClass[] $attributes the filter settings for the attributes
+     * @return bool true if the filter rule is matched
+     */
+    public static function check_filter_match($coursedata, $attributes) {
+        foreach ($attributes as $attribute => $settings) {
+            if (!$settings->allwords) { // Must match specific words
+                if (!isset($coursedata[$attribute])) {
+                    return false; // Attribute does not exist in the metadata => does not match
+                }
+                $val = $coursedata[$attribute];
+                if (!in_array($val, $settings->words)) {
+                    return false; // Attribute does not match the specified words
+                }
+            }
+        }
+        return true; // Filter matches on all attributes => create course here
+    }
+
+    /**
+     * Creates the tree of subcategories as specified by the attributes, if it does not already exists, and then
+     * returns the ID of the category in which the course should be created.
+     *
+     * @param stdClass $coursedata the flattened metadata from the remote course
+     * @param stdClass[] $attributes the filter settings for the attributes
+     * @param int $categoryid the base category for this filter
+     * @return int the categoryid to create the course in
+     */
+    public static function find_or_create_category($coursedata, $attributes, $categoryid) {
+        global $DB;
+        $currcatid = $categoryid;
+        foreach ($attributes as $attribute => $settings) {
+            if (!$settings->createsubcategories) {
+                continue; // Not creating subcategories for this attribute - move on to the next attribute.
+            }
+            $catname = $coursedata[$attribute];
+            if ($subcatid = $DB->get_field('course_categories', 'id', array('parent' => $currcatid, 'name' => $catname))) {
+                // Subcategory matching this attribute already exists.
+                $currcatid = $subcatid;
+            } else {
+                // Need to create a new subcategory.
+                $ins = new stdClass();
+                $ins->parent = $currcatid;
+                $ins->name = $catname;
+                $ins->sortorder = 999;
+                $currcatid = $DB->insert_record('course_categories', $ins);
+            }
+        }
+
+        return $currcatid;
+    }
+
+    //////////////////////////////////////////////
     // Global settings for course filtering
     //////////////////////////////////////////////
 
@@ -269,6 +358,13 @@ class campusconnect_filtering {
         return html_writer::tag('ul', $ret, array('class' => 'filtering_categorylist'));
     }
 
+    /**
+     * @param $category
+     * @param $baseurl
+     * @param $activecategories
+     * @param null $selectedcategory
+     * @return string
+     */
     protected static function output_category_and_children($category, $baseurl, $activecategories, $selectedcategory = null) {
         $childcats = '';
         if ($cats = get_child_categories($category->id)) {
@@ -291,7 +387,6 @@ class campusconnect_filtering {
         $ret .= $childcats;
         return html_writer::tag('li', $ret);
     }
-
 
     //////////////////////////////////////////////
     // Internal functions

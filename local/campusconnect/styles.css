@@ -66,3 +66,20 @@
 table.campusconnect_imported {
     margin-top: 1em;
 }
+
+.filtering_categorylist .selectedcategory {
+    font-weight: bold;
+}
+
+.filtering_categorylist .activecategory {
+    font-weight: bold;
+    font-style: italic;
+}
+
+.filtering_categorylist .activecategory .selectedcategory {
+    font-style: normal;
+}
+
+.coursefiltertable .mform .fitem .fitemtitle {
+    width: 35%;
+}

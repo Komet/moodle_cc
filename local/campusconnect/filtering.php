@@ -171,25 +171,32 @@ class campusconnect_filtering {
             if (!isset($ordered[$setting->categoryid])) {
                 $ordered[$setting->categoryid] = array();
             }
-            $setting->words = explode(',', $setting->words);
             $setting->allwords = empty($setting->words);
+            if ($setting->allwords) {
+                $setting->words = array();
+            } else {
+                $setting->words = explode(',', $setting->words);
+            }
             $ordered[$setting->categoryid][$setting->attribute] = $setting;
         }
 
         // Make sure only valid attributes are listed and they are in the correct order.
         $ret = array();
         $validattribs = self::course_attributes();
-        foreach ($ordered as $categoryid => $attribs) {
+        foreach ($ordered as $catid => $attribs) {
             foreach ($validattribs as $validattrib) {
                 if (isset($attribs[$validattrib])) {
-                    if (!isset($ret[$categoryid])) {
-                        $ret[$categoryid] = array();
+                    if (!isset($ret[$catid])) {
+                        $ret[$catid] = array();
                     }
-                    $ret[$categoryid][$validattrib] = $attribs[$validattrib];
+                    $ret[$catid][$validattrib] = $attribs[$validattrib];
                 } else {
-                    continue 2; // Once a valid attribute is missing, skip all the rest.
+                    //continue 2; // Once a valid attribute is missing, skip all the rest.
                 }
             }
+        }
+        if ($categoryid) {
+            return isset($ret[$categoryid]) ? $ret[$categoryid] : array();
         }
         return $ret;
     }
@@ -202,6 +209,14 @@ class campusconnect_filtering {
     public static function save_category_settings($categoryid, $settings) {
         global $DB;
         $oldsettings = self::load_category_settings($categoryid);
+        // Check for any attributes that are no longer active.
+        foreach ($oldsettings as  $attribute => $oldsetting) {
+            if (!isset($settings[$attribute])) {
+                $DB->delete_records('local_campusconnect_filter', $oldsetting->id);
+                unset($oldsettings[$attribute]);
+            }
+        }
+        // Check for any attributes that have been updated.
         foreach ($settings as $attribute => $setting) {
             $upd = new stdClass();
             if (!empty($setting->allwords)) {
@@ -236,6 +251,47 @@ class campusconnect_filtering {
             }
         }
     }
+
+    /**
+     * Generate a list of all the categories on the site, hyperlinked to the editing page.
+     * @param moodle_url $baseurl url used to create the edit filter links
+     * @param int[] $activecategories the categories that currently have settings
+     * @param int $selectedcategory optional the selected category
+     * @return string
+     */
+    public static function output_category_tree($baseurl, $activecategories, $selectedcategory = null) {
+        $ret = '';
+        $cats = get_child_categories(0);
+        foreach ($cats as $cat) {
+            $ret .= self::output_category_and_children($cat, $baseurl, $activecategories, $selectedcategory);
+        }
+
+        return html_writer::tag('ul', $ret, array('class' => 'filtering_categorylist'));
+    }
+
+    protected static function output_category_and_children($category, $baseurl, $activecategories, $selectedcategory = null) {
+        $childcats = '';
+        if ($cats = get_child_categories($category->id)) {
+            foreach ($cats as $cat) {
+                $childcats .= self::output_category_and_children($cat, $baseurl, $activecategories, $selectedcategory);
+            }
+            $childcats = html_writer::tag('ul', $childcats);
+        }
+        $name = s($category->name);
+        if ($category->id == $selectedcategory) {
+            $name .= ' ===&gt;';
+            $ret = html_writer::tag('span', $name, array('class' => 'selectedcategory'));
+        } else {
+            $url = new moodle_url($baseurl, array('categoryid' => $category->id));
+            $ret = html_writer::link($url, $name);
+        }
+        if (in_array($category->id, $activecategories)) {
+            $ret = html_writer::tag('span', $ret, array('class' => 'activecategory'));
+        }
+        $ret .= $childcats;
+        return html_writer::tag('li', $ret);
+    }
+
 
     //////////////////////////////////////////////
     // Internal functions

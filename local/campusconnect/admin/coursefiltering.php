@@ -31,7 +31,12 @@ require_once($CFG->dirroot.'/local/campusconnect/filtering.php');
 require_once($CFG->dirroot.'/local/campusconnect/admin/coursefiltering_form.php');
 require_once($CFG->dirroot.'/local/campusconnect/metadata.php');
 
+$categoryid = optional_param('categoryid', null, PARAM_INT);
+
 $url = new moodle_url('/local/campusconnect/admin/coursefiltering.php', array());
+if (!is_null($categoryid)) {
+    $url->param('categoryid', $categoryid);
+}
 
 admin_externalpage_setup('campusconnectcoursefiltering');
 
@@ -64,9 +69,88 @@ if ($data = $form->get_data()) {
     redirect($PAGE->url); // To remove the POST params from the page load.
 }
 
+// Set up the filtering form.
+$catform = null;
+$categorysettings = campusconnect_filtering::load_category_settings();
+if (is_null($categoryid)) {
+    if (!empty($categorysettings)) {
+        $categoryid = reset(array_keys($categorysettings)); // Get the first categoryid.
+    }
+}
+if (!is_null($categoryid)) {
+    if (isset($categorysettings[$categoryid])) {
+        $catdata = $categorysettings[$categoryid];
+        $formdata = array();
+        foreach ($catdata as $attribname => $attribsettings) {
+            foreach ($attribsettings as $name => $val) {
+                if ($name == 'words') {
+                    $val = implode(',', $val);
+                }
+                $formdata["{$name}[$attribname]"] = $val;
+            }
+            $formdata["active[$attribname]"] = 1;
+        }
+    } else {
+        $formdata = array();
+    }
+    $formdata['categoryid'] = $categoryid;
+
+    $custom = array('attributes' => $globalsettings['attributes'], 'allsettings' => $categorysettings);
+    $catform = new campusconnect_coursefilteringcategory_form(null, $custom);
+    $catform->set_data($formdata);
+
+    if ($catform->is_cancelled()) {
+        redirect($PAGE->url); // Clear the settings to their previously saved values.
+    }
+    if ($data = $catform->get_data()) {
+        // Save the category form data
+        $savedata = array();
+        foreach ($globalsettings['attributes'] as $attribute) {
+            if (empty($data->active[$attribute])) {
+                continue; // Lave out unused attributes.
+            }
+            $settings = new stdClass();
+            $settings->allwords = !empty($data->allwords[$attribute]);
+            $settings->words = isset($data->words[$attribute]) ? explode(',', $data->words[$attribute]) : array();
+            $settings->createsubdirectories = !empty($data->createsubdirectories[$attribute]);
+
+            $savedata[$attribute] = $settings;
+        }
+
+        campusconnect_filtering::save_category_settings($categoryid, $savedata);
+        redirect($PAGE->url); // To remove the POST params from the page load.
+    }
+
+    ob_start();
+    $catform->display();
+    $catform = ob_get_clean();
+}
+
+$baseurl = new moodle_url($PAGE->url);
+$baseurl->remove_params('categoryid');
+$baseurl->set_anchor('coursefiltering');
+$cattree = campusconnect_filtering::output_category_tree($baseurl, array_keys($categorysettings), $categoryid);
+
+$table = new html_table();
+$table->head = array(
+    get_string('localcategories', 'local_campusconnect'),
+    get_string('filtersettings', 'local_campusconnect')
+);
+$table->size = array(
+    '50%',
+    ''
+);
+$table->attributes = array('style' => 'width: 90%;', 'class' => 'generaltable coursefiltertable');
+$table->data = array(array($cattree, $catform));
+
 // Output everything.
 echo $OUTPUT->header();
 
 $form->display();
+
+echo html_writer::tag('a', '', array('name' => 'coursefiltering'));
+echo $OUTPUT->heading(get_string('coursefiltering', 'local_campusconnect'));
+
+echo html_writer::table($table);
 
 echo $OUTPUT->footer();

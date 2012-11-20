@@ -86,3 +86,94 @@ class campusconnect_coursefiltering_form extends moodleform {
         return $errors;
     }
 }
+
+class campusconnect_coursefilteringcategory_form extends moodleform {
+    protected function definition() {
+        $mform = $this->_form;
+        $attributes = $this->_customdata['attributes'];
+
+        $mform->addElement('hidden', 'categoryid', 0);
+
+        if (empty($attributes)) {
+            $mform->addElement('static', '', '', get_string('noattributes', 'local_campusconnect'));
+            return;
+        }
+        $struseattrib = get_string('useattribute', 'local_campusconnect');
+        $strallwords = get_string('allwords', 'local_campusconnect');
+        $strwords = get_string('filterwords', 'local_campusconnect');
+        $strcreatesubdirectories = get_string('createsubdirectories', 'local_campusconnect');
+        foreach ($attributes as $attribute) {
+            $mform->addElement('header', '', $attribute);
+
+            $mform->addElement('selectyesno', "active[$attribute]", $struseattrib);
+            $mform->setDefault("active[$attribute]", 0);
+
+            $mform->addElement('selectyesno', "allwords[$attribute]", $strallwords);
+            $mform->setDefault("allwords[$attribute]", 1);
+            $mform->disabledIf("allwords[$attribute]", "active[$attribute]", 'eq', 0);
+            $mform->addHelpButton("allwords[$attribute]", 'allwords', 'local_campusconnect');
+
+            $mform->addElement('text', "words[$attribute]", $strwords);
+            $mform->disabledIf("words[$attribute]", "allwords[$attribute]", 'eq', 1);
+
+            $mform->addElement('selectyesno', "createsubdirectories[$attribute]", $strcreatesubdirectories);
+            $mform->disabledIf("createsubdirectories[$attribute]", "active[$attribute]", 'eq', 0);
+            $mform->addHelpButton("createsubdirectories[$attribute]", 'createsubdirectories', 'local_campusconnect');
+        }
+
+        $this->add_action_buttons();
+    }
+
+    public function validation($data, $files) {
+        global $DB;
+
+        $errors = parent::validation($data, $files);
+
+        $allsettings = $this->_customdata['allsettings'];
+        $attributes = $this->_customdata['attributes'];
+
+        $useallwords = false;
+        foreach ($attributes as $attribute) {
+            if ($data['active'][$attribute]) {
+                // Check if 'all words' has already been used higher up.
+                if ($data['allwords'][$attribute]) {
+                    $useallwords = $attribute;
+                } else {
+                    if ($useallwords) {
+                        $errors["allwords[$attribute]"] = get_string('errorallwordsused', 'local_campusconnect', $useallwords);
+                    }
+                }
+            }
+            foreach ($allsettings as $categoryid => $attributesettings) {
+                if ($categoryid == $data['categoryid']) {
+                    continue;
+                }
+                if (!isset($attributesettings[$attribute])) {
+                    continue;
+                }
+                if ($attributesettings[$attribute]->allwords) {
+                    // Check if the 'all words' setting has already been used for this attribute in a different category.
+                    if ($data['active'][$attribute]) {
+                        $info = new stdClass();
+                        $info->categoryname = $DB->get_field('course_categories', 'name', array('id' => $categoryid));
+                        $info->attribute = $attribute;
+                        $errors["active[$attribute]"] = get_string('errorallwordsusedcategory', 'local_campusconnect', $info);
+                    }
+                } else {
+                    // Check if any of the filter words have been used already in a different category.
+                    $words = explode(',', $data['words'][$attribute]);
+                    $duplicates = array_intersect($attributesettings[$attribute]->words, $words);
+                    if (!empty($duplicates)) {
+                        $info = new stdClass();
+                        $info->categoryname = $DB->get_field('course_categories', 'name', array('id' => $categoryid));
+                        $info->attribute = $attribute;
+                        $info->words = implode(',', $duplicates);
+                        $errors["words[$attribute]"] = get_string('errorwordsused', 'local_campusconnect', $info);
+                    }
+                }
+            }
+        }
+
+        return $errors;
+    }
+}

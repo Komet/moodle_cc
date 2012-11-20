@@ -146,6 +146,98 @@ class campusconnect_filtering {
     }
 
     //////////////////////////////////////////////
+    // Category settings for course filtering
+    //////////////////////////////////////////////
+
+    /**
+     * Load the filter settings for each of the Moodle categories. Settings are:
+     * - allwords (bool) - whether the filter matches all words, or just specific words
+     * - words (string[]) - a list of the words to match with (if enabled, above)
+     * - createsubdirectories (bool) - whether or not to create subcategories named after the attribute values
+     * @param int $categoryid optional - only load the settings for a specific category
+     * @return array categoryid => array( attributename => settings )
+     */
+    public static function load_category_settings($categoryid = null) {
+        global $DB;
+
+        // Get all the course filter settings and store by categoryid.
+        $ordered = array();
+        $params = array();
+        if (!is_null($categoryid)) {
+            $params['categoryid'] = $categoryid;
+        }
+        $settings = $DB->get_records('local_campusconnect_filter', $params);;
+        foreach ($settings as $setting) {
+            if (!isset($ordered[$setting->categoryid])) {
+                $ordered[$setting->categoryid] = array();
+            }
+            $setting->words = explode(',', $setting->words);
+            $setting->allwords = empty($setting->words);
+            $ordered[$setting->categoryid][$setting->attribute] = $setting;
+        }
+
+        // Make sure only valid attributes are listed and they are in the correct order.
+        $ret = array();
+        $validattribs = self::course_attributes();
+        foreach ($ordered as $categoryid => $attribs) {
+            foreach ($validattribs as $validattrib) {
+                if (isset($attribs[$validattrib])) {
+                    if (!isset($ret[$categoryid])) {
+                        $ret[$categoryid] = array();
+                    }
+                    $ret[$categoryid][$validattrib] = $attribs[$validattrib];
+                } else {
+                    continue 2; // Once a valid attribute is missing, skip all the rest.
+                }
+            }
+        }
+        return $ret;
+    }
+
+    /**
+     * Save all the settings for a given category
+     * @param int $categoryid
+     * @param stdClass[] $settings - attributename => settings (see @load_category_settings for a list of settings)
+     */
+    public static function save_category_settings($categoryid, $settings) {
+        global $DB;
+        $oldsettings = self::load_category_settings($categoryid);
+        foreach ($settings as $attribute => $setting) {
+            $upd = new stdClass();
+            if (!empty($setting->allwords)) {
+                $upd->words = array();
+            } else {
+                if (!isset($setting->words)) {
+                    throw new coding_exception("Required setting 'words' missing from settings for '{$attribute}'");
+                }
+                if (!is_array($setting->words)) {
+                    throw new coding_exception("Setting 'words' is not an array in settings for '{$attribute}'");
+                }
+                $upd->words = array_map('trim', $setting->words);
+            }
+            $upd->words = implode(',', $upd->words);
+            if (!isset($setting->createsubdirectories)) {
+                throw new coding_exception("Required setting 'createsubdirectories' missing from settings for '{$attribute}'");
+            }
+            $upd->createsubdirectories = $setting->createsubdirectories;
+            if (isset($oldsettings[$attribute])) {
+                $oldattribute = $oldsettings[$attribute];
+                $changed = ($oldattribute->createsubdirectories != $upd->createsubdirectories);
+                $changed = $changed || (implode(',', $oldattribute->words) != $upd->words);
+                if (!$changed) {
+                    continue;
+                }
+                $upd->id = $oldattribute->id;
+                $DB->update_record('local_campusconnect_filter', $upd);
+            } else {
+                $upd->attribute = $attribute;
+                $upd->categoryid = $categoryid;
+                $upd->id = $DB->insert_record('local_campusconnect_filter', $upd);
+            }
+        }
+    }
+
+    //////////////////////////////////////////////
     // Internal functions
     //////////////////////////////////////////////
 

@@ -493,5 +493,31 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2012111400, 'local', 'campusconnect');
     }
 
+    if ($oldversion < 2012112000) {
+
+        // Define table local_campusconnect_filter to be created
+        $table = new xmldb_table('local_campusconnect_filter');
+
+        // Adding fields to table local_campusconnect_filter
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', XMLDB_UNSIGNED, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('categoryid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('attribute', XMLDB_TYPE_CHAR, '100', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('words', XMLDB_TYPE_TEXT, 'medium', null, null, null, null);
+        $table->add_field('createsubdirectories', XMLDB_TYPE_INTEGER, '4', null, null, null, '0');
+
+        // Adding keys to table local_campusconnect_filter
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+        $table->add_key('categoryid', XMLDB_KEY_FOREIGN, array('categoryid'), 'category', array('id'));
+
+        // Conditionally launch create table for local_campusconnect_filter
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012112000, 'local', 'campusconnect');
+    }
+
+
     return true;
 }

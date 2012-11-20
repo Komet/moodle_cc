@@ -46,6 +46,7 @@ class campusconnect_coursefiltering_form extends moodleform {
         $mform->addElement('select', 'singlecategory', get_string('singlecategory', 'local_campusconnect'), $categorylist);
 
         $mform->addElement('header', '', get_string('courseattributes', 'local_campusconnect'));
+        $attributes = array_combine($attributes, $attributes);
         $attributes = array(-1 => get_string('unused', 'local_campusconnect')) + $attributes;
         $repeatarray = array(
             $mform->createElement('select', 'attributes', get_string('filteringattribute', 'local_campusconnect'), $attributes)
@@ -62,7 +63,7 @@ class campusconnect_coursefiltering_form extends moodleform {
         // Disable all form elements if filtering is disabled.
         $mform->disabledIf('defaultcategory', 'enabled', 'eq', 0);
         $mform->disabledIf('usesinglecategory', 'enabled', 'eq', 0);
-        $mform->disabledIf('singlecategory', 'enabled', 'eq', 0);
+        $mform->disabledIf('singlecategory', 'usesinglecategory', 'eq', 0);
         $mform->disabledIf('attributes', 'enabled', 'eq', 0);
     }
 

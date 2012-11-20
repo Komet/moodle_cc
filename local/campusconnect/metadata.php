@@ -31,36 +31,43 @@ class campusconnect_metadata {
     const TYPE_EXPORT_COURSE = 3;
     const TYPE_EXPORT_EXTERNAL_COURSE = 4;
 
-    protected static $coursefields = array('fullname' => 'string', 'shortname' => 'string',
-                                           'idnumber' => 'string', 'summary' => 'string',
-                                           'startdate' => 'date', 'lang' => 'lang',
-                                           'timecreated' => 'date', 'timemodified' => 'date');
+    protected static $coursefields = array(
+        'fullname' => 'string', 'shortname' => 'string',
+        'idnumber' => 'string', 'summary' => 'string',
+        'startdate' => 'date', 'lang' => 'lang',
+        'timecreated' => 'date', 'timemodified' => 'date');
 
-    protected static $remotefieldsext = array('destinationForDisplay' => 'string',
-                                              'lang' => 'lang', 'hoursPerWeek' => 'string',
-                                              'id' => 'string', 'number' => 'string',
-                                              'term' => 'string', 'credits' => 'string',
-                                              'status' => 'string', 'courseType' => 'string',
-                                              'title' => 'string', 'firstDate' => 'date',
-                                              'datesAndVenues.day' => 'string', 'datesAndVenues.start' => 'date',
-                                              'datesAndVenues.end' => 'date', 'datesAndVenues.cycle' => 'string',
-                                              'datesAndVenues.venue' => 'string', 'datesAndVenues.firstDate.startDatetime' => 'date',
-                                              'datesAndVenues.firstDate.endDatetime' => 'date', 'datesAndVenues.lastDate.startDatetime' => 'date',
-                                              'datesAndVenues.lastDate.endDatetime' => 'date', 'degreeProgrammes' => 'degreelist',
-                                              'lecturers' => 'personlist');
+    protected static $remotefieldsext = array(
+        'destinationForDisplay' => 'string',
+        'lang' => 'lang', 'hoursPerWeek' => 'string',
+        'id' => 'string', 'number' => 'string',
+        'term' => 'string', 'credits' => 'string',
+        'status' => 'string', 'courseType' => 'string',
+        'title' => 'string', 'firstDate' => 'date',
+        'datesAndVenues.day' => 'string', 'datesAndVenues.start' => 'date',
+        'datesAndVenues.end' => 'date', 'datesAndVenues.cycle' => 'string',
+        'datesAndVenues.venue' => 'string', 'datesAndVenues.firstDate.startDatetime' => 'date',
+        'datesAndVenues.firstDate.endDatetime' => 'date', 'datesAndVenues.lastDate.startDatetime' => 'date',
+        'datesAndVenues.lastDate.endDatetime' => 'date', 'degreeProgrammes_code' => 'degreelist',
+        'degreeProgrammes_title' => 'degreelist', 'degreeProgrammes' => 'degreelist',
+        'lecturers_lastName' => 'personlist', 'lecturers_firstName' => 'personlist',
+        'lecturers' => 'personlist');
 
-    protected static $remotefields = array('organisation' => 'string', 'id' => 'string',
-                                           'term' => 'string', 'number' => 'string',
-                                           'title' => 'string', 'courseType' => 'string',
-                                           'hoursPerWeek' => 'string', 'maxParticipants' => 'string',
-                                           'parallelGroupScenario' => 'string', 'lecturers' => 'personlist',
-                                           'degreeProgrammes' => 'degreelist', 'comment1' => 'string',
-                                           'comment2' => 'string', 'comment3' => 'string',
-                                           'recommendedReading' => 'string', 'prerequisites' => 'string',
-                                           'courseAssessmentMethod' => 'string', 'courseTopics' => 'string',
-                                           'linkToCurriculum' => 'string', 'targetAudience' => 'string',
-                                           'links' => 'linklist', 'linkToCourse' => 'link',
-                                           'modules' => 'moduleslist');
+    protected static $remotefields = array(
+        'organisation' => 'string', 'id' => 'string',
+        'term' => 'string', 'number' => 'string',
+        'title' => 'string', 'courseType' => 'string',
+        'hoursPerWeek' => 'string', 'maxParticipants' => 'string',
+        'parallelGroupScenario' => 'string', 'lecturers_firstName' => 'personlist',
+        'lecturers_lastName' => 'personlist', 'lecturers' => 'personlist',
+        'degreeProgrammes_code' => 'degreelist', 'degreeProgrammes_title' => 'degreelist',
+        'degreeProgrammes' => 'degreelist', 'comment1' => 'string',
+        'comment2' => 'string', 'comment3' => 'string',
+        'recommendedReading' => 'string', 'prerequisites' => 'string',
+        'courseAssessmentMethod' => 'string', 'courseTopics' => 'string',
+        'linkToCurriculum' => 'string', 'targetAudience' => 'string',
+        'links' => 'linklist', 'linkToCourse' => 'link',
+        'modules' => 'moduleslist');
     // Note - leaving out fields 'allocations', 'organisationalUnit', 'parallelGroups', as there is no obvious place to map these to in Moodle.
 
     // Default import mappings
@@ -490,6 +497,7 @@ class campusconnect_metadata {
      * @return array
      */
     public function flatten_remote_data($remotedetails) {
+        $details = array();
         foreach ($remotedetails as $name => $value) {
             if ($name == 'basicData') {
                 foreach ($value as $fieldname => $fieldvalue) {
@@ -516,43 +524,57 @@ class campusconnect_metadata {
         // Convert dates, lists, etc. into suitable format for Moodle.
         $remotefields = $this->external ? self::$remotefieldsext : self::$remotefields;
         foreach ($remotefields as $fieldname => $fieldtype) {
-            if (isset($details[$fieldname])) {
+            $fieldnameparts = explode('_', $fieldname);
+            $basename = $fieldnameparts[0];
+            $subname = false;
+            if (isset($fieldnameparts[1])) {
+                $subname = $fieldnameparts[1];
+            }
+            if (isset($details[$basename])) {
                 switch ($fieldtype) {
                 case 'date':
-                    $details[$fieldname] = strtotime($details[$fieldname]);
+                    $details[$fieldname] = strtotime($details[$basename]);
                     break;
                 case 'personlist':
-                    foreach ($details[$fieldname] as $key => $person) {
-                        $fakeuser = new stdClass();
-                        $fakeuser->firstname = $person->firstName;
-                        $fakeuser->lastname = $person->lastName;
-                        $details[$fieldname][$key] = fullname($fakeuser);
+                    foreach ($details[$basename] as $key => $person) {
+                        if ($subname) {
+                            $details[$fieldname][$key] = $person->{$subname};
+                        } else {
+                            $fakeuser = new stdClass();
+                            $fakeuser->firstname = $person->firstName;
+                            $fakeuser->lastname = $person->lastName;
+                            $details[$fieldname][$key] = fullname($fakeuser);
+                        }
                     }
                     $details[$fieldname] = implode(', ', $details[$fieldname]);
                     break;
                 case 'degreelist':
-                    foreach ($details[$fieldname] as $key => $degree) {
-                        $details[$fieldname][$key] = $degree->code.' - '.$degree->title;
+                    foreach ($details[$basename] as $key => $degree) {
+                        if ($subname) {
+                            $details[$fieldname][$key] = $degree->{$subname};
+                        } else {
+                            $details[$fieldname][$key] = $degree->code.' - '.$degree->title;
+                        }
                     }
                     $details[$fieldname] = implode(', ', $details[$fieldname]);
                     break;
                 case 'linklist':
-                    foreach ($details[$fieldname] as $key => $link) {
-                        $details[$fieldname][$key] = html_writer::link($details[$fieldname][$key]->href, $details[$fieldname][$key]->title);
+                    foreach ($details[$basename] as $key => $link) {
+                        $details[$fieldname][$key] = html_writer::link($details[$basename][$key]->href, $details[$basename][$key]->title);
                     }
                     $details[$fieldname] = implode(', ', $details[$fieldname]);
                     break;
                 case 'moduleslist':
-                    foreach ($details[$fieldname] as $key => $module) {
+                    foreach ($details[$basename] as $key => $module) {
                         $details[$fieldname][$key] = $module->title;
                     }
                     $details[$fieldname] = implode(', ', $details[$fieldname]);
                     break;
                 case 'list':
-                    $details[$fieldname] = implode(', ', $details[$fieldname]);
+                    $details[$fieldname] = implode(', ', $details[$basename]);
                     break;
                 case 'link':
-                    $details[$fieldname] = html_writer::link($details[$fieldname]->href, $details[$fieldname]->title);
+                    $details[$fieldname] = html_writer::link($details[$basename]->href, $details[$basename]->title);
                     break;
                 case 'lang': // TODO davo - test if this needs any conversion.
                 case 'url':
@@ -562,6 +584,7 @@ class campusconnect_metadata {
                 }
             }
         }
+        return $details;
     }
 
     /**

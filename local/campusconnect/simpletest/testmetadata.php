@@ -153,7 +153,7 @@ class local_campusconnect_metadata_test extends UnitTestCase {
     public function test_map_remote_to_course() {
         $mappings = array('fullname' => 'Title: {title}', 'shortname' => '{title}', 'idnumber' => '{id}', 'startdate' => 'firstDate',
                           'lang' => 'lang', 'timecreated' => '', 'timemodified' => '',
-                          'summary' => 'Destination: {destinationForDisplay}, firstDate: {firstDate}, lecturers: {lecturers}');
+                          'summary' => 'Destination: {destinationForDisplay}, firstDate: {firstDate}, lecturers: {lecturers}, lecturers: {lecturers_lastName}');
 
         $datesandvenues = array((object)array('day' => 'Monday', 'start' => '2012-06-20T14:48:00+01:00', 'end' => '2012-06-30T15:00:00+01:00',
                                               'cycle' => 'week', 'venue' => 'Room 101',
@@ -171,8 +171,9 @@ class local_campusconnect_metadata_test extends UnitTestCase {
         $expectedcourse = (object)array('fullname' => 'Title: '.$remotedata->title,
                                         'shortname' => $remotedata->title,
                                         'idnumber' => 'ABC-123',
-                                        'summary' => 'Destination: '.$remotedata->destinationForDisplay.', firstDate: '.userdate(strtotime($remotedata->firstDate), get_string('strftimedatetime')).', lecturers: Prof. Plum, C. Mustard',
+                                        'summary' => 'Destination: '.$remotedata->destinationForDisplay.', firstDate: '.userdate(strtotime($remotedata->firstDate), get_string('strftimedatetime')).', lecturers: Prof. Plum, C. Mustard, lecturers: Plum, Mustard',
                                         'startdate' => strtotime($remotedata->firstDate),
+                                        'visible' => 1,
                                         'lang' => $remotedata->lang);
 
 
@@ -197,14 +198,16 @@ class local_campusconnect_metadata_test extends UnitTestCase {
                                 'shortname' => 'Shortname',
                                 'summary' => "I don't expect to see this summary in the output",
                                 'lang' => 'en',
-                                'startdate' => 1340200080);
+                                'startdate' => 1340200080,
+                                'visible' => 1);
 
         $startdatestr = userdate($course->startdate, '%Y-%m-%dT%H:%M:%S%z');
         $expectedremote = (object)array('lang' => $course->lang,
                                         'id' => '',
                                         'title' => $course->fullname.' - '.$course->shortname.' - '.$startdatestr,
                                         'firstDate' => $startdatestr,
-                                        'datesAndVenues' => array((object)array('firstDate' => (object)array('startDatetime' => $startdatestr))));
+                                        'datesAndVenues' => array((object)array('firstDate' => (object)array('startDatetime' => $startdatestr))),
+                                        'status' => 'online');
 
         $meta = new campusconnect_metadata($this->settings, true);
         $meta->set_export_mappings($mappings);

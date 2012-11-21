@@ -425,7 +425,7 @@ class campusconnect_directorytree {
     public static function refresh_from_ecs(campusconnect_ecssettings $ecssettings) {
         global $DB;
 
-        $ret = (object)array('created' => array(), 'updated' => array(), 'deleted' => array());
+        $ret = (object)array('created' => array(), 'updated' => array(), 'deleted' => array(), 'errors' => array());
 
         if (!self::enabled()) {
             return $ret; // Mapping disabled.
@@ -457,6 +457,14 @@ class campusconnect_directorytree {
         $resources = $connect->get_resource_list(campusconnect_event::RES_DIRECTORYTREE);
         foreach ($resources->get_ids() as $resourceid) {
             $directory = $connect->get_resource($resourceid, campusconnect_event::RES_DIRECTORYTREE);
+
+            if (!$directory) {
+                // Resource failed to download - not sure why that would ever happen, but just skip it.
+                $ret->errors[] = get_string('faileddownload', 'local_campusconnect',
+                                            campusconnect_event::RES_DIRECTORYTREE.'/'.$resourceid);
+                continue;
+            }
+
             if ($directory->parent->id) {
                 // Not a root directory.
                 campusconnect_directory::check_update_directory($resourceid, $directory);

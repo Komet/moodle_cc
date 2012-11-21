@@ -98,6 +98,7 @@ $string['exportuptodate'] = 'Up to date';
 $string['exportcreated'] = 'Export pending';
 $string['exportupdated'] = 'Update pending';
 $string['exportdeleted'] = 'Removal pending';
+$string['faileddownload'] = 'Failed to download resource \'{$a}\'';
 $string['field_courseid'] = 'Course ID';
 $string['field_coursetype'] = 'Course type';
 $string['field_credits'] = 'Credits';

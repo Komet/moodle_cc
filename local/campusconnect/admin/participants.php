@@ -142,6 +142,7 @@ if ($ecsid = optional_param('refresh', null, PARAM_INT)) {
     );
     $table->data = array();
 
+    $errors = array();
     foreach ($ret as $item => $data) {
         $row = array(
             $item,
@@ -150,8 +151,19 @@ if ($ecsid = optional_param('refresh', null, PARAM_INT)) {
             count($data->deleted)
         );
         $table->data[] = $row;
+        if (!empty($data->errors)) {
+            $errors = array_merge($errors, $data->errors);
+        }
     }
     echo html_writer::table($table);
+
+    if (!empty($errors)) {
+        $err = '';
+        foreach ($errors as $error) {
+            $err .= html_writer::tag('li', $error);
+        }
+        echo html_writer::tag('ul', $err, array('class' => 'error'));
+    }
 
     $redir = new moodle_url($PAGE->url, array('refreshdone' => $ecsid));
     echo $OUTPUT->continue_button($redir);

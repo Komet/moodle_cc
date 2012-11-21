@@ -99,7 +99,7 @@ class campusconnect_filtering {
         global $DB;
         $currcatid = $categoryid;
         foreach ($attributes as $attribute => $settings) {
-            if (!$settings->createsubcategories) {
+            if (!$settings->createsubdirectories) {
                 continue; // Not creating subcategories for this attribute - move on to the next attribute.
             }
             $catname = $coursedata[$attribute];

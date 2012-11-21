@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/campusconnect/db" VERSION="20121120" COMMENT="XMLDB file for Moodle local/campusconnect"
+<XMLDB PATH="local/campusconnect/db" VERSION="20121121" COMMENT="XMLDB file for Moodle local/campusconnect"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -173,9 +173,6 @@
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
       </KEYS>
-      <INDEXES>
-        <INDEX NAME="cmsid" UNIQUE="false" FIELDS="cmsid"/>
-      </INDEXES>
     </TABLE>
     <TABLE NAME="local_campusconnect_mbr" COMMENT="Stored details of requested membership lists from the ECS" PREVIOUS="local_campusconnect_rolemap" NEXT="local_campusconnect_notify">
       <FIELDS>

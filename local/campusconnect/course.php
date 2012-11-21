@@ -185,44 +185,31 @@ class campusconnect_course {
         }
         self::remove_allocations($currcourses, $existingcategoryids, $unchangedcategories, $newcategories, $ecssettings->get_id() < 0);
 
+        // Check for orphaned crs records.
+        foreach ($currcourses as $key => $currcourse) {
+            if (!isset($unchangedcategories[$currcourse->id])) {
+                if ($currcourse->internallink != 0) {
+                    // Internal link course has been deleted - can safely delete the crs record.
+                    $DB->delete_records('local_campusconnect_crs', array('id' => $currcourse->id));
+                    unset($currcourses[$key]);
+                } else {
+                    // The 'real' course has been deleted, need to recreate it.
+                    // Safest thing to do here is to delete all existing details and then call create course.
+                    foreach ($currcourses as $crs) {
+                        $DB->delete_records('course', array('id' => $crs->courseid));
+                        $DB->delete_records('local_campusconnect_crs', array('id' => $crs->id));
+                    }
+                    return self::create($resourceid, $ecssettings, $course, $transferdetails);
+                }
+            }
+        }
+
         $coursedata = self::map_course_settings($course, $ecssettings);
 
         // Update all the existing crs records.
         foreach ($currcourses as $currcourse) {
             if (!$DB->record_exists('course', array('id' => $currcourse->courseid))) {
-                // The course has been deleted - recreate it.
-                if ($ecssettings->get_id() > 0) {
-                    $baseshortname = $coursedata->shortname;
-                    $num = 1;
-                    while ($DB->record_exists('course', array('shortname' => $coursedata->shortname))) {
-                        $num++;
-                        $coursedata->shortname = "{$baseshortname}_{$num}";
-                    }
-                    $newcourse = create_course($coursedata);
-                } else {
-                    // Nasty hack for unit testing - 'create_course' is too complex to
-                    // be practical to mock up the database responses
-                    global $DB;
-                    $newcourse = $coursedata;
-                    /** @noinspection PhpUndefinedMethodInspection */
-                    $newcourse->id = $DB->mock_create_course($coursedata);
-                }
-
-                // Update the course record to point at this new course.
-                $upd = new stdClass();
-                $upd->id = $currcourse->id;
-                $upd->courseid = $newcourse->id;
-                if (isset($course->basicData->id)) {
-                    $upd->cmsid = $course->basicData->id;
-                }
-                $DB->update_record('local_campusconnect_crs', $upd);
-
-                if ($currcourse->internallink == 0) {
-                    // Let the ECS server know about the updated link.
-                    $courseurl = new campusconnect_course_url($currcourse->id);
-                    $courseurl->update();
-                }
-
+                throw new coding_exception("crs record {$currcourse->id} references non-existent course {$currcourse->courseid}");
             } else {
                 // Course still exists - update it.
                 $coursedata->id = $currcourse->courseid;
@@ -498,13 +485,31 @@ class campusconnect_course {
     }
 
     /**
-     * Use the 'allocation' section of the course resource to determine the category ID to create the course in.
+     * Use the course filtering rules or the 'allocation' section of the course resource to determine the category ID
+     * to create the course in.
      * The category will be created, if required.
      * @param stdClass $course
      * @param campusconnect_ecssettings $ecssettings
      * @return campusconnect_course_category[] empty if the directory is not yet mapped, so the course cannot be created
      */
     protected static function get_categories(stdClass $course, campusconnect_ecssettings $ecssettings) {
+        global $CFG;
+        require_once($CFG->dirroot.'/local/campusconnect/filtering.php');
+
+        // Use course filtering rules, if enabled
+        if (campusconnect_filtering::enabled()) {
+            $catids = campusconnect_filtering::get_categories($course, $ecssettings);
+            if (empty($catids)) {
+                throw new campusconnect_course_exception(get_string('filternocategories', 'local_campusconnect'));
+            }
+            $ret = array();
+            foreach ($catids as $catid) {
+                $ret[] = new campusconnect_course_category($catid, 0);
+            }
+            return $ret;
+        }
+
+        // No course filtering rules - use the 'allocations' specified by the CMS.
         if (!isset($course->allocations)) {
             debugging("Warning - course request without 'allocations' details - using default import category");
             return $ecssettings->get_import_category();
@@ -585,7 +590,7 @@ class campusconnect_course {
                     /** @noinspection PhpUndefinedMethodInspection */
                     $DB->mock_delete_course($currcourse->courseid);
                 }
-                $DB->delete_records('local_campusconnnect_crs', array('id' => $rcrsid));
+                $DB->delete_records('local_campusconnect_crs', array('id' => $rcrsid));
                 unset($currcourses[$rcrsid]);
             }
         }

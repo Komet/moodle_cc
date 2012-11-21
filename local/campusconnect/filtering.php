@@ -54,7 +54,7 @@ class campusconnect_filtering {
         $metadata = $meta->flatten_remote_data($coursedata, false);
         foreach (self::load_category_settings() as $categoryid => $attributes) {
             if (self::check_filter_match($metadata, $attributes)) {
-                $categories[] = self::find_or_create_category($metadata, $attributes, $categoryid);
+                $categories = array_merge($categories, self::find_or_create_categories($metadata, $attributes, $categoryid));
             }
         }
 
@@ -67,7 +67,7 @@ class campusconnect_filtering {
     /**
      * Check if a particular filter is matched by this course metadata.
      *
-     * @param stdClass $coursedata the flattened metadata from the remote course
+     * @param array $coursedata the flattened metadata from the remote course
      * @param stdClass[] $attributes the filter settings for the attributes
      * @return bool true if the filter rule is matched
      */
@@ -88,6 +88,10 @@ class campusconnect_filtering {
                         return false; // Attribute does not match the specified words
                     }
                 }
+            } else if ($settings->createsubdirectories) {
+                if (empty($coursedata[$attribute])) {
+                    return false; // Attribute is needed to create subdirectories, but it has no value.
+                }
             }
         }
         return true; // Filter matches on all attributes => create course here
@@ -97,12 +101,12 @@ class campusconnect_filtering {
      * Creates the tree of subcategories as specified by the attributes, if it does not already exists, and then
      * returns the ID of the category in which the course should be created.
      *
-     * @param stdClass $coursedata the flattened metadata from the remote course
+     * @param array $coursedata the flattened metadata from the remote course
      * @param stdClass[] $attributes the filter settings for the attributes
      * @param int $categoryid the base category for this filter
      * @return int[] the categoryids to create the course in
      */
-    public static function find_or_create_category($coursedata, $attributes, $categoryid) {
+    public static function find_or_create_categories($coursedata, $attributes, $categoryid) {
         global $DB;
 
         if (count($attributes) == 0) {
@@ -124,6 +128,9 @@ class campusconnect_filtering {
                     $catnames = array_intersect($catnames, $settings->words);
                 }
             }
+            if (empty($catnames)) {
+                throw new coding_exception("Attempting to create subdirectories for attribute '{$attribute}', but the course '{$coursedata['title']}' has no matching values for this attribute");
+            }
             foreach ($catnames as $catname) {
                 if (!$subcatid = $DB->get_field('course_categories', 'id', array('parent' => $categoryid, 'name' => $catname))) {
                     // Need to create a new subcategory.
@@ -133,11 +140,11 @@ class campusconnect_filtering {
                     $ins->sortorder = 999;
                     $subcatid = $DB->insert_record('course_categories', $ins);
                 }
-                $catids = array_merge($catids, self::find_or_create_category($coursedata, $attributes, $subcatid));
+                $catids = array_merge($catids, self::find_or_create_categories($coursedata, $attributes, $subcatid));
             }
         } else {
             // Not creating subcategories - carry on down the attributes.
-            $catids = self::find_or_create_category($coursedata, $attributes, $categoryid);
+            $catids = self::find_or_create_categories($coursedata, $attributes, $categoryid);
         }
 
         return $catids;
@@ -178,7 +185,7 @@ class campusconnect_filtering {
      */
     public static function create_in_category() {
         $config = self::get_config();
-        if (isset($config->filteringusesinglecategory) && $config->filterusesinglecategory) {
+        if (isset($config->filteringusesinglecategory) && $config->filteringusesinglecategory) {
             if (isset($config->filtersinglecategory)) {
                 return $config->filteringsinglecategory;
             }

@@ -83,6 +83,11 @@ class campusconnect_coursefiltering_form extends moodleform {
                 }
             }
         }
+        if (!empty($data['enabled'])) {
+            if (empty($data['defaultcategory'])) {
+                $errors["defaultcategory"] = get_string('defaultcategoryrequired', 'local_campusconnect');
+            }
+        }
         return $errors;
     }
 }

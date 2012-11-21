@@ -164,7 +164,7 @@ class campusconnect_coursefilteringcategory_form extends moodleform {
                         $info->attribute = $attribute;
                         $errors["active[$attribute]"] = get_string('errorallwordsusedcategory', 'local_campusconnect', $info);
                     }
-                } else {
+                } else if (!empty($data['words'][$attribute])) {
                     // Check if any of the filter words have been used already in a different category.
                     $words = explode(',', $data['words'][$attribute]);
                     $duplicates = array_intersect($attributesettings[$attribute]->words, $words);

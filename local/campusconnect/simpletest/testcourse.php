@@ -149,6 +149,7 @@ class local_campusconnect_course_test extends UnitTestCase {
         $crsrec1 = (object) array(
             'courseid' => $newcourseid1,
             'resourceid' => $resourceid,
+            'cmsid' => 'abc_1234',
             'ecsid' => $ecssettings->get_id(),
             'mid' => $srcmid,
             'internallink' => 0

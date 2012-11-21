@@ -120,7 +120,9 @@ class local_campusconnect_connect_test extends UnitTestCase {
 
     public function test_auth() {
         $url = 'http://www.example.com/test123/';
-        $post = (object)array('url' => $url);
+        $params = 'param1param2param3';
+        $realm = sha1($url.$params);
+        $post = (object)array('realm' => $realm);
 
         // Retrieve an auth hash for connecting from 'unittest1' to 'unittest2'
         $hash = $this->connect[1]->add_auth($post, $this->mid[2]);
@@ -128,12 +130,19 @@ class local_campusconnect_connect_test extends UnitTestCase {
         // Test that 'unittest1' can confirm this hash
         $result = $this->connect[1]->get_auth($hash);
         $this->assertEqual($result->hash, $hash);
-        $this->assertEqual($result->url, $url);
+        $this->assertEqual($result->realm, $realm);
 
-        // Test that 'unittest2' can also confirm this hash
+        // Retrieve a new auth hash for connecting from 'unittest1' to 'unittest2'
+        $hash = $this->connect[1]->add_auth($post, $this->mid[2]);
+
+        // Test that 'unittest2' can confirm this hash
         $result = $this->connect[2]->get_auth($hash);
         $this->assertEqual($result->hash, $hash);
-        $this->assertEqual($result->url, $url);
+        $this->assertEqual($result->realm, $realm);
+
+        // Test that 'unittest2' cannot confirm this hash as second time
+        $this->expectException('campusconnect_connect_exception');
+        $this->connect[2]->get_auth($hash);
 
         // Test that 'unittest3' cannot retrieve this hash
         $this->expectException('campusconnect_connect_exception');

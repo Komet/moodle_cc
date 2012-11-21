@@ -307,7 +307,7 @@ class campusconnect_directorytree {
      * Mark the directory tree as deleted
      */
     public function delete() {
-        // TODO - send an admin email - do not delete the category.
+        // TODO davo - send an admin email - do not delete the category.
         //global $DB;
         //$DB->delete_records('local_campusconnect_dirroot', array('id' => $this->recordid));
 

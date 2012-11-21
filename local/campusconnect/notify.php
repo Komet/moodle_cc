@@ -27,22 +27,24 @@ defined('MOODLE_INTERNAL') || die();
 class campusconnect_notification {
     const MESSAGE_IMPORT_COURSELINK = 1;
     const MESSAGE_EXPORT_COURSELINK = 2;
-    const MESSAGE_NEW_USER = 3;
-    const MESSAGE_CREATE_COURSE = 4;
+    const MESSAGE_USER = 3;
+    const MESSAGE_COURSE = 4;
+    const MESSAGE_DIRTREE = 5;
 
     static $messagetypes = array(self::MESSAGE_IMPORT_COURSELINK, self::MESSAGE_EXPORT_COURSELINK,
-                                 self::MESSAGE_NEW_USER, self::MESSAGE_CREATE_COURSE);
+                                 self::MESSAGE_USER, self::MESSAGE_COURSE, self::MESSAGE_DIRTREE);
 
     /**
      * Queue a new notification to be sent out via email
      * @param int $ecsid the ECS this message relates to
      * @param int $type what the notification relates to (MESSAGE_IMPORT_COURSELINK, MESSAGE_EXPORT_COURSELINK,
-     *                  MESSAGE_NEW_USER)
+     *                  MESSAGE_COURSE, MESSAGE_DIRTREE, MESSAGE_USER)
      * @param int $dataid for courselinks: the ID of the Moodle course, for users: the ID of the new user
      */
     public static function queue_message($ecsid, $type, $dataid) {
         global $DB;
 
+        // TODO davo - add 'subtype' to handle create/update/delete differentiation
         if (!in_array($type, self::$messagetypes)) {
             throw new coding_exception("Unknown message type '$type'");
         }
@@ -76,14 +78,14 @@ class campusconnect_notification {
                 'url' => '/course/view.php',
                 'users' => $ecssettings->get_notify_courses(),
             ),
-            self::MESSAGE_NEW_USER => (object)array(
+            self::MESSAGE_USER => (object)array(
                 'string' => 'newuser',
                 'table' => 'user',
                 'name' => 'firstname,lastname',
                 'url' => '/user/view.php',
                 'users' => $ecssettings->get_notify_users(),
             ),
-            self::MESSAGE_CREATE_COURSE => (object)array(
+            self::MESSAGE_COURSE => (object)array(
                 'string' => 'course',
                 'table' => 'course',
                 'name' => 'fullname',

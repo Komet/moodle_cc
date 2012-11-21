@@ -119,7 +119,7 @@ class campusconnect_course {
                 campusconnect_membership::assign_course_users($newcourse, $ins->cmsid);
 
                 campusconnect_notification::queue_message($ecssettings->get_id(),
-                                                          campusconnect_notification::MESSAGE_CREATE_COURSE,
+                                                          campusconnect_notification::MESSAGE_COURSE,
                                                           $newcourse->id);
             }
         }

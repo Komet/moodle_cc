@@ -51,7 +51,7 @@ class campusconnect_filtering {
         }
 
         $meta = new campusconnect_metadata($ecssettings, false);
-        $metadata = $meta->flatten_remote_data($coursedata);
+        $metadata = $meta->flatten_remote_data($coursedata, false);
         foreach (self::load_category_settings() as $categoryid => $attributes) {
             if (self::check_filter_match($metadata, $attributes)) {
                 $categories[] = self::find_or_create_category($metadata, $attributes, $categoryid);
@@ -78,8 +78,15 @@ class campusconnect_filtering {
                     return false; // Attribute does not exist in the metadata => does not match
                 }
                 $val = $coursedata[$attribute];
-                if (!in_array($val, $settings->words)) {
-                    return false; // Attribute does not match the specified words
+                if (is_array($val)) {
+                    $matches = array_intersect($val, $settings->words);
+                    if (empty($matches)) {
+                        return false; // None of the words match any of the values in the attribute.
+                    }
+                } else {
+                    if (!in_array($val, $settings->words)) {
+                        return false; // Attribute does not match the specified words
+                    }
                 }
             }
         }
@@ -93,30 +100,47 @@ class campusconnect_filtering {
      * @param stdClass $coursedata the flattened metadata from the remote course
      * @param stdClass[] $attributes the filter settings for the attributes
      * @param int $categoryid the base category for this filter
-     * @return int the categoryid to create the course in
+     * @return int[] the categoryids to create the course in
      */
     public static function find_or_create_category($coursedata, $attributes, $categoryid) {
         global $DB;
-        $currcatid = $categoryid;
-        foreach ($attributes as $attribute => $settings) {
-            if (!$settings->createsubdirectories) {
-                continue; // Not creating subcategories for this attribute - move on to the next attribute.
-            }
-            $catname = $coursedata[$attribute];
-            if ($subcatid = $DB->get_field('course_categories', 'id', array('parent' => $currcatid, 'name' => $catname))) {
-                // Subcategory matching this attribute already exists.
-                $currcatid = $subcatid;
-            } else {
-                // Need to create a new subcategory.
-                $ins = new stdClass();
-                $ins->parent = $currcatid;
-                $ins->name = $catname;
-                $ins->sortorder = 999;
-                $currcatid = $DB->insert_record('course_categories', $ins);
-            }
+
+        if (count($attributes) == 0) {
+            return array($categoryid);
         }
 
-        return $currcatid;
+        $attribute = array_shift(array_keys($attributes));
+        $settings = array_shift($attributes);
+
+        if ($settings->createsubdirectories) {
+            $catids = array();
+            // Creating subcategories for this attribute
+            $catnames = $coursedata[$attribute];
+            if (!is_array($catnames)) {
+                $catnames = array($catnames);
+            } else {
+                if (!$settings->allwords) {
+                    // Only create subcategories for matching words (if 'allwords' not selected)
+                    $catnames = array_intersect($catnames, $settings->words);
+                }
+            }
+            foreach ($catnames as $catname) {
+                if (!$subcatid = $DB->get_field('course_categories', 'id', array('parent' => $categoryid, 'name' => $catname))) {
+                    // Need to create a new subcategory.
+                    $ins = new stdClass();
+                    $ins->parent = $categoryid;
+                    $ins->name = $catname;
+                    $ins->sortorder = 999;
+                    $subcatid = $DB->insert_record('course_categories', $ins);
+                }
+                $catids = array_merge($catids, self::find_or_create_category($coursedata, $attributes, $subcatid));
+            }
+        } else {
+            // Not creating subcategories - carry on down the attributes.
+            $catids = self::find_or_create_category($coursedata, $attributes, $categoryid);
+        }
+
+        return $catids;
     }
 
     //////////////////////////////////////////////
@@ -301,7 +325,7 @@ class campusconnect_filtering {
         // Check for any attributes that are no longer active.
         foreach ($oldsettings as  $attribute => $oldsetting) {
             if (!isset($settings[$attribute])) {
-                $DB->delete_records('local_campusconnect_filter', $oldsetting->id);
+                $DB->delete_records('local_campusconnect_filter', array('id' => $oldsetting->id));
                 unset($oldsettings[$attribute]);
             }
         }

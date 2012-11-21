@@ -121,6 +121,28 @@ class local_campusconnect_filtering_test extends UnitTestCase {
             )
         );
         $this->assertFalse(campusconnect_filtering::check_filter_match($metadata, $filter));
+
+        // Test matching array attribute
+        $filter = array(
+            'attribute1' => (object)array(
+                'allwords' => false,
+                'words' => array('cat', 'testvalue', 'dog'),
+                'createsubdirectories' => false
+            )
+        );
+        $metadata = array(
+            'attribute1' => array('big', 'small', 'testvalue'),
+            'attribute2' => array('fish', 'whale', 'mermaid')
+        );
+        $this->assertTrue(campusconnect_filtering::check_filter_match($metadata, $filter));
+
+        // Test failing to match array attribute
+        $filter['attribute2'] = (object)array(
+            'allwords' => false,
+            'words' => array('lion', 'tiger', 'bear'),
+            'createsubdirectories' => false
+        );
+        $this->assertFalse(campusconnect_filtering::check_filter_match($metadata, $filter));
     }
 
     public function test_find_or_create_category() {
@@ -144,7 +166,7 @@ class local_campusconnect_filtering_test extends UnitTestCase {
             'attribute2' => 'fish'
         );
         $categoryid = campusconnect_filtering::find_or_create_category($metadata, $filter, -5);
-        $this->assertEqual($categoryid, -5);
+        $this->assertEqual($categoryid, array(-5));
 
         // Test creating the course directly in the parent category (with multiple attributes)
         $filter = array(
@@ -160,7 +182,7 @@ class local_campusconnect_filtering_test extends UnitTestCase {
             )
         );
         $categoryid = campusconnect_filtering::find_or_create_category($metadata, $filter, -5);
-        $this->assertEqual($categoryid, -5);
+        $this->assertEqual($categoryid, array(-5));
 
         // Test creating course in subcategory of parent category
         $filter = array(
@@ -174,7 +196,7 @@ class local_campusconnect_filtering_test extends UnitTestCase {
         $DB->expectAt($ins++, 'insert_record', array('course_categories', '*'));
         $DB->expectAt($getf++, 'get_field', array('course_categories', 'id', '*'));
         $categoryid = campusconnect_filtering::find_or_create_category($metadata, $filter, -5);
-        $this->assertEqual($categoryid, -6);
+        $this->assertEqual($categoryid, array(-6));
 
         // Test creating course in two levels of subcategories
         $filter = array(
@@ -196,7 +218,7 @@ class local_campusconnect_filtering_test extends UnitTestCase {
         $DB->expectAt($ins++, 'insert_record', array('course_categories', '*'));
         $DB->expectAt($getf++, 'get_field', array('course_categories', 'id', '*'));
         $categoryid = campusconnect_filtering::find_or_create_category($metadata, $filter, -5);
-        $this->assertEqual($categoryid, -7);
+        $this->assertEqual($categoryid, array(-7));
 
         // Test creating course in subcategory from 2nd filter only
         $filter = array(
@@ -215,6 +237,92 @@ class local_campusconnect_filtering_test extends UnitTestCase {
         $DB->expectAt($ins++, 'insert_record', array('course_categories', '*'));
         $DB->expectAt($getf++, 'get_field', array('course_categories', 'id', '*'));
         $categoryid = campusconnect_filtering::find_or_create_category($metadata, $filter, -5);
-        $this->assertEqual($categoryid, -6);
+        $this->assertEqual($categoryid, array(-6));
+
+        // Test creating course in single level subcategories with multiple attribute values
+        $filter = array(
+            'attribute1' => (object)array(
+                'allwords' => true,
+                'words' => array(),
+                'createsubdirectories' => true
+            )
+        );
+        $metadata = array(
+            'attribute1' => array('testvalue', 'testvalue2'),
+            'attribute2' => array('fish', 'whale', 'mermaid')
+        );
+        $DB->setReturnValueAt($ins, 'insert_record', -6); // base > testvalue
+        $DB->expectAt($ins++, 'insert_record', array('course_categories', '*'));
+        $DB->expectAt($getf++, 'get_field', array('course_categories', 'id', '*'));
+        $DB->setReturnValueAt($ins, 'insert_record', -7); // base > testvalue2
+        $DB->expectAt($ins++, 'insert_record', array('course_categories', '*'));
+        $DB->expectAt($getf++, 'get_field', array('course_categories', 'id', '*'));
+        $categoryid = campusconnect_filtering::find_or_create_category($metadata, $filter, -5);
+        $this->assertEqual($categoryid, array(-6, -7));
+
+        // Test creating course in single level subcategories with multiple attribute values (but limited words)
+        $filter = array(
+            'attribute1' => (object)array(
+                'allwords' => false,
+                'words' => array('testvalue'),
+                'createsubdirectories' => true
+            )
+        );
+        $metadata = array(
+            'attribute1' => array('testvalue', 'testvalue2'),
+            'attribute2' => array('fish', 'whale', 'mermaid')
+        );
+        $DB->setReturnValueAt($ins, 'insert_record', -6); // base > testvalue
+        $DB->expectAt($ins++, 'insert_record', array('course_categories', '*'));
+        $DB->expectAt($getf++, 'get_field', array('course_categories', 'id', '*'));
+        $categoryid = campusconnect_filtering::find_or_create_category($metadata, $filter, -5);
+        $this->assertEqual($categoryid, array(-6));
+
+        // Test creating course in two  levels of subcategories with multiple attribute values
+        $filter = array(
+            'attribute1' => (object)array(
+                'allwords' => true,
+                'words' => array(),
+                'createsubdirectories' => true
+            ),
+            'attribute2' => (object)array(
+                'allwords' => true,
+                'words' => array(),
+                'createsubdirectories'=> true
+            )
+        );
+        $metadata = array(
+            'attribute1' => array('testvalue', 'testvalue2'),
+            'attribute2' => array('fish', 'whale', 'mermaid')
+        );
+        $DB->setReturnValueAt($ins, 'insert_record', -6); // base > testvalue
+        $DB->expectAt($ins++, 'insert_record', array('course_categories', '*'));
+        $DB->expectAt($getf++, 'get_field', array('course_categories', 'id', '*'));
+        $DB->setReturnValueAt($ins, 'insert_record', -7); // base > testvalue > fish
+        $DB->expectAt($ins++, 'insert_record', array('course_categories', '*'));
+        $DB->expectAt($getf++, 'get_field', array('course_categories', 'id', '*'));
+        $DB->setReturnValueAt($ins, 'insert_record', -8); // base > testvalue > whale
+        $DB->expectAt($ins++, 'insert_record', array('course_categories', '*'));
+        $DB->expectAt($getf++, 'get_field', array('course_categories', 'id', '*'));
+        $DB->setReturnValueAt($ins, 'insert_record', -9); // base > testvalue > mermaid
+        $DB->expectAt($ins++, 'insert_record', array('course_categories', '*'));
+        $DB->expectAt($getf++, 'get_field', array('course_categories', 'id', '*'));
+        $DB->setReturnValueAt($ins, 'insert_record', -10);  // base > testvalue2
+        $DB->expectAt($ins++, 'insert_record', array('course_categories', '*'));
+        $DB->expectAt($getf++, 'get_field', array('course_categories', 'id', '*'));
+        $DB->setReturnValueAt($ins, 'insert_record', -11);  // base > testvalue2 > fish
+        $DB->expectAt($ins++, 'insert_record', array('course_categories', '*'));
+        $DB->expectAt($getf++, 'get_field', array('course_categories', 'id', '*'));
+        $DB->setReturnValueAt($ins, 'insert_record', -12); // base > testvalue2 > whale
+        $DB->expectAt($ins++, 'insert_record', array('course_categories', '*'));
+        $DB->expectAt($getf++, 'get_field', array('course_categories', 'id', '*'));
+        $DB->setReturnValueAt($ins, 'insert_record', -13); // base > testvalue2 > mermaid
+        $DB->expectAt($ins++, 'insert_record', array('course_categories', '*'));
+        $DB->expectAt($getf++, 'get_field', array('course_categories', 'id', '*'));
+        $categoryid = campusconnect_filtering::find_or_create_category($metadata, $filter, -5);
+        $this->assertEqual($categoryid, array(-7, -8, -9, -11, -12, -13));
+
+        $DB->expectCallCount('insert_record', $ins);
+        $DB->expectCallCount('get_field', $getf);
     }
 }

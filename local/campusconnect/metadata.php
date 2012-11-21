@@ -494,9 +494,10 @@ class campusconnect_metadata {
     /**
      * Convert the structured details into a flat array for easier processing
      * @param stdClass $remotedetails
+     * @param bool $flattenarrays true if any array-based fields should be imploded
      * @return array
      */
-    public function flatten_remote_data($remotedetails) {
+    public function flatten_remote_data($remotedetails, $flattenarrays = false) {
         $details = array();
         foreach ($remotedetails as $name => $value) {
             if ($name == 'basicData') {
@@ -546,7 +547,9 @@ class campusconnect_metadata {
                             $details[$fieldname][$key] = fullname($fakeuser);
                         }
                     }
-                    $details[$fieldname] = implode(', ', $details[$fieldname]);
+                    if ($flattenarrays) {
+                        $details[$fieldname] = implode(', ', $details[$fieldname]);
+                    }
                     break;
                 case 'degreelist':
                     foreach ($details[$basename] as $key => $degree) {
@@ -556,22 +559,30 @@ class campusconnect_metadata {
                             $details[$fieldname][$key] = $degree->code.' - '.$degree->title;
                         }
                     }
-                    $details[$fieldname] = implode(', ', $details[$fieldname]);
+                    if ($flattenarrays) {
+                        $details[$fieldname] = implode(', ', $details[$fieldname]);
+                    }
                     break;
                 case 'linklist':
                     foreach ($details[$basename] as $key => $link) {
                         $details[$fieldname][$key] = html_writer::link($details[$basename][$key]->href, $details[$basename][$key]->title);
                     }
-                    $details[$fieldname] = implode(', ', $details[$fieldname]);
+                    if ($flattenarrays) {
+                        $details[$fieldname] = implode(', ', $details[$fieldname]);
+                    }
                     break;
                 case 'moduleslist':
                     foreach ($details[$basename] as $key => $module) {
                         $details[$fieldname][$key] = $module->title;
                     }
-                    $details[$fieldname] = implode(', ', $details[$fieldname]);
+                    if ($flattenarrays) {
+                        $details[$fieldname] = implode(', ', $details[$fieldname]);
+                    }
                     break;
                 case 'list':
-                    $details[$fieldname] = implode(', ', $details[$basename]);
+                    if ($flattenarrays) {
+                        $details[$fieldname] = implode(', ', $details[$basename]);
+                    }
                     break;
                 case 'link':
                     $details[$fieldname] = html_writer::link($details[$basename]->href, $details[$basename]->title);

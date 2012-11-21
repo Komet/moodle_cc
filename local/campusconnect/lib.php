@@ -55,7 +55,11 @@ function local_campusconnect_cron() {
                 local_campusconnect_ecs_error_notification($ecssettings, $e->getMessage());
             }
 
-            campusconnect_directorytree::check_all_mappings();
+            $cms = campusconnect_participantsettings::get_cms_participant();
+            if ($cms && $cms->get_ecs_id() == $ecssettings->get_id()) {
+                // If we are updating from the ECS with the CMS attached, then check the directory mappings (and sort order)
+                campusconnect_directorytree::check_all_mappings();
+            }
 
             mtrace("Emailing any necessary notifications for '".$ecssettings->get_name()."'");
             campusconnect_notification::send_notifications($ecssettings);

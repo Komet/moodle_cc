@@ -656,7 +656,7 @@ class campusconnect_directorytree {
                 $categoryids[] = $catid;
             }
         }
-        $categories = $DB->get_records_list('course_categories', 'id', $categoryids, 'id', 'id');
+        $categories = $DB->get_records_list('course_categories', 'id', $categoryids, 'id', 'id, sortorder');
         /** @var $recreate campusconnect_directory[] */
         $recreate = array();
         foreach ($dirs as $dir) {
@@ -671,11 +671,24 @@ class campusconnect_directorytree {
         }
         // Try to recreate the categories for any automatically mapped directories that
         // previously had categories.
+        $fixorder = false;
         if ($recreate) {
             foreach ($recreate as $dir) {
                 $dirtree = $dir->get_directory_tree();
                 $dir->create_category($dirtree->get_category_id(), false);
             }
+            $fixorder = true;
+        }
+
+        // Update the sort order for all categories, if selected
+        foreach ($dirtrees as $dirtree) {
+            if ($dirtree->should_take_over_position()) {
+                $changes = campusconnect_directory::sort_categories($dirtree->rootid, $dirs, $categories);
+                $fixorder = $fixorder || $changes;
+            }
+        }
+
+        if ($fixorder) {
             fix_course_sortorder();
         }
     }
@@ -1019,9 +1032,8 @@ class campusconnect_directory {
         }
 
         $this->set_field('sortorder', $sortorder);
-        if ($this->categoryid) {
-            // TODO - do something with this sortorder field.
-        }
+
+        // Sortorder is automatically checked as part of the cron process, so any category moving will happen then.
     }
 
     /**
@@ -1443,4 +1455,61 @@ class campusconnect_directory {
         self::$newdirs = array();
         fix_course_sortorder();
     }
+
+    /**
+     * Make sure that the sortorder of the categories matches the sort order of the directories.
+     * @param int $rootid
+     * @param campusconnect_directory[] $dirs
+     * @param stdClass[] $categories
+     * @return bool true if changes made
+     */
+    public static function sort_categories($rootid, $dirs, $categories) {
+        global $DB;
+        $updated = false;
+        $sorteddirs = array();
+        foreach ($dirs as $dir) {
+            if ($dir->rootid != $rootid) {
+                continue;
+            }
+            if ($dir->get_status() != self::STATUS_MAPPED_AUTOMATIC) {
+                continue; // Only automatically mapped categories should be sorted
+            }
+            if (!isset($sorteddirs[$dir->parentid])) {
+                $sorteddirs[$dir->parentid] = array();
+            }
+            $sortorder = $dir->sortorder;
+            while (isset($sorteddirs[$dir->parentid][$sortorder])) {
+                // Already a dir with the same parent and sortorder - adjust the sortorder until we avoid the conflict
+                $sortorder++;
+            }
+            if ($sortorder != $dir->sortorder) {
+                $dir->set_order($sortorder); // Save the updated sortorder
+            }
+            $sorteddirs[$dir->parentid][$sortorder] = $dir;
+        }
+        foreach ($sorteddirs as $sdirs) {
+            /** @var $sdirs campusconnect_directory[]  */
+            ksort($sdirs);
+            $lastsort = -1;
+            foreach ($sdirs as $dir) {
+                $catid = $dir->get_category_id();
+                if (!$catid) {
+                    continue;
+                }
+                if (!isset($categories[$catid])) {
+                    continue; // Not sure this should happen, but will skip for now and hope it is fixed on the next cron.
+                }
+                $catsort = $categories[$catid]->sortorder;
+                if ($catsort <= $lastsort) {
+                    $catsort = $lastsort + 1;
+                    $DB->set_field('course_categories', 'sortorder', $catsort, array('id' => $catid));
+                    $updated = true;
+                }
+                $lastsort = $catsort;
+            }
+        }
+
+        return $updated;
+    }
 }
+

@@ -518,6 +518,24 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2012112000, 'local', 'campusconnect');
     }
 
+    if ($oldversion < 2012112300) {
+
+        // Define field sortorder to be added to local_campusconnect_crs
+        $table = new xmldb_table('local_campusconnect_crs');
+
+        $field = new xmldb_field('sortorder', XMLDB_TYPE_INTEGER, '10', null, null, null, '0', 'urlstatus');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $field = new xmldb_field('directoryid', XMLDB_TYPE_INTEGER, '10', null, null, null, '0', 'sortorder');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012112300, 'local', 'campusconnect');
+    }
 
     return true;
 }

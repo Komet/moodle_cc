@@ -105,6 +105,8 @@ class campusconnect_course {
             $ins->ecsid = $ecssettings->get_id();
             $ins->mid = $mid;
             $ins->internallink = $internallink;
+            $ins->sortorder = $category->get_order();
+            $ins->directoryid = $category->get_directoryid();
 
             $ins->id = $DB->insert_record('local_campusconnect_crs', $ins);
 
@@ -270,6 +272,8 @@ class campusconnect_course {
                 $ins->ecsid = $ecsid;
                 $ins->mid = $mid;
                 $ins->internallink = $internallink;
+                $ins->sortorder = $newcategory->get_order();
+                $ins->directoryid = $newcategory->get_directoryid();
                 $ins->id = $DB->insert_record('local_campusconnect_crs', $ins);
                 $currcourses[] = $ins;
             }
@@ -294,6 +298,15 @@ class campusconnect_course {
             $swapcourse = (object)array('id' => $swapcourseid, 'category' => $realcategoryid);
             $DB->update_record('course', $realcourse);
             $DB->update_record('course', $swapcourse);
+
+            // Swap the directoryids & sortorder for these courses
+            $crs1 = $DB->get_record('local_campusconnect_crs', array('courseid' => $realcourseid), 'id, sortorder, directoryid', MUST_EXIST);
+            $crs2 = $DB->get_record('local_campusconnect_crs', array('courseid' => $swapcourseid), 'id, sortorder, directoryid', MUST_EXIST);
+            $tempid = $crs1->id;
+            $crs1->id = $crs2->id;
+            $crs2->id = $tempid;
+            $DB->update_record('local_campusconnect_crs', $crs1);
+            $DB->update_record('local_campusconnect_crs', $crs2);
         }
 
         return true;
@@ -385,6 +398,47 @@ class campusconnect_course {
         }
 
         return $ret;
+    }
+
+    /**
+     * Sort all directories based on their allocation sortorder
+     * @param int $rootdir the CampusConnect directory to find courses within
+     * @return bool true if there were changes to the course table (so fix_course_sortorder is needed)
+     */
+    public static function sort_courses($rootdir) {
+        global $DB;
+
+        // Find all the allocated courses within this root directory with a sortorder, ordered by subdirectory + sortorder
+        $sql = "SELECT crs.*, c.sortorder AS coursesortorder
+                  FROM {local_campusconnect_crs} crs
+                  JOIN {local_campusconnect_dir} dir ON crs.directoryid = dir.directoryid
+                  JOIN {course} c ON crs.courseid = c.id
+                 WHERE crs.sortorder <> 0 AND dir.rootid = ?
+              ORDER BY crs.directoryid, crs.sortorder, c.sortorder"; // Use course sortorder, if CMS sort order is the same
+        $crs = $DB->get_records_sql($sql, array($rootdir));
+
+        // Check that the course sortorder increases as we go through the sorted list within each subdirectory
+        $changes = false;
+        $lastorder = -1;
+        $lastdir = -1;
+        foreach ($crs as $cr) {
+            if ($cr->directoryid != $lastdir) {
+                // Onto the next subdirectory.
+                $lastdir = $cr->directoryid;
+                $lastorder = -1;
+            } else {
+                if ($cr->coursesortorder <= $lastorder) {
+                    // Found a course with an out-of-sequence sortorder => fix it.
+                    $DB->set_field('course', 'sortorder', $lastorder + 1, array('id' => $cr->courseid));
+                    $changes = true;
+                    $lastorder = $lastorder + 1;
+                } else {
+                    $lastorder = $cr->coursesortorder;
+                }
+            }
+        }
+
+        return $changes;
     }
 
     /**
@@ -504,7 +558,7 @@ class campusconnect_course {
             }
             $ret = array();
             foreach ($catids as $catid) {
-                $ret[] = new campusconnect_course_category($catid, 0);
+                $ret[] = new campusconnect_course_category($catid);
             }
             return $ret;
         }
@@ -518,7 +572,7 @@ class campusconnect_course {
         $ret = array();
         foreach ($course->allocations as $allocation) {
             if ($catid = campusconnect_directorytree::get_category_for_course($allocation->parentID)) {
-                $ret[] = new campusconnect_course_category($catid, $allocation->order);
+                $ret[] = new campusconnect_course_category($catid, $allocation->order, $allocation->parentID);
             }
         }
 
@@ -553,11 +607,23 @@ class campusconnect_course {
                     /** @var $newcategory campusconnect_course_category */
                     $newcategory = array_shift($newcategories);
                     $DB->set_field('course', 'category', $newcategory->get_categoryid(), array('id' => $currcourse->courseid));
+                    // Update the directoryid / sortorder for this course
+                    $upd = new stdClass();
+                    $upd->id = $currcourse->id;
+                    $upd->directoryid = $newcategory->get_directoryid();
+                    $upd->sortorder = $newcategory->get_order();
+                    $DB->update_record('local_campusconnect_crs', $upd);
                 } else {
                     // No newly-mapped categories, so will need to move it into an existing category.
                     $removecrsid = array_shift(array_keys($unchangedcategories));
                     $updatecategory = array_shift($unchangedcategories);
                     $DB->set_field('course', 'category', $updatecategory->get_categoryid(), array('id' => $currcourse->courseid));
+                    // Update the directoryid / sortorder for this course
+                    $upd = new stdClass();
+                    $upd->id = $currcourse->id;
+                    $upd->directoryid = $updatecategory->get_directoryid();
+                    $upd->sortorder = $updatecategory->get_order();
+                    $DB->update_record('local_campusconnect_crs', $upd);
 
                     // The existing course (which was an internal link) is no longer needed - delete it and the crs record.
                     $removecourseid = $currcourses[$removecrsid]->courseid;
@@ -605,14 +671,17 @@ class campusconnect_course_category {
     protected $categoryid;
     /** @var int $order */
     protected $order;
+    /** @var int $directory */
+    protected $directoryid;
 
     /**
      * @param int $categoryid
      * @param int $order
      */
-    public function __construct($categoryid, $order) {
+    public function __construct($categoryid, $order = 0, $directoryid = 0) {
         $this->categoryid = $categoryid;
         $this->order = $order;
+        $this->directoryid = $directoryid;
     }
 
     /**
@@ -630,6 +699,15 @@ class campusconnect_course_category {
     public function get_order() {
         return $this->order;
     }
+
+    /**
+     * The Moodle directory in which to create the course
+     * @return int
+     */
+    public function get_directoryid() {
+        return $this->directoryid;
+    }
+
 }
 
 /**

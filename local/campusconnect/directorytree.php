@@ -686,6 +686,10 @@ class campusconnect_directorytree {
                 $changes = campusconnect_directory::sort_categories($dirtree->rootid, $dirs, $categories);
                 $fixorder = $fixorder || $changes;
             }
+            if ($dirtree->should_take_over_allocation()) {
+                $changes = campusconnect_course::sort_courses($dirtree->rootid);
+                $fixorder = $fixorder || $changes;
+            }
         }
 
         if ($fixorder) {

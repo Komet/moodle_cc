@@ -54,14 +54,8 @@ class campusconnect_directorymapping_form extends moodleform {
         $mform->addElement('selectyesno', 'takeoverposition', get_string('takeoverposition', 'local_campusconnect'));
         $mform->setDefault('takeoverposition', $dirtree->should_take_over_position());
 
-        if ($mode == campusconnect_directorytree::MODE_PENDING ||
-            $mode == campusconnect_directorytree::MODE_WHOLE) {
-            $mform->addElement('selectyesno', 'takeoverposition', get_string('takeoverposition', 'local_campusconnect'));
-            $mform->setDefault('takeoverposition', $dirtree->should_take_over_position());
-
-            $mform->addElement('selectyesno', 'takeoverallocation', get_string('takeoverallocation', 'local_campusconnect'));
-            $mform->setDefault('takeoverallocation', $dirtree->should_take_over_allocation());
-        }
+        $mform->addElement('selectyesno', 'takeoverallocation', get_string('takeoverallocation', 'local_campusconnect'));
+        $mform->setDefault('takeoverallocation', $dirtree->should_take_over_allocation());
 
         $mform->addElement('hidden', 'rootid', $dirtree->get_root_id());
 

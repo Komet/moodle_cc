@@ -40,6 +40,9 @@ class campusconnect_course_exception extends moodle_exception {
     }
 }
 
+/**
+ * Looks after the creation / update of courses based on requests from the CMS (via the ECS)
+ */
 class campusconnect_course {
 
     /**
@@ -53,8 +56,6 @@ class campusconnect_course {
      */
     public static function create($resourceid, campusconnect_ecssettings $ecssettings, $course,
                                   campusconnect_details $transferdetails, campusconnect_participantsettings $cms = null) {
-        global $DB;
-
         if (is_null($cms)) {
             $cms = campusconnect_participantsettings::get_cms_participant();
         }
@@ -78,7 +79,42 @@ class campusconnect_course {
 
         self::set_course_defaults($coursedata);
 
+        list($pgroups, $pgroupmode) = campusconnect_parallelgroups::get_parallel_groups($course);
+        if (count($pgroups) < 1) {
+            $pgroups[] = array(); // Make sure there is at least one course to be created.
+        }
+
+        $pgclass = new campusconnect_parallelgroups($ecssettings, $resourceid);
+        foreach ($pgroups as $pgcourse) {
+            self::create_new_course($ecssettings, $resourceid, $course, $mid, $coursedata, $pgclass, $pgroupmode,
+                                    $pgcourse, $categories);
+        }
+
+        return true;
+    }
+
+    /**
+     * Create a new course to match a given parellel group and set of categories
+     * @param campusconnect_ecssettings $ecssettings
+     * @param int $resourceid the ID of the resource on the ECS
+     * @param stdClass $course the details of the course from the ECS
+     * @param int $mid the member ID that the course came from
+     * @param stdClass $coursedata the course data after mapping onto Moodle course data
+     * @param campusconnect_parallelgroups $pgclass
+     * @param int $pgroupmode the parallel groups scenario
+     * @param stdClass[] $pgcourse the parallel groups to create in this course
+     * @param campusconnect_course_category[] $categories the categories in which to create this course
+     */
+    protected static function create_new_course(campusconnect_ecssettings $ecssettings, $resourceid, $course, $mid,
+                                                $coursedata, campusconnect_parallelgroups $pgclass,
+                                                $pgroupmode, $pgcourse, $categories) {
+        global $DB;
+
         $internallink = 0;
+
+        $coursedata = clone $coursedata;
+        $coursedata->fullname = $pgclass->update_course_name($coursedata->fullname, $pgroupmode, $pgcourse);
+
         foreach ($categories as $category) {
             $coursedata->category = $category->get_categoryid();
             if ($ecssettings->get_id() > 0) {
@@ -117,6 +153,9 @@ class campusconnect_course {
                 $courseurl = new campusconnect_course_url($ins->id);
                 $courseurl->add();
 
+                // Create any required groups for this course
+                $pgclass->update_parallel_groups($newcourse, $pgroupmode, $pgcourse);
+
                 // Process any existing enrolment requests for this course
                 campusconnect_membership::assign_course_users($newcourse, $ins->cmsid);
 
@@ -125,8 +164,6 @@ class campusconnect_course {
                                                           $newcourse->id);
             }
         }
-
-        return true;
     }
 
     /**
@@ -167,25 +204,38 @@ class campusconnect_course {
             return false; // The directory has not yet been mapped onto a category => cannot yet create the course.
         }
 
+        list($pgroups, $pgroupmode) = campusconnect_parallelgroups::get_parallel_groups($course);
+        if (count($pgroups) < 1) {
+            $pgroups[] = array(); // Make sure there is at least one course to be created.
+        }
+        $pgclass = new campusconnect_parallelgroups($ecssettings, $resourceid);
+        list ($pgmatched, $pgnotmatched) = $pgclass->match_parallel_groups_to_courses($pgroups);
+
         // Compare the existing allocations to the new allocations.
         list($csql, $params) = $DB->get_in_or_equal(array_keys($currcourses), SQL_PARAMS_NAMED);
         $existingcategoryids = $DB->get_records_sql_menu("SELECT ccc.id, c.category
                                                             FROM {local_campusconnect_crs} ccc
                                                             JOIN {course} c ON ccc.courseid = c.id
-                                                           WHERE ccc.id $csql", $params);
+                                                           WHERE ccc.id $csql
+                                                           ORDER BY c.category", $params);
         $unchangedcategories = array();
         /** @var $newcategories campusconnect_course_category[] */
         $newcategories = array();
         foreach ($categories as $category) {
             $crsid = array_search($category->get_categoryid(), $existingcategoryids);
             if ($crsid !== false) {
-                $unchangedcategories[$crsid] = $category;
-                unset($existingcategoryids[$crsid]); // Any left in this array will be deleted.
+                do {
+                    // Match up all parallel courses in the same category.
+                    $unchangedcategories[$crsid] = $category;
+                    unset($existingcategoryids[$crsid]); // Any left in this array will be deleted.
+                } while (($crsid = array_search($category->get_categoryid(), $existingcategoryids)) !== false);
             } else {
                 $newcategories[] = $category;
             }
         }
         self::remove_allocations($currcourses, $existingcategoryids, $unchangedcategories, $newcategories, $ecssettings->get_id() < 0);
+
+        $coursedata = self::map_course_settings($course, $ecssettings);
 
         // Check for orphaned crs records.
         foreach ($currcourses as $key => $currcourse) {
@@ -196,17 +246,39 @@ class campusconnect_course {
                     unset($currcourses[$key]);
                 } else {
                     // The 'real' course has been deleted, need to recreate it.
-                    // Safest thing to do here is to delete all existing details and then call create course.
-                    foreach ($currcourses as $crs) {
-                        $DB->delete_records('course', array('id' => $crs->courseid));
-                        $DB->delete_records('local_campusconnect_crs', array('id' => $crs->id));
+                    // Create in the first category, which is where the real course should always be located.
+                    $oldcourseid = $currcourse->internallink;
+                    $category = reset($categories);
+                    $coursedetails = clone $coursedata;
+                    $coursedetails->category = $category->get_categoryid();
+                    $baseshortname = $coursedetails->shortname;
+                    $num = 1;
+                    while ($DB->record_exists('course', array('shortname' => $coursedetails->shortname))) {
+                        $num++;
+                        $coursedetails->shortname = "{$baseshortname}_{$num}";
                     }
-                    return self::create($resourceid, $ecssettings, $course, $transferdetails);
+                    if (isset($pgmatched[$currcourse->courseid])) {
+                        $coursedetails->fullname = $pgclass->update_course_name($coursedetails->fullname,
+                                                                                $pgroupmode, $pgmatched[$currcourse->courseid]);
+                    }
+                    $newcourse = create_course($coursedetails);
+                    unset($coursedetails);
+
+                    // Update any courselinks to point at this course.
+                    foreach ($currcourses as $crs) {
+                        if ($crs->internallink == $oldcourseid) {
+                            $crs->internallink = $newcourse->id;
+                            $DB->set_field('local_campusconnect_crs', 'internallink', $newcourse->id, array('id' => $crs->id));
+                        }
+                    }
+
+                    // Update any groups for this course
+                    if (isset($pgmatched[$oldcourseid])) {
+                        $pgclass->update_parallel_groups($newcourse, $pgroupmode, $pgmatched[$oldcourseid]);
+                    }
                 }
             }
         }
-
-        $coursedata = self::map_course_settings($course, $ecssettings);
 
         // Update all the existing crs records.
         foreach ($currcourses as $currcourse) {
@@ -214,15 +286,20 @@ class campusconnect_course {
                 throw new coding_exception("crs record {$currcourse->id} references non-existent course {$currcourse->courseid}");
             } else {
                 // Course still exists - update it.
-                $coursedata->id = $currcourse->courseid;
+                $coursedetails = clone $coursedata;
+                $coursedetails->id = $currcourse->courseid;
+                if (isset($pgmatched[$coursedetails->id])) {
+                    $coursedetails->fullname = $pgclass->update_course_name($coursedetails->fullname,
+                                                                            $pgroupmode, $pgmatched[$coursedetails->id]);
+                }
                 if ($ecssettings->get_id() > 0) {
                     // Nasty hack for unit testing - 'update_course' is too complex to
                     // be practical to mock up the database responses
-                    update_course($coursedata);
+                    update_course($coursedetails);
                 } else {
                     global $DB;
                     /** @noinspection PhpUndefinedMethodInspection */
-                    $DB->mock_update_course($coursedata);
+                    $DB->mock_update_course($coursedetails);
                 }
 
                 // The cms course id has changed (not sure if this should ever happen, but handle it anyway)
@@ -237,6 +314,11 @@ class campusconnect_course {
                         $courseurl = new campusconnect_course_url($currcourse->id);
                         $courseurl->update();
                     }
+                }
+
+                // Check the groups for this course
+                if (isset($pgmatched[$coursedetails->id])) {
+                    $pgclass->update_parallel_groups($coursedetails, $pgroupmode, $pgmatched[$coursedetails->id]);
                 }
             }
         }
@@ -282,31 +364,43 @@ class campusconnect_course {
         // Check the 'real' course is in the first category in the list, if not, swap the course with one of the links.
         $firstcategory = reset($categories);
         $firstcategoryid = $firstcategory->get_categoryid();
-        $firstcourse = reset($currcourses);
-        $realcourseid = ($firstcourse->internallink == 0) ? $firstcourse->courseid : $firstcourse->internallink;
-        $realcategoryid = $DB->get_field('course', 'category', array('id' => $realcourseid), MUST_EXIST);
-        if ($realcategoryid != $firstcategoryid) {
-            // The 'real' course is not in the first category - find the course that is in that category and swap them.
-            $params = array('resourceid' => $resourceid, 'ecsid' => $ecsid, 'firstcategoryid' => $firstcategoryid);
-            $swapcourseid = $DB->get_field_sql('SELECT c.id
+        $realcourseids = array();
+        foreach ($currcourses as $currcourse) {
+            $realid = ($currcourse->internallink == 0) ? $currcourse->courseid : $currcourse->internallink;
+            $realcourseids[$realid] = $realid;
+        }
+        $realcategories = $DB->get_records_list('course', 'id', $realcourseids, '', 'id, category');
+        foreach ($realcategories as $realcategory) {
+            if ($realcategory->category != $firstcategoryid) {
+                // The 'real' course is not in the first category - find the course that is in that category and swap them.
+                $params = array('resourceid' => $resourceid, 'ecsid' => $ecsid, 'firstcategoryid' => $firstcategoryid);
+                $swapcourseid = $DB->get_field_sql('SELECT c.id
                                                   FROM {course} c
                                                   JOIN {local_campusconnect_crs} ccc ON c.id = ccc.courseid
                                                  WHERE ccc.resourceid = :resourceid AND ccc.ecsid = :ecsid
                                                    AND c.category = :firstcategoryid', $params, MUST_EXIST);
 
-            $realcourse = (object)array('id' => $realcourseid, 'category' => $firstcategoryid);
-            $swapcourse = (object)array('id' => $swapcourseid, 'category' => $realcategoryid);
-            $DB->update_record('course', $realcourse);
-            $DB->update_record('course', $swapcourse);
+                $realcourse = (object)array('id' => $realcategory->id, 'category' => $firstcategoryid);
+                $swapcourse = (object)array('id' => $swapcourseid, 'category' => $realcategory->id);
+                $DB->update_record('course', $realcourse);
+                $DB->update_record('course', $swapcourse);
 
-            // Swap the directoryids & sortorder for these courses
-            $crs1 = $DB->get_record('local_campusconnect_crs', array('courseid' => $realcourseid), 'id, sortorder, directoryid', MUST_EXIST);
-            $crs2 = $DB->get_record('local_campusconnect_crs', array('courseid' => $swapcourseid), 'id, sortorder, directoryid', MUST_EXIST);
-            $tempid = $crs1->id;
-            $crs1->id = $crs2->id;
-            $crs2->id = $tempid;
-            $DB->update_record('local_campusconnect_crs', $crs1);
-            $DB->update_record('local_campusconnect_crs', $crs2);
+                // Swap the directoryids & sortorder for these courses
+                $crs1 = $DB->get_record('local_campusconnect_crs', array('courseid' => $realcourse->id),
+                                        'id, sortorder, directoryid', MUST_EXIST);
+                $crs2 = $DB->get_record('local_campusconnect_crs', array('courseid' => $swapcourseid),
+                                        'id, sortorder, directoryid', MUST_EXIST);
+                $tempid = $crs1->id;
+                $crs1->id = $crs2->id;
+                $crs2->id = $tempid;
+                $DB->update_record('local_campusconnect_crs', $crs1);
+                $DB->update_record('local_campusconnect_crs', $crs2);
+            }
+        }
+
+        // Create new courses for parallel groups that didn't exist before.
+        foreach ($pgnotmatched as $pgcourse) {
+            self::create_new_course($ecssettings, $resourceid, $course, $mid, $coursedata, $pgclass, $pgroupmode, $pgcourse, $categories);
         }
 
         return true;
@@ -580,6 +674,9 @@ class campusconnect_course {
     }
 
     /**
+     * Internal function that deletes internal course links from categories that no longer contain a link to that course
+     * Where possible, courses are moved into new categories, instead of deleting them. 'Real' courses are always retained
+     * (and moved to new categories, if required).
      * @param object[] $currcourses
      * @param int[] $removecategoryids mapping local_campusconnect_crs.id => categoryid
      * @param campusconnect_course_category[] $unchangedcategories
@@ -598,25 +695,34 @@ class campusconnect_course {
             throw new coding_exception("campusconnect_course::remove_allocations - unchangedcategories and newcategories should never both be empty");
         }
 
+        $firstnewcategory = false;
         // Make sure the 'real' course continues to exist - move it to a different category, if no longer mapped to its current location.
         foreach ($removecategoryids as $rcrsid => $rcatid) {
             $currcourse = $currcourses[$rcrsid];
             if ($currcourse->internallink == 0) { // We are trying to remove the 'real' course - instead move it.
                 if (!empty($newcategories)) {
                     // Move it into the newly-mapped category.
-                    /** @var $newcategory campusconnect_course_category */
-                    $newcategory = array_shift($newcategories);
-                    $DB->set_field('course', 'category', $newcategory->get_categoryid(), array('id' => $currcourse->courseid));
+                    /** @var $firstnewcategory campusconnect_course_category */
+                    if ($firstnewcategory === false) {
+                        // Only one 'real course' per parallel course, so map all onto the first 'new category'.
+                        $firstnewcategory = array_shift($newcategories);
+                    }
+                    $DB->set_field('course', 'category', $firstnewcategory->get_categoryid(), array('id' => $currcourse->courseid));
                     // Update the directoryid / sortorder for this course
                     $upd = new stdClass();
                     $upd->id = $currcourse->id;
-                    $upd->directoryid = $newcategory->get_directoryid();
-                    $upd->sortorder = $newcategory->get_order();
+                    $upd->directoryid = $firstnewcategory->get_directoryid();
+                    $upd->sortorder = $firstnewcategory->get_order();
                     $DB->update_record('local_campusconnect_crs', $upd);
                 } else {
                     // No newly-mapped categories, so will need to move it into an existing category.
                     $removecrsid = array_shift(array_keys($unchangedcategories));
                     $updatecategory = array_shift($unchangedcategories);
+
+                    if ($updatecategory->internallink == 0) {
+                        throw new coding_exception("Attempting to replace one 'real course' with another - this should not happen");
+                    }
+
                     $DB->set_field('course', 'category', $updatecategory->get_categoryid(), array('id' => $currcourse->courseid));
                     // Update the directoryid / sortorder for this course
                     $upd = new stdClass();
@@ -642,12 +748,19 @@ class campusconnect_course {
 
         // We are trying to remove some internal links and create new internal links - instead, move as many as possible
         // to new categories
+        /** @var $currentnewcat campusconnect_course_category */
+        $currentnewcat = null;
+        $currentcatid = null;
         foreach ($removecategoryids as $rcrsid => $rcatid) {
             $currcourse = $currcourses[$rcrsid];
-            if (!empty($newcategories)) {
+            if ($currentcatid == $rcatid) {
+                // A parallel course in the same category - move to the new category as well.
+                $DB->set_field('course', 'category', $currentnewcat->get_categoryid(), array('id' => $currcourse->courseid));
+            } else if (!empty($newcategories)) {
                 // There is a newly-mapped category to move this internal link into.
-                $newcategory = array_shift($newcategories);
-                $DB->set_field('course', 'category', $newcategory->get_categoryid(), array('id' => $currcourse->courseid));
+                $currentnewcat = array_shift($newcategories);
+                $currentcatid = $rcatid;
+                $DB->set_field('course', 'category', $currentnewcat->get_categoryid(), array('id' => $currcourse->courseid));
             } else {
                 // No newly-mapped category => just remove the course completely.
                 if (!$unittest) {
@@ -677,6 +790,7 @@ class campusconnect_course_category {
     /**
      * @param int $categoryid
      * @param int $order
+     * @param int $directoryid
      */
     public function __construct($categoryid, $order = 0, $directoryid = 0) {
         $this->categoryid = $categoryid;
@@ -715,13 +829,21 @@ class campusconnect_course_category {
  */
 class campusconnect_course_url {
 
+    /** The course url has been updated on the ECS */
     const STATUS_UPTODATE = 0;
+    /** New course url, not yet sent to the ECS */
     const STATUS_CREATED = 1;
+    /** Course url has changed, not yet updated the ECS */
     const STATUS_UPDATED = 2;
+    /** Course url has been deleted, not yet updated the ECS */
     const STATUS_DELETED = 3;
 
+    /** @var stdClass the crs record from the database */
     protected $crs;
 
+    /**
+     * @param int $crsid
+     */
     public function __construct($crsid) {
         $this->crs = $this->get_record($crsid);
     }
@@ -776,6 +898,7 @@ class campusconnect_course_url {
     }
 
     /**
+     * Update the ECS with all the changes to course urls
      * @param campusconnect_connect $connect
      */
     public static function update_ecs(campusconnect_connect $connect) {
@@ -834,13 +957,14 @@ class campusconnect_course_url {
     /**
      * Get list of course URLS from ECS - delete any that should not be there any more, create
      * any that should be there and update all others
+     * NOTE: This does not work as the list of courseurls pulled from the ECS does not include our links.
      * @param campusconnect_connect $connect
      * @return object an object containing: ->created = array of resourceids created
      *                            ->updated = array of resourceids updated
      *                            ->deleted = array of resourceids deleted
      */
     public static function refresh_ecs(campusconnect_connect $connect) {
-        global $DB;
+        //global $DB;
 
         $ret = (object)array('created' => array(), 'updated' => array(), 'deleted' => array());
 
@@ -936,6 +1060,7 @@ class campusconnect_course_url {
     }
 
     /**
+     * Load the crs record and check it is valid
      * @param $crsid
      * @return mixed
      * @throws campusconnect_course_exception
@@ -951,6 +1076,10 @@ class campusconnect_course_url {
         return $crs;
     }
 
+    /**
+     * Update the status of the course link
+     * @param $status
+     */
     protected function set_status($status) {
         global $DB;
 
@@ -963,5 +1092,308 @@ class campusconnect_course_url {
             $upd->internallink = 0;
         }
         $DB->update_record('local_campusconnect_crs', $upd);
+    }
+}
+
+/**
+ * Looks after parallel groups - parsing them out of the data from the ECS, matching them up to existing parallel groups
+ * and creating the right Moodle groups for them.
+ */
+class campusconnect_parallelgroups {
+    // Parallel group scenarios
+    /** No groups created */
+    const PGROUP_NONE = 0;
+    /** Groups created, but mapped onto one course/group */
+    const PGROUP_ONE_COURSE = 1;
+    /** Groups mapped onto groups in a single course */
+    const PGROUP_SEPARATE_GROUPS = 2;
+    /** Groups mapped onto single groups in multiple courses */
+    const PGROUP_SEPARATE_COURSES = 3;
+    /** One course per lecturer, one course group per course */
+    const PGROUP_SEPARATE_LECTURERS = 4;
+
+    /**
+     * @var campusconnect_ecssettings
+     */
+    protected $ecssettings;
+    /**
+     * @var int
+     */
+    protected $resourceid;
+
+    /**
+     * @param campusconnect_ecssettings $ecssettings
+     * @param int $resourceid
+     */
+    function __construct(campusconnect_ecssettings $ecssettings, $resourceid) {
+        $this->ecssettings = $ecssettings;
+        $this->resourceid = $resourceid;
+    }
+
+    /**
+     * Extract the details of the courses/groups to create to satisfy the parallel groups scenario.
+     * Note: Internal function - public to allow for unit testing.
+     * @param stdClass $course the course details from the ECS
+     * @return array [ $parallelgroups, $scenario] - where $parallelgroups is an array as follows:
+     *          [ [$group1, $group2], [$group3], [$group4] ] - outer array represents courses,
+     *                                                         inner array represents groups within courses
+     *          Courses with only a single group should be created with NO moodle groups
+     *          If the $scenario is PGROUP_NONE, no groups should be created
+     *          If the $scenario is PGROUP_ONE_COURSE, parallel group records should be created, but no Moodle groups
+     *          Each group object contains: $id, $title, $comment, $lecturer (the first lecturer listed)
+     */
+    public static function get_parallel_groups($course) {
+        if (isset($course->basicData->parallelGroupScenario)) {
+            $scenario = $course->basicData->parallelGroupScenario;
+        } else {
+            return array(array(), self::PGROUP_NONE);
+        }
+
+        $parallelgroups = self::get_parallel_group_internal($course);
+
+        switch ($scenario) {
+        case self::PGROUP_ONE_COURSE:
+        case self::PGROUP_SEPARATE_GROUPS:
+            $courses = array($parallelgroups);
+            break;
+
+        case self::PGROUP_SEPARATE_COURSES:
+            $courses = array();
+            foreach ($parallelgroups as $key => $group) {
+                $courses[] = array($key => $group);
+            }
+            break;
+
+        case self::PGROUP_SEPARATE_LECTURERS:
+            $courses = array();
+            foreach ($parallelgroups as $pgroup) {
+                $lecturer = $pgroup->lecturer;
+                if (empty($lecturer)) {
+                    $lecturer = 0;
+                }
+                if (!isset($courses[$lecturer])) {
+                    $courses[$lecturer] = array();
+                }
+                $courses[$lecturer][$pgroup->id] = $pgroup;
+            }
+            break;
+
+        default:
+            throw new campusconnect_course_exception("Unknown parallel groups scenario: {$scenario}");
+        }
+
+        return array($courses, $scenario);
+    }
+
+    /**
+     * Extract the parallel groups from the course data
+     * @param stdClass $course the course data from the ECS
+     * @return stdClass[] - groupid => group details (with 'lecturers' flattened to the name of the first lecturer)
+     */
+    protected static function get_parallel_group_internal($course) {
+        if (!isset($course->parallelGroups)) {
+            return array();
+        }
+
+        $groups = array();
+        foreach ($course->parallelGroups as $group) {
+            $details = new stdClass();
+            $details->id = $group->id;
+            $details->title = $group->title;
+            $details->comment = isset($group->comment) ? $group->comment : null;
+            if (isset($group->lecturers)) {
+                // Only use the first lecturer name => map all groups starting with same lecturer onto same course
+                // (PGROUP_SEPARATE_LECTURERS)
+                $lecturer = reset($group->lecturers);
+                $details->lecturer = $lecturer->firstName.' '.$lecturer->lastName;
+            } else {
+                $details->lecturer = '';
+            }
+            $groups[$details->id] = $details;
+        }
+
+        return $groups;
+    }
+
+    /**
+     * Attempts to organise the parallel groups based on the Moodle courseids that the groups have already been mapped onto.
+     * Any groups that cannot be mapped onto an existing course are mapped on to an existing course are returned separately.
+     * @param $pgroups
+     * @return array [ $matched, $notmatched ] - $matched = associative array $courseid => array of group details
+     *                                           $notmatched = array of array of group details
+     */
+    public function match_parallel_groups_to_courses($pgroups) {
+        global $DB;
+
+        $matched = array();
+        $notmatched = array();
+        $existing = $DB->get_records('local_campusconnect_pgroup', array('ecsid' => $this->ecssettings->get_id(),
+                                                                        'resourceid' => $this->resourceid),
+                                     '', 'cmsgroupid, id, courseid');
+        if (empty($existing)) {
+            return array(array(), $pgroups);
+        }
+
+        foreach ($pgroups as $pcourse) {
+            // Go through the groups in each parallel course and see if we can match them with already-instantiated versions
+            // (based on the group 'ID' from the CMS).
+            foreach ($pcourse as $pg) {
+                if (array_key_exists($pg->id, $existing)) {
+                    $courseid = $existing[$pg->id]->courseid;
+                    if (!isset($matched[$courseid])) {
+                        // If courseid might already be 'taken' if switching from one group per pgroup to one course
+                        // per pgroup, so only match up the first time the courseid is found (others will be used to
+                        // create new courses).
+                        $matched[$courseid] = $pcourse;
+                        continue 2; // Move on to the next course in the parallel groups.
+                    }
+                }
+            }
+            // None of the existing parallel groups in Moodle matched any of the parallel groups in this course
+            $notmatched[] = $pcourse;
+        }
+
+        return array($matched, $notmatched);
+    }
+
+    /**
+     * Compare the parallel groups already existing in the course and update to match the current scenario / groups
+     * @param stdClass $course
+     * @param int $pgroupmode
+     * @param array $pcourse
+     */
+    public function update_parallel_groups(stdClass $course, $pgroupmode, $pcourse) {
+        global $DB;
+
+        if ($pgroupmode == self::PGROUP_NONE) {
+            return; // Nothing to do.
+        }
+
+        if ($pgroupmode == self::PGROUP_SEPARATE_COURSES) {
+            if (count($pcourse) > 1) {
+                throw new coding_exception("With 'separate groups' mode, only one group should be passed in to each course");
+            }
+        }
+
+        $sql = "SELECT pg.cmsgroupid, pg.id, pg.grouptitle, pg.groupid, g.id AS groupexists
+                  FROM {local_campusconnect_pgroup} pg
+                  LEFT JOIN {groups} g ON g.id = pg.groupid
+                 WHERE pg.ecsid = :ecsid AND pg.resourceid = :resourceid AND pg.courseid = :courseid";
+        $params = array('ecsid' => $this->ecssettings->get_id(), 'resourceid' => $this->resourceid, 'courseid' => $course->id);
+        $existing = $DB->get_records_sql($sql, $params);
+
+        unset($params['courseid']);
+        $existingallcourses = $DB->get_records('local_campusconnect_pgroup', $params, '',
+                                               'cmsgroupid, id, courseid, groupid, grouptitle');
+
+        $ins = new stdClass();
+        $ins->ecsid = $this->ecssettings->get_id();
+        $ins->resourceid = $this->resourceid;
+        $ins->courseid = $course->id;
+
+        // Create each of the parallel groups requested.
+        $creategroup = ($pgroupmode != self::PGROUP_ONE_COURSE) && (count($pcourse) > 1);
+        foreach ($pcourse as $pg) {
+            if (array_key_exists($pg->id, $existing)) {
+                // The pgroup is already mapped onto this course - update it if needed.
+                $upd = new stdClass();
+                if ($creategroup && is_null($existing[$pg->id]->groupexists)) {
+                    // The Moodle group does not exist/has been deleted - (re)create it..
+                    $upd->groupid = $this->create_or_update_group($course, $pg);
+                    $upd->grouptitle = $pg->title;
+                } else if (!$creategroup && $existing[$pg->id]->groupid) {
+                    // Not creating groups but there is an existing group - remove the reference to the group
+                    $upd->groupid = 0;
+                    $upd->grouptitle = $pg->title;
+                } else if ($existing[$pg->id]->grouptitle != $pg->title) {
+                    // Group title has changed - update it (and the Moodle group title as well, if required).
+                    $upd->grouptitle = $pg->title;
+                    if ($creategroup) {
+                        $this->create_or_update_group($course, $pg, $existing[$pg->id]->groupid);
+                    }
+                } else {
+                    continue; // No changes, so no need to update the record.
+                }
+
+                // Update pgroup record with the changes.
+                $upd->id = $existing[$pg->id]->id;
+                $DB->update_record('local_campusconnect_pgroup', $upd);
+
+            } else if (array_key_exists($pg->id, $existingallcourses)) {
+                // The group exists, but is in a different course (probably because the parallel groups scenario has changed)
+                $upd = new stdClass();
+                $upd->id = $existingallcourses[$pg->id]->id;
+                $upd->courseid = $course->id;
+                $upd->grouptitle = $pg->title;
+                if ($creategroup) {
+                    $upd->groupid = $this->create_or_update_group($course, $pg);
+                } else {
+                    $upd->groupid = 0;
+                }
+                $DB->update_record('local_campusconnect_pgroup', $upd);
+
+            } else {
+                // The pgroup does not yet exist.
+                $ins->cmsgroupid = $pg->id;
+                $ins->grouptitle = $pg->title;
+                if ($creategroup) {
+                    $ins->groupid = $this->create_or_update_group($course, $pg);
+                } else {
+                    $ins->groupid = 0;
+                }
+                $DB->insert_record('local_campusconnect_pgroup', $ins);
+            }
+        }
+
+        // No deletion of unwanted groups.
+    }
+
+    /**
+     * Create a new Moodle group (if it doesn't exist) or update it (if it does)
+     * @param stdClass $course details of the Moodle course to create the group in
+     * @param stdClass $pgroup details of the parallel group to create in this course
+     * @param int $id optional - if set, the group is updated, otherwise the group is created
+     * @return int the ID of the newly created group
+     */
+    public function create_or_update_group($course, $pgroup, $id = null) {
+        global $CFG;
+        require_once($CFG->dirroot.'/group/lib.php');
+        $data = new stdClass();
+        $data->courseid = $course->id;
+        $data->name = $pgroup->title;
+        if (isset($pgroup->comment) && !is_null($pgroup->comment)) {
+            $data->description = $pgroup->comment;
+            $data->descriptionformat = FORMAT_PLAIN;
+        }
+        if ($id) {
+            $data->id = $id;
+            groups_update_group($data);
+        } else {
+            $data->id = groups_create_group($data);
+        }
+        return $data->id;
+    }
+
+    /**
+     * Add the name of the group or lecturer to the course fullname
+     * @param string $coursename the base course name
+     * @param int $pgroupmode the parallel groups scenario in use
+     * @param stdClass[] $pcourse the details of the parallel groups to create in this course
+     * @return string the new fullname for the course
+     */
+    public function update_course_name($coursename, $pgroupmode, $pcourse) {
+        $extra = '';
+        if ($pgroupmode == self::PGROUP_SEPARATE_COURSES) {
+            $pgroup = reset($pcourse);
+            if (!empty($pgroup)) {
+                $extra = " ({$pgroup->title})";
+            }
+        } else if ($pgroupmode == self::PGROUP_SEPARATE_LECTURERS) {
+            $pgroup = reset($pcourse);
+            if (!empty($pgroup)) {
+                $extra = " ({$pgroup->lecturer})";
+            }
+        }
+        return $coursename.$extra;
     }
 }

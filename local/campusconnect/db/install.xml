@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/campusconnect/db" VERSION="20121123" COMMENT="XMLDB file for Moodle local/campusconnect"
+<XMLDB PATH="local/campusconnect/db" VERSION="20121128" COMMENT="XMLDB file for Moodle local/campusconnect"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -206,7 +206,7 @@
         <INDEX NAME="ecsid_type" UNIQUE="false" FIELDS="ecsid, type" COMMENT="Allows you to quickly get all the notifications of a particular type for an ECS"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="local_campusconnect_filter" COMMENT="Controls the mapping of imported courses onto categories" PREVIOUS="local_campusconnect_notify">
+    <TABLE NAME="local_campusconnect_filter" COMMENT="Controls the mapping of imported courses onto categories" PREVIOUS="local_campusconnect_notify" NEXT="local_campusconnect_pgroup">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="categoryid"/>
         <FIELD NAME="categoryid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The destination category for this mapping" PREVIOUS="id" NEXT="attribute"/>
@@ -218,6 +218,27 @@
         <KEY NAME="primary" TYPE="primary" FIELDS="id" NEXT="categoryid"/>
         <KEY NAME="categoryid" TYPE="foreign" FIELDS="categoryid" REFTABLE="category" REFFIELDS="id" PREVIOUS="primary"/>
       </KEYS>
+    </TABLE>
+    <TABLE NAME="local_campusconnect_pgroup" COMMENT="Stores details of parallel groups for students to enrol in." PREVIOUS="local_campusconnect_filter">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="ecsid"/>
+        <FIELD NAME="ecsid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ECS that this group came from" PREVIOUS="id" NEXT="resourceid"/>
+        <FIELD NAME="resourceid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The course resource that this group relates to" PREVIOUS="ecsid" NEXT="cmsgroupid"/>
+        <FIELD NAME="cmsgroupid" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="The ID of the group (from the CMS)" PREVIOUS="resourceid" NEXT="grouptitle"/>
+        <FIELD NAME="grouptitle" TYPE="text" LENGTH="small" NOTNULL="false" SEQUENCE="false" COMMENT="The title of the group (from the CMS)" PREVIOUS="cmsgroupid" NEXT="courseid"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The course that the group belongs to" PREVIOUS="grouptitle" NEXT="groupid"/>
+        <FIELD NAME="groupid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the Moodle group this maps onto" PREVIOUS="courseid"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id" NEXT="ecsid"/>
+        <KEY NAME="ecsid" TYPE="foreign" FIELDS="ecsid" REFTABLE="local_campusconnect_ecs" REFFIELDS="id" PREVIOUS="primary" NEXT="courseid"/>
+        <KEY NAME="courseid" TYPE="foreign" FIELDS="courseid" REFTABLE="course" REFFIELDS="id" PREVIOUS="ecsid" NEXT="groupid"/>
+        <KEY NAME="groupid" TYPE="foreign" FIELDS="groupid" REFTABLE="group" REFFIELDS="id" PREVIOUS="courseid"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="resourceid" UNIQUE="false" FIELDS="resourceid, ecsid" NEXT="cmsgroupid"/>
+        <INDEX NAME="cmsgroupid" UNIQUE="true" FIELDS="cmsgroupid" PREVIOUS="resourceid"/>
+      </INDEXES>
     </TABLE>
   </TABLES>
 </XMLDB>

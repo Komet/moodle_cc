@@ -537,5 +537,38 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2012112300, 'local', 'campusconnect');
     }
 
+    if ($oldversion < 2012112301) {
+
+        // Define table local_campusconnect_pgroup to be created
+        $table = new xmldb_table('local_campusconnect_pgroup');
+
+        // Adding fields to table local_campusconnect_pgroup
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', XMLDB_UNSIGNED, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('ecsid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('resourceid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('cmsgroupid', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('grouptitle', XMLDB_TYPE_TEXT, 'small', null, null, null, null);
+        $table->add_field('courseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('groupid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+
+        // Adding keys to table local_campusconnect_pgroup
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+        $table->add_key('ecsid', XMLDB_KEY_FOREIGN, array('ecsid'), 'local_campusconnect_ecs', array('id'));
+        $table->add_key('courseid', XMLDB_KEY_FOREIGN, array('courseid'), 'course', array('id'));
+        $table->add_key('groupid', XMLDB_KEY_FOREIGN, array('groupid'), 'group', array('id'));
+
+        // Adding indexes to table local_campusconnect_pgroup
+        $table->add_index('cmsgroupid', XMLDB_INDEX_UNIQUE, array('cmsgroupid'));
+        $table->add_index('resourceid', XMLDB_INDEX_NOTUNIQUE, array('resourceid', 'ecsid'));
+
+        // Conditionally launch create table for local_campusconnect_pgroup
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012112301, 'local', 'campusconnect');
+    }
+
     return true;
 }

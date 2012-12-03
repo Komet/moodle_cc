@@ -308,12 +308,12 @@ class campusconnect_course {
                     $upd->id = $currcourse->id;
                     $upd->cmsid = $course->basicData->id;
                     $DB->update_record('local_campusconnect_crs', $upd);
+                }
 
-                    if ($currcourse->internallink == 0) {
-                        // Let the ECS server know about the updated link.
-                        $courseurl = new campusconnect_course_url($currcourse->id);
-                        $courseurl->update();
-                    }
+                if ($currcourse->internallink == 0) {
+                    // Let the ECS server know about the updated link.
+                    $courseurl = new campusconnect_course_url($currcourse->id);
+                    $courseurl->update();
                 }
 
                 // Check the groups for this course
@@ -912,7 +912,21 @@ class campusconnect_course_url {
         }
 
         $courseurls = $DB->get_records_select('local_campusconnect_crs', 'ecsid = ? AND urlstatus <> ?',
-                                              array($connect->get_ecs_id(), self::STATUS_UPTODATE));
+                                              array($connect->get_ecs_id(), self::STATUS_UPTODATE), 'resourceid');
+        // Loop throught he courseurls and combine together those that match a single resourceid
+        /** @var stdClass $lasturl */
+        $lasturl = null;
+        foreach ($courseurls as $key => $courseurl) {
+            if ($lasturl && $lasturl->resourceid == $courseurl->resourceid) {
+                $lasturl->courseids[] = $courseurl->courseid;
+                unset($courseurls[$key]);
+            } else {
+                $courseurl->courseids = array($courseurl->courseid);
+                $lasturl = $courseurl;
+            }
+        }
+
+        // Update/create all the courseurl resources on the ECS server.
         foreach ($courseurls as $courseurl) {
             if ($courseurl->urlstatus == self::STATUS_DELETED) {
                 // Delete from ECS then delete the local record
@@ -922,11 +936,15 @@ class campusconnect_course_url {
             }
 
             // Prepare the course_url data object
-            $moodleurl = new moodle_url('/course/view.php', array('id' => $courseurl->courseid));
+            $moodleurls = array();
+            foreach ($courseurl->courseids as $courseid) {
+                $moodleurl = new moodle_url('/course/view.php', array('id' => $courseid));
+                $moodleurls[] = $moodleurl->out();
+            }
             $data = new stdClass();
             $data->cms_course_id = $courseurl->cmsid.''; // Convert to string if 'NULL'
             $data->ecs_course_url = $connect->get_resource_url($courseurl->resourceid, campusconnect_event::RES_COURSE);
-            $data->lms_course_url = $moodleurl->out();
+            $data->lms_course_url = $moodleurls;
 
             if ($courseurl->urlstatus == self::STATUS_UPDATED) {
                 if (!$courseurl->resourceid) {

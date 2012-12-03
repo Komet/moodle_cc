@@ -944,7 +944,7 @@ class campusconnect_course_url {
             $data = new stdClass();
             $data->cms_course_id = $courseurl->cmsid.''; // Convert to string if 'NULL'
             $data->ecs_course_url = $connect->get_resource_url($courseurl->resourceid, campusconnect_event::RES_COURSE);
-            $data->lms_course_url = $moodleurls;
+            $data->lms_course_urls = $moodleurls;
 
             if ($courseurl->urlstatus == self::STATUS_UPDATED) {
                 if (!$courseurl->resourceid) {

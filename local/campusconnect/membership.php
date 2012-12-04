@@ -79,9 +79,9 @@ class campusconnect_membership {
         $ins->status = self::STATUS_CREATED;
 
         foreach ($membership->members as $member) {
-            // TODO - process the $member->parallelGroup values
             $ins->personid = $member->personID;
             $ins->role = $member->courseRole;
+            $ins->parallelgroups = self::prepare_parallel_groups($member);
 
             $DB->insert_record('local_campusconnect_mbr', $ins);
         }
@@ -137,15 +137,18 @@ class campusconnect_membership {
 
         // Now compare the membership lists - add new members, update roles for existing members, remove expired members
         foreach ($membership->members as $member) {
+            $pgroups = self::prepare_parallel_groups($member);
             if (array_key_exists($member->personID, $sortedcurrmembers)) {
                 // Existing member - check if the role has changed.
                 $curr = $sortedcurrmembers[$member->personID];
-                if ($curr->role == $member->courseRole && $curr->status != self::STATUS_DELETED) {
+                if ($curr->role == $member->courseRole && $curr->status != self::STATUS_DELETED
+                    && $curr->parallelgroups == $pgroups) {
                     // Unchanged role assignment - nothing to update.
                 } else {
                     $upd = new stdClass();
                     $upd->id = $curr->id;
                     $upd->role = $member->courseRole;
+                    $upd->parallelgroups = $pgroups;
                     if ($curr->status != self::STATUS_CREATED) {
                         $upd->status = self::STATUS_UPDATED;
                     }
@@ -160,6 +163,7 @@ class campusconnect_membership {
                 $ins->status = self::STATUS_CREATED;
                 $ins->personid = $member->personID;
                 $ins->role = $member->courseRole;
+                $ins->parallelgroups = $pgroups;
 
                 $DB->insert_record('local_campusconnect_mbr', $ins);
             }
@@ -180,6 +184,48 @@ class campusconnect_membership {
         }
 
         return true;
+    }
+
+    /**
+     * Prepare the parallel groups for saving in the database.
+     * @param stdClass $member
+     * @return string encoded parallel groups ready to save in the database
+     */
+    protected static function prepare_parallel_groups($member) {
+        if (!isset($member->parallelGroups)) {
+            return '';
+        }
+        $pgroups = array();
+        foreach ($member->parallelGroups as $pgroup) {
+            $id = str_replace(array('#', ':', ','), array('#23', '#3a', '#2c'), $pgroup->id);
+            if (isset($pgroup->groupRole)) {
+                $grouprole = str_replace(array('#', ':', ','), array('#23', '#3a', '#2c'), $pgroup->groupRole);
+            } else {
+                $grouprole = '';
+            }
+            $pg = $id.':'.$grouprole;
+            $pgroups[] = $pg;
+        }
+        return implode(',', $pgroups);
+    }
+
+    /**
+     * Extract the parallel group details from the database entry.
+     * @param $member
+     * @return array pgroupid => role
+     */
+    protected static function extract_parallel_groups($member) {
+        if (empty($member->parallelgroups)) {
+            return array();
+        }
+        $pgroups = explode(',', $member->parallelgroups);
+        $ret = array();
+        foreach ($pgroups as $pgroup) {
+            list($id, $grouprole) = explode(':', $pgroup, 2);
+            $id = str_replace(array('#23', '#3a', '#2c'), array('#', ':', ','), $id);
+            $ret[$id] =  str_replace(array('#23', '#3a', '#2c'), array('#', ':', ','), $grouprole);
+        }
+        return $ret;
     }
 
     /**
@@ -275,7 +321,7 @@ class campusconnect_membership {
      * Functions to process membership list items and assign roles to the users
      */
     public static function assign_all_roles(campusconnect_ecssettings $ecssettings, $output = false) {
-        global $DB;
+        global $DB, $CFG;
 
         // Check the enrolment plugin is enabled and we are on the correct ECS for processing course members.
 
@@ -315,7 +361,7 @@ class campusconnect_membership {
         $userids = self::get_userids_from_personids($personids);
 
         // Get a list of all the courses to enrol users into
-        $courseids = campusconnect_course::get_courseids_from_cmscourseids($cmscourseids);
+        list($mappedcourseids, $courseids) = campusconnect_course::get_courseids_from_cmscourseids($cmscourseids);
 
         if (empty($userids) || empty($courseids)) {
             return; // No existing users in the list of personids or no existing courses to enrol them onto.
@@ -341,54 +387,68 @@ class campusconnect_membership {
                 continue; // User doesn't (yet) exist - skip them.
             }
             $userid = $userids[$membership->personid];
-            if (!isset($courseids[$membership->cmscourseid])) {
+            if (!isset($mappedcourseids[$membership->cmscourseid])) {
                 if ($output) {
                     mtrace("Course '{$membership->cmscourseid}' not found - skipping");
                 }
                 continue; // Course doesn't (yet) exist - skip it.
             }
-            $courseid = $courseids[$membership->cmscourseid];
+            $courseidarray = $mappedcourseids[$membership->cmscourseid];
+            $pgroups = self::extract_parallel_groups($membership);
+            $pgroups = campusconnect_parallelgroups::get_groups_for_user($pgroups, $courseidarray, $membership->role);
 
-            if (!isset($courseenrol[$courseid])) {
-                // No CampusConnect enrolment instance - add one.
-                if (!$enrolinstance = self::add_enrol_instance($courseid, $enrol)) {
-                    if ($output) {
-                        mtrace("Unable to add CampusConnect enrolment to course $courseid\n");
+            foreach ($pgroups as $pgroup) {
+                if (!isset($courseenrol[$pgroup->courseid])) {
+                    // No CampusConnect enrolment instance - add one.
+                    if (!$enrolinstance = self::add_enrol_instance($pgroup->courseid, $enrol)) {
+                        if ($output) {
+                            mtrace("Unable to add CampusConnect enrolment to course {$pgroup->courseid}\n");
+                        }
+                        continue;
                     }
-                    continue;
+                    $courseenrol[$pgroup->courseid] = $enrolinstance;
                 }
-                $courseenrol[$courseid] = $enrolinstance;
-            }
-            $enrolinstance = $courseenrol[$courseid];
+                $enrolinstance = $courseenrol[$pgroup->courseid];
 
-            if ($membership->status == self::STATUS_DELETED) {
-                // Deleted => unenrol user, then remove mbr record.
-                if ($output) {
-                    mtrace("Unenroling user '{$membership->personid}' ({$userid}) from course '{$membership->cmscourseid}' ({$courseid})");
-                }
-                $enrol->unenrol_user($enrolinstance, $userid);
-
-                $DB->delete_records('local_campusconnect_mbr', array('id' => $membership->id));
-            } else {
-                $roleid = self::get_roleid($membership->role);
-                if ($membership->status == self::STATUS_UPDATED) {
-                    // Updated => change the user's role (this will remove any other 'enrol_campusconnect' roles from this course.
+                if ($membership->status == self::STATUS_DELETED) {
+                    // Deleted => unenrol user, then remove mbr record.
                     if ($output) {
-                        mtrace("Changing role for user '{$membership->personid}' ({$userid}) in course '{$membership->cmscourseid}' ({$courseid}) to role '{$membership->role}' ({$roleid})");
+                        mtrace("Unenroling user '{$membership->personid}' ({$userid}) from course '{$membership->cmscourseid}' ({$pgroup->courseid})");
                     }
-                    $context = context_course::instance($courseid);
-                    role_unassign_all(array('contextid' => $context->id, 'userid' => $userid,
-                                           'component' => 'enrol_campusconnect', 'itemid' => $enrolinstance->id));
-                    role_assign($roleid, $userid, $context->id, 'enrol_campusconnect', $enrolinstance->id);
+                    $enrol->unenrol_user($enrolinstance, $userid);
 
+                    $DB->delete_records('local_campusconnect_mbr', array('id' => $membership->id));
                 } else {
-                    // Created => enrol the user with the given role.
-                    if ($output) {
-                        mtrace("Enroling user '{$membership->personid}' ({$userid}) in course '{$membership->cmscourseid}' ({$courseid}) with role '{$membership->role}' ({$roleid})");
-                    }
-                    $enrol->enrol_user($enrolinstance, $userid, $roleid);
-                }
+                    $roleid = self::get_roleid($pgroup->role);
+                    if ($membership->status == self::STATUS_UPDATED) {
+                        // Updated => change the user's role (this will remove any other 'enrol_campusconnect' roles from this course.
+                        if ($output) {
+                            mtrace("Changing role for user '{$membership->personid}' ({$userid}) in course '{$membership->cmscourseid}' ({$pgroup->courseid}) to role '{$membership->role}' ({$roleid})");
+                        }
+                        $context = context_course::instance($pgroup->courseid);
+                        role_unassign_all(array('contextid' => $context->id, 'userid' => $userid,
+                                               'component' => 'enrol_campusconnect', 'itemid' => $enrolinstance->id));
+                        role_assign($roleid, $userid, $context->id, 'enrol_campusconnect', $enrolinstance->id);
 
+                    } else {
+                        // Created => enrol the user with the given role.
+                        if ($output) {
+                            mtrace("Enroling user '{$membership->personid}' ({$userid}) in course '{$membership->cmscourseid}' ({$pgroup->courseid}) with role '{$membership->role}' ({$roleid})");
+                        }
+                        $enrol->enrol_user($enrolinstance, $userid, $roleid);
+                    }
+
+                    // Enrol the user in the relevant group.
+                    if ($pgroup->groupid) {
+                        require_once($CFG->dirroot.'/group/lib.php');
+                        if (groups_add_member($pgroup->groupid, $userid)) {
+                            mtrace("... adding user to group {$pgroup->groupid}");
+                        }
+                    }
+                }
+            }
+
+            if (!empty($pgroups)) {
                 $upd = new stdClass();
                 $upd->id = $membership->id;
                 $upd->status = self::STATUS_ASSIGNED;
@@ -441,14 +501,29 @@ class campusconnect_membership {
                 continue; // User doesn't (yet) exist - skip them.
             }
             $userid = $userids[$membership->personid];
-            $roleid = self::get_roleid($membership->role);
+            $pgroups = self::extract_parallel_groups($membership);
+            $pgroups = campusconnect_parallelgroups::get_groups_for_user($pgroups, array($course->id), $membership->role);
 
-            $enrol->enrol_user($enrolinstance, $userid, $roleid);
+            $assigned = false;
+            foreach ($pgroups as $pgroup) {
+                if ($pgroup->courseid != $course->id) {
+                    continue;
+                }
+                $roleid = self::get_roleid($pgroup->role);
+                $enrol->enrol_user($enrolinstance, $userid, $roleid);
+                $assigned = true;
+            }
 
-            $upd = new stdClass();
-            $upd->id = $membership->id;
-            $upd->status = self::STATUS_ASSIGNED;
-            $DB->update_record('local_campusconnect_mbr', $upd);
+            if ($assigned) {
+                // Theoretically, a user who was assigned to multiple parallel groups (in a single membership message) and
+                // whose membership message was processed before the course was created and where the parallel groups
+                // mode was set to create multiple courses could end up only enroled into one of those courses. If this
+                // ever happens, I'll rewrite this code. Until then, it would be a lot of work for a very obscure case.
+                $upd = new stdClass();
+                $upd->id = $membership->id;
+                $upd->status = self::STATUS_ASSIGNED;
+                $DB->update_record('local_campusconnect_mbr', $upd);
+            }
         }
 
         return true;
@@ -480,7 +555,7 @@ class campusconnect_membership {
         foreach ($memberships as $membership) {
             $cmscourseids[$membership->cmscourseid] = $membership->cmscourseid;
         }
-        $courseids = campusconnect_course::get_courseids_from_cmscourseids($cmscourseids);
+        list($mappedcourseids, $courseids) = campusconnect_course::get_courseids_from_cmscourseids($cmscourseids);
         if (empty($courseids)) {
             return true; // No existing courses to enrol them onto.
         }
@@ -501,18 +576,28 @@ class campusconnect_membership {
             if (!isset($courseids[$membership->cmscourseid])) {
                 continue; // Course doesn't (yet) exist - skip it.
             }
-            $courseid = $courseids[$membership->cmscourseid];
-            if (!isset($courseenrol[$courseid])) {
-                // No CampusConnect enrolment instance - add one.
-                if (!$enrolinstance = self::add_enrol_instance($courseid, $enrol)) {
-                    continue;
-                }
-                $courseenrol[$courseid] = $enrolinstance;
-            }
-            $enrolinstance = $courseenrol[$courseid];
-            $roleid = self::get_roleid($membership->role);
+            $courseidarray = $mappedcourseids[$membership->cmscourseid];
+            $pgroups = self::extract_parallel_groups($membership);
+            $pgroups = campusconnect_parallelgroups::get_groups_for_user($pgroups, $courseidarray, $membership->role);
 
-            $enrol->enrol_user($enrolinstance, $user->id, $roleid);
+            foreach ($pgroups as $pgroup) {
+                if (!isset($courseenrol[$pgroup->courseid])) {
+                    // No CampusConnect enrolment instance - add one.
+                    if (!$enrolinstance = self::add_enrol_instance($pgroup->courseid, $enrol)) {
+                        continue;
+                    }
+                    $courseenrol[$pgroup->courseid] = $enrolinstance;
+                }
+                $enrolinstance = $courseenrol[$pgroup->courseid];
+                $roleid = self::get_roleid($pgroup->role);
+
+                $enrol->enrol_user($enrolinstance, $user->id, $roleid);
+
+                // Enrol the user in the relevant group.
+                if ($pgroup->groupid) {
+                    groups_add_member($pgroup->groupid, $user);
+                }
+            }
 
             $upd = new stdClass();
             $upd->id = $membership->id;

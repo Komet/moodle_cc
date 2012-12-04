@@ -570,5 +570,20 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2012112301, 'local', 'campusconnect');
     }
 
+    if ($oldversion < 2012120300) {
+
+        // Define field parallelgroups to be added to local_campusconnect_mbr
+        $table = new xmldb_table('local_campusconnect_mbr');
+        $field = new xmldb_field('parallelgroups', XMLDB_TYPE_TEXT, 'medium', null, null, null, null, 'status');
+
+        // Conditionally launch add field parallelgroups
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012120300, 'local', 'campusconnect');
+    }
+
     return true;
 }

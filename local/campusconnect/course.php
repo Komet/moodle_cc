@@ -247,7 +247,7 @@ class campusconnect_course {
                 } else {
                     // The 'real' course has been deleted, need to recreate it.
                     // Create in the first category, which is where the real course should always be located.
-                    $oldcourseid = $currcourse->internallink;
+                    $oldcourseid = $currcourse->courseid;
                     $category = reset($categories);
                     $coursedetails = clone $coursedata;
                     $coursedetails->category = $category->get_categoryid();
@@ -263,6 +263,10 @@ class campusconnect_course {
                     }
                     $newcourse = create_course($coursedetails);
                     unset($coursedetails);
+
+                    // Update the main crs record for this entry
+                    $currcourse->courseid = $newcourse->id;
+                    $DB->set_field('local_campusconnect_crs', 'courseid', $newcourse->id, array('id' => $currcourse->id));
 
                     // Update any courselinks to point at this course.
                     foreach ($currcourses as $crs) {
@@ -566,7 +570,7 @@ class campusconnect_course {
     /**
      * Given a list of courseids from the CMS, return the Moodle course ids that these map onto
      * @param int[] $cmscourseids
-     * @return int[] mapping CMS courseid => Moodle courseid
+     * @return array[] [ CMS courseid => Moodle courseid[], All moodle courseid[] ]
      */
     public static function get_courseids_from_cmscourseids(array $cmscourseids) {
         global $DB;
@@ -576,8 +580,20 @@ class campusconnect_course {
         }
 
         list($csql, $params) = $DB->get_in_or_equal($cmscourseids);
-        return $DB->get_records_select_menu('local_campusconnect_crs', "cmsid $csql AND internallink = 0", $params,
-                                            '', 'cmsid, courseid');
+
+        $recs = $DB->get_records_select('local_campusconnect_crs', "cmsid  $csql AND internallink = 0", $params,
+                                             'id', 'id, cmsid, courseid');
+        $mapping = array();
+        $courseids = array();
+        foreach ($recs as $rec) {
+            if (!isset($mapping[$rec->cmsid])) {
+                $mapping[$rec->cmsid] = array();
+            }
+            $mapping[$rec->cmsid][] = $rec->courseid;
+            $courseids[] = $rec->courseid;
+        }
+
+        return array($mapping, $courseids);
     }
 
     /**
@@ -1197,7 +1213,9 @@ class campusconnect_parallelgroups {
             break;
 
         default:
-            throw new campusconnect_course_exception("Unknown parallel groups scenario: {$scenario}");
+            debugging("Unknown parallel groups scenario: {$scenario}");
+            $courses = array();
+            $scenario = self::PGROUP_NONE;
         }
 
         return array($courses, $scenario);
@@ -1231,6 +1249,52 @@ class campusconnect_parallelgroups {
         }
 
         return $groups;
+    }
+
+    /**
+     * Given the details of the parallel groups and pg roles for a user, return a list of courses and groups to
+     * enrol this user into.
+     * @param string[] $pgroups mapping cmsgroupid => role to assign
+     * @param int[] $defaultcourseids all courseids associated with the cms course the user is enroling into
+     * @param string $defaultrole the role to be assigned to the user
+     * @return array
+     */
+    public static function get_groups_for_user($pgroups, $defaultcourseids, $defaultrole) {
+        global $DB;
+
+        // User not enroling in a parallel group - add them to the first course in the list.
+        if (empty($pgroups)) {
+            $pgroup = (object)array(
+                'courseid' => reset($defaultcourseids),
+                'role' => $defaultrole,
+                'groupid' => 0,
+                'cmsgroupid' => ''
+            );
+            return array($pgroup);
+        }
+
+        static $groupcache = array();
+
+        // User enroling in parallel groups - generate a list of all the courses they need to enrol in.
+        $ret = array();
+        foreach ($pgroups as $groupid => $grouprole) {
+            if (!isset($groupcache[$groupid])) {
+                $groupcache[$groupid] = $DB->get_record('local_campusconnect_pgroup', array('cmsgroupid' => $groupid),
+                                                        'cmsgroupid, courseid, groupid');
+            }
+            if ($groupcache[$groupid]) {
+                $ret[] = (object)array(
+                    'courseid' => $groupcache[$groupid]->courseid,
+                    'role' => empty($grouprole) ? $defaultrole : $grouprole,
+                    'groupid' => $groupcache[$groupid]->groupid,
+                    'cmsgroupid' => $groupid
+                );
+                if (!in_array($groupcache[$groupid]->courseid, $defaultcourseids)) {
+                    debugging("Expected {$groupcache[$groupid]->courseid}, the course for parallel group {$groupid}, to be in the list of courses: (".implode(', ', $defaultcourseids).")");
+                }
+            }
+        }
+        return $ret;
     }
 
     /**
@@ -1352,14 +1416,18 @@ class campusconnect_parallelgroups {
 
             } else {
                 // The pgroup does not yet exist.
-                $ins->cmsgroupid = $pg->id;
-                $ins->grouptitle = $pg->title;
-                if ($creategroup) {
-                    $ins->groupid = $this->create_or_update_group($course, $pg);
+                if ($DB->record_exists('local_campusconnect_pgroup', array('cmsgroupid' => $pg->id))) {
+                    debugging("Group already exists with ID: {$pg->id} - skipping creation of new group");
                 } else {
-                    $ins->groupid = 0;
+                    $ins->cmsgroupid = $pg->id;
+                    $ins->grouptitle = $pg->title;
+                    if ($creategroup) {
+                        $ins->groupid = $this->create_or_update_group($course, $pg);
+                    } else {
+                        $ins->groupid = 0;
+                    }
+                    $DB->insert_record('local_campusconnect_pgroup', $ins);
                 }
-                $DB->insert_record('local_campusconnect_pgroup', $ins);
             }
         }
 

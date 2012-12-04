@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/campusconnect/db" VERSION="20121128" COMMENT="XMLDB file for Moodle local/campusconnect"
+<XMLDB PATH="local/campusconnect/db" VERSION="20121203" COMMENT="XMLDB file for Moodle local/campusconnect"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -183,7 +183,8 @@
         <FIELD NAME="cmscourseid" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The identifier by which the course is known on the CMS" PREVIOUS="resourceid" NEXT="personid"/>
         <FIELD NAME="personid" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The ID by which the user is known on the CMS" PREVIOUS="cmscourseid" NEXT="role"/>
         <FIELD NAME="role" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The role requested by the CMS" PREVIOUS="personid" NEXT="status"/>
-        <FIELD NAME="status" TYPE="int" LENGTH="4" NOTNULL="false" UNSIGNED="false" SEQUENCE="false" COMMENT="The current status of the membership list request - role assigned (0), request created (1), updated (2), to be deleted (3)" PREVIOUS="role"/>
+        <FIELD NAME="status" TYPE="int" LENGTH="4" NOTNULL="false" UNSIGNED="false" SEQUENCE="false" COMMENT="The current status of the membership list request - role assigned (0), request created (1), updated (2), to be deleted (3)" PREVIOUS="role" NEXT="parallelgroups"/>
+        <FIELD NAME="parallelgroups" TYPE="text" LENGTH="medium" NOTNULL="false" SEQUENCE="false" COMMENT="List of the parallel groups this user should be enrolled into" PREVIOUS="status"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>

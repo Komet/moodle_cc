@@ -161,6 +161,7 @@ class campusconnect_course {
 
                 campusconnect_notification::queue_message($ecssettings->get_id(),
                                                           campusconnect_notification::MESSAGE_COURSE,
+                                                          campusconnect_notification::TYPE_CREATE,
                                                           $newcourse->id);
             }
         }
@@ -318,6 +319,10 @@ class campusconnect_course {
                     // Let the ECS server know about the updated link.
                     $courseurl = new campusconnect_course_url($currcourse->id);
                     $courseurl->update();
+                    campusconnect_notification::queue_message($ecssettings->get_id(),
+                                                              campusconnect_notification::MESSAGE_COURSE,
+                                                              campusconnect_notification::TYPE_UPDATE,
+                                                              $currcourse->courseid);
                 }
 
                 // Check the groups for this course
@@ -423,6 +428,10 @@ class campusconnect_course {
         foreach ($currcourses as $currcourse) {
             if ($currcourse->internallink == 0) {
                 // Do not actually delete the 'real' course
+                campusconnect_notification::queue_message($ecssettings->get_id(),
+                                                          campusconnect_notification::MESSAGE_COURSE,
+                                                          campusconnect_notification::TYPE_DELETE,
+                                                          $currcourse->courseid);
 
                 // Leave the course_url code to delete the record once it has informed the ECS
                 $courseurl = new campusconnect_course_url($currcourse->id);
@@ -946,7 +955,7 @@ class campusconnect_course_url {
         foreach ($courseurls as $courseurl) {
             if ($courseurl->urlstatus == self::STATUS_DELETED) {
                 // Delete from ECS then delete the local record
-                $connect->delete_resource($courseurl->resourceid, campusconnect_event::RES_COURSE_URL);
+                $connect->delete_resource($courseurl->urlresourceid, campusconnect_event::RES_COURSE_URL);
                 $DB->delete_records('local_campusconnect_crs', array('id' => $courseurl->id));
                 continue;
             }
@@ -1121,8 +1130,7 @@ class campusconnect_course_url {
         $upd->id = $this->crs->id;
         $upd->urlstatus = $status;
         if ($status == self::STATUS_DELETED) {
-            $upd->courseid = 0; // Remove the rest of the details, as they are no longer needed.
-            $upd->resourceid = 0;
+            $upd->resourceid = 0; // Remove the rest of the details, as they are no longer needed.
             $upd->internallink = 0;
         }
         $DB->update_record('local_campusconnect_crs', $upd);

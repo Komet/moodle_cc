@@ -301,6 +301,11 @@ class campusconnect_export {
                 // Delete from ECS server, then delete local record.
                 $connect->delete_resource($export->resourceid, campusconnect_event::RES_COURSELINK);
                 $DB->delete_records('local_campusconnect_export', array('id' => $export->id));
+                campusconnect_notification::queue_message($connect->get_ecs_id(),
+                                                          campusconnect_notification::MESSAGE_EXPORT_COURSELINK,
+                                                          campusconnect_notification::TYPE_DELETE,
+                                                          $export->courseid);
+
                 continue;
             }
 
@@ -321,10 +326,16 @@ class campusconnect_export {
 
                 campusconnect_notification::queue_message($connect->get_ecs_id(),
                                                           campusconnect_notification::MESSAGE_EXPORT_COURSELINK,
+                                                          campusconnect_notification::TYPE_CREATE,
                                                           $course->id);
             }
             if ($export->status == self::STATUS_UPDATED) {
                 $connect->update_resource($export->resourceid, campusconnect_event::RES_COURSELINK, $data, null, $export->mids);
+
+                campusconnect_notification::queue_message($connect->get_ecs_id(),
+                                                          campusconnect_notification::MESSAGE_EXPORT_COURSELINK,
+                                                          campusconnect_notification::TYPE_UPDATE,
+                                                          $course->id);
             }
 
             // Update local export record.

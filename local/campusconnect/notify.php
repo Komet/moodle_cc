@@ -24,6 +24,9 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+/**
+ * Looks after CampusConnect email notifications and sends out the messages automatically.
+ */
 class campusconnect_notification {
     const MESSAGE_IMPORT_COURSELINK = 1;
     const MESSAGE_EXPORT_COURSELINK = 2;
@@ -31,27 +34,37 @@ class campusconnect_notification {
     const MESSAGE_COURSE = 4;
     const MESSAGE_DIRTREE = 5;
 
+    const TYPE_CREATE = 0;
+    const TYPE_UPDATE = 1;
+    const TYPE_DELETE = 2;
+
     static $messagetypes = array(self::MESSAGE_IMPORT_COURSELINK, self::MESSAGE_EXPORT_COURSELINK,
                                  self::MESSAGE_USER, self::MESSAGE_COURSE, self::MESSAGE_DIRTREE);
+
+    static $messagesubtypes = array(self::TYPE_CREATE, self::TYPE_UPDATE, self::TYPE_DELETE);
 
     /**
      * Queue a new notification to be sent out via email
      * @param int $ecsid the ECS this message relates to
      * @param int $type what the notification relates to (MESSAGE_IMPORT_COURSELINK, MESSAGE_EXPORT_COURSELINK,
      *                  MESSAGE_COURSE, MESSAGE_DIRTREE, MESSAGE_USER)
+     * @param int $subtype
      * @param int $dataid for courselinks: the ID of the Moodle course, for users: the ID of the new user
      */
-    public static function queue_message($ecsid, $type, $dataid) {
+    public static function queue_message($ecsid, $type, $subtype, $dataid) {
         global $DB;
 
-        // TODO davo - add 'subtype' to handle create/update/delete differentiation
         if (!in_array($type, self::$messagetypes)) {
             throw new coding_exception("Unknown message type '$type'");
+        }
+        if (!in_array($subtype, self::$messagesubtypes)) {
+            throw new coding_exception("Unknown message subtype '$subtype'");
         }
         $ins = (object)array(
             'ecsid' => $ecsid,
             'type' => $type,
-            'data' => $dataid
+            'subtype' => $subtype,
+            'data' => $dataid,
         );
         $DB->insert_record('local_campusconnect_notify', $ins);
     }
@@ -94,33 +107,54 @@ class campusconnect_notification {
             ),
         );
 
+        $subtypesprefix = array(
+            self::TYPE_CREATE => '',
+            self::TYPE_UPDATE => '_update',
+            self::TYPE_DELETE => '_delete',
+        );
+
         $sitename = format_string($DB->get_field('course', 'fullname', array('id' => SITEID), MUST_EXIST));
+        $unknown = get_string('unknown', 'local_campusconnect');
 
         foreach ($types as $typeid => $type) {
             $params = array('ecsid' => $ecssettings->get_id(), 'type' => $typeid);
-            $notifications = $DB->get_records('local_campusconnect_notify', $params);
+            $notifications = $DB->get_records('local_campusconnect_notify', $params, 'subtype');
             if ($notifications) {
-                $subject = get_string("notify{$type->string}_subject", 'local_campusconnect', $sitename);
-                $bodytext = get_string("notify{$type->string}_body", 'local_campusconnect', $sitename)."\n\n";
-                $body = str_replace("\n", '<br />', $bodytext);
-                $body .= html_writer::start_tag('ul');
+                $subtypes = array();
                 foreach ($notifications as $notification) {
-                    $object = $DB->get_record($type->table, array('id' => $notification->data), "id, {$type->name}");
-                    if (!$object) {
-                        continue;
+                    if (!isset($subtypes[$notification->subtype])) {
+                        $subtypes[$notification->subtype] = array();
                     }
-                    $link = new moodle_url($type->url, array('id' => $object->id));
-                    if ($type->name == 'firstname,lastname') {
-                        $name = fullname($object);
-                    } else {
-                        $name = format_string($object->{$type->name});
-                    }
-                    $bodytext .= $name.' - '.$link->out(false)."\n";
-                    $body .= html_writer::tag('li', html_writer::link($link, $name))."\n";
+                    $subtypes[$notification->subtype][] = $notification;
                 }
-                $body .= html_writer::end_tag('ul');
 
-                self::send_notification($type->users, $subject, $body, $bodytext);
+                foreach ($subtypes as $subtype => $subnotifications) {
+                    $prefix = $subtypesprefix[$subtype];
+                    $subject = get_string("notify{$type->string}{$prefix}_subject", 'local_campusconnect', $sitename);
+                    $bodytext = get_string("notify{$type->string}{$prefix}_body", 'local_campusconnect', $sitename)."\n\n";
+                    $body = str_replace("\n", '<br />', $bodytext);
+                    $body .= html_writer::start_tag('ul');
+
+                    foreach ($subnotifications as $notification) {
+                        $object = $DB->get_record($type->table, array('id' => $notification->data), "id, {$type->name}");
+                        if (!$object) {
+                            $bodytext .= $unknown."\n";
+                            $body .= html_writer::tag('li', $unknown)."\n";
+                        } else {
+                            $link = new moodle_url($type->url, array('id' => $object->id));
+                            if ($type->name == 'firstname,lastname') {
+                                $name = fullname($object);
+                            } else {
+                                $name = format_string($object->{$type->name});
+                            }
+                            $bodytext .= $name.' - '.$link->out(false)."\n";
+                            $body .= html_writer::tag('li', html_writer::link($link, $name))."\n";
+                        }
+                    }
+                    $body .= html_writer::end_tag('ul');
+
+                    self::send_notification($type->users, $subject, $body, $bodytext);
+                }
 
                 $DB->delete_records('local_campusconnect_notify', $params);
             }

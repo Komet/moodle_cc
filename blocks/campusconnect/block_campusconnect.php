@@ -30,7 +30,7 @@ class block_campusconnect extends block_base {
     }
 
     function applicable_formats() {
-        return array('all' => true);
+        return array('course' => true, 'course-category' => false, 'site' => true);
     }
 
     function instance_allow_multiple() {
@@ -44,9 +44,7 @@ class block_campusconnect extends block_base {
             return $this->content;
         }
 
-        $coursecontext = $this->context->get_course_context();
-        $courseid = $coursecontext->instanceid;
-        if ($courseid == $SITE->id) {
+        if ($COURSE->id == $SITE->id) {
             return null; // Cannot export the SITE course.
         }
 
@@ -59,10 +57,10 @@ class block_campusconnect extends block_base {
         }
 
         require_once($CFG->dirroot.'/local/campusconnect/export.php');
-        $export = new campusconnect_export($courseid);
+        $export = new campusconnect_export($COURSE->id);
 
         $this->content = new stdClass();
-        $editurl = new moodle_url('/blocks/campusconnect/export.php', array('courseid' => $courseid));
+        $editurl = new moodle_url('/blocks/campusconnect/export.php', array('courseid' => $COURSE->id));
         $editlink = html_writer::link($editurl, get_string('editexport', 'block_campusconnect'));
         $this->content->footer = $editlink;
         if (!$export->is_exported()) {

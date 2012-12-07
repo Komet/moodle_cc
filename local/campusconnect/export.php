@@ -328,6 +328,7 @@ class campusconnect_export {
                                                           campusconnect_notification::MESSAGE_EXPORT_COURSELINK,
                                                           campusconnect_notification::TYPE_CREATE,
                                                           $course->id);
+                mtrace("Exported course id $course->id to mids ".implode(',', $export->mids)." as resource $resourceid");
             }
             if ($export->status == self::STATUS_UPDATED) {
                 $connect->update_resource($export->resourceid, campusconnect_event::RES_COURSELINK, $data, null, $export->mids);
@@ -336,6 +337,7 @@ class campusconnect_export {
                                                           campusconnect_notification::MESSAGE_EXPORT_COURSELINK,
                                                           campusconnect_notification::TYPE_UPDATE,
                                                           $course->id);
+                mtrace("Updated exported course id $course->id to mids ".implode(',', $export->mids)." as resource {$export->resourceid}");
             }
 
             // Update local export record.

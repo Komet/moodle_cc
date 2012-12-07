@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/campusconnect/db" VERSION="20121204" COMMENT="XMLDB file for Moodle local/campusconnect"
+<XMLDB PATH="local/campusconnect/db" VERSION="20121207" COMMENT="XMLDB file for Moodle local/campusconnect"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -38,7 +38,8 @@
         <FIELD NAME="type" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="The resource type the event is linked to" PREVIOUS="id" NEXT="resourceid"/>
         <FIELD NAME="resourceid" TYPE="int" LENGTH="10" NOTNULL="false" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the resource on the ECS server" PREVIOUS="type" NEXT="serverid"/>
         <FIELD NAME="serverid" TYPE="int" LENGTH="10" NOTNULL="false" UNSIGNED="false" SEQUENCE="false" COMMENT="The ECS server this event came from" PREVIOUS="resourceid" NEXT="status"/>
-        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false" COMMENT="The status of the event ('created', 'updated', 'destroyed', 'new_export')" PREVIOUS="serverid"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false" COMMENT="The status of the event ('created', 'updated', 'destroyed', 'new_export')" PREVIOUS="serverid" NEXT="failcount"/>
+        <FIELD NAME="failcount" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" DEFAULT="0" SEQUENCE="false" COMMENT="Counts how many times this message has failed to be processed" PREVIOUS="status"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id" NEXT="serverid"/>
@@ -199,7 +200,8 @@
         <FIELD NAME="ecsid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ECS that this notification relates to" PREVIOUS="id" NEXT="type"/>
         <FIELD NAME="type" TYPE="int" LENGTH="4" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The type of notification to send out." PREVIOUS="ecsid" NEXT="subtype"/>
         <FIELD NAME="subtype" TYPE="int" LENGTH="4" NOTNULL="false" UNSIGNED="false" DEFAULT="0" SEQUENCE="false" COMMENT="0 - create, 1 - update, 2 - delete resource" PREVIOUS="type" NEXT="data"/>
-        <FIELD NAME="data" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the relevant object to send information about" PREVIOUS="subtype"/>
+        <FIELD NAME="data" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the relevant object to send information about" PREVIOUS="subtype" NEXT="extra"/>
+        <FIELD NAME="extra" TYPE="text" LENGTH="medium" NOTNULL="false" SEQUENCE="false" COMMENT="An extra string to display beside the notification item" PREVIOUS="data"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>

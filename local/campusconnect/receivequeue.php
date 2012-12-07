@@ -164,7 +164,10 @@ class campusconnect_receivequeue {
      * @param campusconnect_event $event
      */
     protected function skip_event(campusconnect_event $event) {
+        global $DB;
         self::$skipevents[] = $event->get_id();
+
+        $DB->set_field('local_campusconnect_eventin', 'failcount', $event->get_failcount() + 1, array('id' => $event->get_id()));
     }
 
     /**
@@ -187,8 +190,10 @@ class campusconnect_receivequeue {
             $success = true;
             switch ($event->get_resource_type()) {
             case campusconnect_event::RES_COURSELINK:
-                $this->process_courselink_event($event);
-                $fixcourses = true;
+                $success = $this->process_courselink_event($event);
+                if ($success) {
+                    $fixcourses = true;
+                }
                 break;
             case campusconnect_event::RES_DIRECTORYTREE:
                 $this->process_directorytree_event($event);
@@ -257,11 +262,37 @@ class campusconnect_receivequeue {
         // Process the create/update event.
         if ($status == campusconnect_event::STATUS_CREATED) {
             mtrace("CampusConnect: create courselink: ".$event->get_resource_id()."\n");
-            return campusconnect_courselink::create($event->get_resource_id(), $settings, $resource, $details);
+            try {
+                return campusconnect_courselink::create($event->get_resource_id(), $settings, $resource, $details);
+            } catch (moodle_exception $e) {
+                $msg = "Unable to create course for resourceid: ".$event->get_resource_id()." title: {$resource->title}";
+                mtrace($msg);
+                if (!$event->get_failcount()) {
+                    // If this is the first time this event has failed - notify the admin by email.
+                    campusconnect_notification::queue_message($event->get_ecs_id(),
+                                                              campusconnect_notification::MESSAGE_IMPORT_COURSELINK,
+                                                              campusconnect_notification::TYPE_ERROR,
+                                                              0, $msg);
+                }
+                return false;
+            }
         }
 
         mtrace("CampusConnect: update courselink: ".$event->get_resource_id()."\n");
-        return campusconnect_courselink::update($event->get_resource_id(), $settings, $resource, $details);
+        try {
+            return campusconnect_courselink::update($event->get_resource_id(), $settings, $resource, $details);
+        } catch (moodle_exception $e) {
+            $msg = "Unable to update course for resourceid: ".$event->get_resource_id()." title: {$resource->title}";
+            mtrace($msg);
+            if (!$event->get_failcount()) {
+                // If this is the first time this event has failed - notify the admin by email.
+                campusconnect_notification::queue_message($event->get_ecs_id(),
+                                                          campusconnect_notification::MESSAGE_IMPORT_COURSELINK,
+                                                          campusconnect_notification::TYPE_ERROR,
+                                                          0, $msg);
+            }
+            return false;
+        }
     }
 
     /**

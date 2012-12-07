@@ -281,14 +281,18 @@ class campusconnect_courselink {
         global $DB;
 
         if ($currlink = self::get_by_resourceid($resourceid, $settings->get_id())) {
+            $msg = "{$currlink->courseid} ($resourceid)";
+            if ($coursename = $DB->get_field('course', 'fullname', array('id' => $currlink->courseid))) {
+                $msg .= ' - '.format_string($coursename);
+            }
             campusconnect_notification::queue_message($settings->get_id(),
                                                       campusconnect_notification::MESSAGE_IMPORT_COURSELINK,
                                                       campusconnect_notification::TYPE_DELETE,
-                                                      $currlink->courseid);
+                                                      0, $msg);
             if ($settings->get_id() > 0) {
                 // Nasty hack for unit testing - 'delete_course' is too complex to
                 // be practical to mock up the database responses
-                delete_course($currlink->courseid);
+                delete_course($currlink->courseid, false);
             } else {
                 /** @noinspection PhpUndefinedMethodInspection */
                 $DB->mock_delete_course($currlink->courseid);

@@ -37,11 +37,12 @@ class campusconnect_notification {
     const TYPE_CREATE = 0;
     const TYPE_UPDATE = 1;
     const TYPE_DELETE = 2;
+    const TYPE_ERROR = 3;
 
     static $messagetypes = array(self::MESSAGE_IMPORT_COURSELINK, self::MESSAGE_EXPORT_COURSELINK,
                                  self::MESSAGE_USER, self::MESSAGE_COURSE, self::MESSAGE_DIRTREE);
 
-    static $messagesubtypes = array(self::TYPE_CREATE, self::TYPE_UPDATE, self::TYPE_DELETE);
+    static $messagesubtypes = array(self::TYPE_CREATE, self::TYPE_UPDATE, self::TYPE_DELETE, self::TYPE_ERROR);
 
     /**
      * Queue a new notification to be sent out via email
@@ -50,8 +51,10 @@ class campusconnect_notification {
      *                  MESSAGE_COURSE, MESSAGE_DIRTREE, MESSAGE_USER)
      * @param int $subtype
      * @param int $dataid for courselinks: the ID of the Moodle course, for users: the ID of the new user
+     * @param string $extra optional an extra message to display next to the item
+     * @throws coding_exception
      */
-    public static function queue_message($ecsid, $type, $subtype, $dataid) {
+    public static function queue_message($ecsid, $type, $subtype, $dataid, $extra = null) {
         global $DB;
 
         if (!in_array($type, self::$messagetypes)) {
@@ -65,6 +68,7 @@ class campusconnect_notification {
             'type' => $type,
             'subtype' => $subtype,
             'data' => $dataid,
+            'extra' => $extra
         );
         $DB->insert_record('local_campusconnect_notify', $ins);
     }
@@ -111,6 +115,7 @@ class campusconnect_notification {
             self::TYPE_CREATE => '',
             self::TYPE_UPDATE => '_update',
             self::TYPE_DELETE => '_delete',
+            self::TYPE_ERROR => '_error'
         );
 
         $sitename = format_string($DB->get_field('course', 'fullname', array('id' => SITEID), MUST_EXIST));
@@ -136,10 +141,21 @@ class campusconnect_notification {
                     $body .= html_writer::start_tag('ul');
 
                     foreach ($subnotifications as $notification) {
-                        $object = $DB->get_record($type->table, array('id' => $notification->data), "id, {$type->name}");
+                        $object = false;
+                        if ($notification->data) {
+                            $object = $DB->get_record($type->table, array('id' => $notification->data), "id, {$type->name}");
+                        }
                         if (!$object) {
-                            $bodytext .= $unknown."\n";
-                            $body .= html_writer::tag('li', $unknown)."\n";
+                            $msg = '';
+                            if ($notification->data || !$notification->extra) {
+                                $msg .= $unknown;
+                            }
+                            if ($notification->extra) {
+                                $msg .= ($msg) ? ' - ' : '';
+                                $msg .= $notification->extra;
+                            }
+                            $bodytext .= $msg."\n";
+                            $body .= html_writer::tag('li', $msg)."\n";
                         } else {
                             $link = new moodle_url($type->url, array('id' => $object->id));
                             if ($type->name == 'firstname,lastname') {
@@ -147,8 +163,9 @@ class campusconnect_notification {
                             } else {
                                 $name = format_string($object->{$type->name});
                             }
-                            $bodytext .= $name.' - '.$link->out(false)."\n";
-                            $body .= html_writer::tag('li', html_writer::link($link, $name))."\n";
+                            $extra = ($notification->extra) ? ' - '.$notification->extra : '';
+                            $bodytext .= $name.' - '.$link->out(false).$extra."\n";
+                            $body .= html_writer::tag('li', html_writer::link($link, $name).$extra)."\n";
                         }
                     }
                     $body .= html_writer::end_tag('ul');

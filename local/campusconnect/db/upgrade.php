@@ -600,5 +600,35 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2012120400, 'local', 'campusconnect');
     }
 
+    if ($oldversion < 2012120700) {
+
+        // Define field extra to be added to local_campusconnect_notify
+        $table = new xmldb_table('local_campusconnect_notify');
+        $field = new xmldb_field('extra', XMLDB_TYPE_TEXT, 'medium', null, null, null, null, 'data');
+
+        // Conditionally launch add field id
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012120700, 'local', 'campusconnect');
+    }
+
+    if ($oldversion < 2012120701) {
+
+        // Define field failcount to be added to local_campusconnect_eventin
+        $table = new xmldb_table('local_campusconnect_eventin');
+        $field = new xmldb_field('failcount', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'status');
+
+        // Conditionally launch add field failcount
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012120701, 'local', 'campusconnect');
+    }
+
     return true;
 }

@@ -51,6 +51,7 @@ class campusconnect_event {
     protected $ecsid;
     protected $status;
     protected $id = null;
+    protected $failcount = 0;
 
     public function __construct($eventdata, $ecsid = null) {
         if (isset($eventdata->id)) {
@@ -61,6 +62,7 @@ class campusconnect_event {
             $this->resourcetype = $eventdata->type;
             $this->resourceid = $eventdata->resourceid;
             $this->resource = $this->resourcetype.'/'.$this->resourceid;
+            $this->failcount = $eventdata->failcount;
 
         } else {
             // Constructing from an ECS response.
@@ -102,6 +104,10 @@ class campusconnect_event {
 
     public function get_status() {
         return $this->status;
+    }
+
+    public function get_failcount() {
+        return $this->failcount;
     }
 
     /**

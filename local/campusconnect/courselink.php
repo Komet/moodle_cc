@@ -125,7 +125,8 @@ class campusconnect_courselink {
 
         if ($partsettings->get_import_type() == campusconnect_participantsettings::IMPORT_LINK) {
             if (self::get_by_resourceid($resourceid, $settings->get_id())) {
-                throw new campusconnect_courselink_exception("Cannot create a courselink to resource $resourceid - it already exists.");
+                mtrace("Cannot create a courselink to resource $resourceid - it already exists.");
+                return true; // To remove this update from the list.
             }
 
             $coursedata->category = $settings->get_import_category();

@@ -253,6 +253,19 @@ class campusconnect_participantsettings {
             }
         }
 
+        if (isset($settings->import) || isset($settings->importtype)) {
+            // About to change import or import type
+            $newimport = isset($settings->import) ? $settings->import : $this->import;
+            $newimporttype = isset($settings->importtype) ? $settings->importtype : $this->importtype;
+
+            if ($newimport && $newimporttype == self::IMPORT_CMS) {
+                // We will now be importing as type IMPORT_CMS => check there isn't already a CMS participant.
+                if ($cms = self::get_cms_participant(true)) {
+                    throw new coding_exception("There is already a CMS configured: {$cms->displayname}");
+                }
+            }
+        }
+
         // Clean the settings - make sure only expected values exist.
         $updateneeded = false;
         foreach ($settings as $name => $value) {
@@ -286,6 +299,29 @@ class campusconnect_participantsettings {
                 }
             }
         }
+    }
+
+    /**
+     * Check to see if there are any problems with the settings that are about to be saved and return an
+     * error message if that is the case
+     * @param $settings
+     * @return string
+     */
+    public function check_settings($settings) {
+        if ($settings->import && $settings->importtype == self::IMPORT_CMS) {
+            /** @var $cms campusconnect_participantsettings */
+            if ($cms = self::get_cms_participant(true)) {
+                if ($cms->get_ecs_id() != $this->get_ecs_id() || $cms->get_mid() != $this->get_mid()) {
+                    $data = (object)array(
+                        'newcms' => $this->get_displayname(),
+                        'currcms' => $cms->get_displayname()
+                    );
+                    return get_string('alreadycms', 'local_campusconnect', $data);
+                }
+            }
+        }
+
+        return '';
     }
 
     /**
@@ -332,7 +368,7 @@ class campusconnect_participantsettings {
         }
 
         if ($disablecmsimport) {
-            // TODO - list the changes that would result from disabling the CMS import type
+            // TODO davo - list the changes that would result from disabling the CMS import type
         }
 
         if (empty($ret)) {
@@ -442,15 +478,22 @@ class campusconnect_participantsettings {
 
     /**
      * Returns the participant that has import type CMS
+     * @param bool $skipcache do not use the cached value (useful when updating settings)
+     * @throws coding_exception
      * @return mixed campusconnect_participantsettings | false
      */
-    public static function get_cms_participant() {
+    public static function get_cms_participant($skipcache = false) {
         global $DB;
 
         static $participant = null;
 
-        if (is_null($participant)) {
-            $participant = $DB->get_records('local_campusconnect_part', array('import' => 1, 'importtype' => self::IMPORT_CMS));
+        if (is_null($participant) || $skipcache) {
+            // Find the participant with the import type set to IMPORT_CMS (ignoring disabled ECS)
+            $sql = "SELECT p.*
+                      FROM {local_campusconnect_part} p
+                      JOIN {local_campusconnect_ecs} e ON p.ecsid = e.id
+                     WHERE e.enabled = 1 AND p.import = 1 AND p.importtype = :importtype";
+            $participant = $DB->get_records_sql($sql, array('importtype' => self::IMPORT_CMS));
             if (count($participant) > 1) {
                 throw new coding_exception('There should only ever be one participant set to IMPORT_CMS');
             }

@@ -57,6 +57,7 @@ foreach ($ecslist as $ecsid => $ecsname) {
     }
 }
 
+$settingerrors = array();
 $confirmmsgs = array();
 $confirmparams = array();
 if (optional_param('saveparticipants', false, PARAM_TEXT)) {
@@ -86,6 +87,11 @@ if (optional_param('saveparticipants', false, PARAM_TEXT)) {
                 $tosave->import = in_array($identifier, $import);
                 $tosave->export = in_array($identifier, $export);
                 $tosave->importtype = $importtypes[$identifier];
+
+                if ($err = $participant->check_settings($tosave)) {
+                    $settingerrors[] = $err;
+                    continue;
+                }
 
                 if (!$confirm) {
                     if ($confirmmsg = $participant->get_confirm_message($tosave)) {
@@ -200,6 +206,11 @@ $strcancel = get_string('cancel');
 if ($error) {
     foreach ($error as $ecsname => $errormessage) {
         echo $OUTPUT->notification($ecsname.': '.get_string('errorparticipants', 'local_campusconnect', $errormessage));
+    }
+}
+if ($settingerrors) {
+    foreach ($settingerrors as $msg) {
+        echo $OUTPUT->notification($msg);
     }
 }
 

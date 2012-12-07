@@ -31,6 +31,7 @@ $string['addecs'] = 'Add ECS';
 $string['allecs'] = 'All ECS';
 $string['allwords'] = 'All words';
 $string['allwords_help'] = 'If selected then all courses will match this attribute, otherwise only courses with the attribute value in the list below will be matched.';
+$string['alreadycms'] = 'Cannot set \'{$a->newcms}\' to have import type Campus Management, as \'{$a->currcms}\' already has import type Campus Management';
 $string['assignmenttocategories'] = 'Assignment To Categories';
 $string['attribute'] = 'Attribute';
 $string['attributename'] = 'Attribute Name';

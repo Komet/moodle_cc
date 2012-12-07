@@ -931,6 +931,9 @@ class campusconnect_course_url {
 
         /** @var $cms campusconnect_participantsettings */
         $cms = campusconnect_participantsettings::get_cms_participant();
+        if (!$cms) {
+            return;
+        }
 
         if ($connect->get_ecs_id() != $cms->get_ecs_id()) {
             return; // Not updating the ECS that the CMS is on.

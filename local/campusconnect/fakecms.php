@@ -135,35 +135,45 @@ if ($dirid = optional_param('showdir', false, PARAM_INT)) {
 
     $frmdata->crsorganisation = $crs->basicData->organisation;
     $frmdata->crsid = $crs->basicData->id;
-    $frmdata->crsterm = $crs->basicData->term;
+    $frmdata->crsterm = !empty($crs->basicData->term) ? $crs->basicData->term : '';
     $frmdata->crstitle = $crs->basicData->title;
-    $frmdata->crstype = $crs->basicData->courseType;
-    $frmdata->crsmaxpart = $crs->basicData->maxParticipants;
+    $frmdata->crstype = !empty($crs->basicData->courseType) ? $crs->basicData->courseType : '';
+    $frmdata->crsmaxpart = !empty($crs->basicData->maxParticipants) ? $crs->basicData->maxParticipants : '';
     $frmdata->crsparallel = $crs->basicData->parallelGroupScenario;
 
-    $i = 1;
-    foreach ($crs->lecturers as $lecturer) {
-        $frmdata->crslecturerfirst[$i] = $lecturer->firstName;
-        $frmdata->crslecturerlast[$i] = $lecturer->lastName;
-        $i++;
+    if (!empty($crs->lecturers)) {
+        $i = 1;
+        foreach ($crs->lecturers as $lecturer) {
+            $frmdata->crslecturerfirst[$i] = $lecturer->firstName;
+            $frmdata->crslecturerlast[$i] = $lecturer->lastName;
+            $i++;
+        }
     }
 
-    $i = 1;
-    foreach ($crs->allocations as $allocation) {
-        $frmdata->crsallparent[$i] = $allocation->parentID;
-        $frmdata->crsallorder[$i] = !empty($allocation->order) ? $allocation->order : '';
-        $i++;
+    if (!empty($crs->allocations)) {
+        $i = 1;
+        foreach ($crs->allocations as $allocation) {
+            $frmdata->crsallparent[$i] = $allocation->parentID;
+            $frmdata->crsallorder[$i] = !empty($allocation->order) ? $allocation->order : '';
+            $i++;
+        }
     }
 
-    $i = 1;
-    foreach ($crs->parallelGroups as $pgroup) {
-        $frmdata->crsptitle[$i] = $pgroup->title;
-        $frmdata->crspid[$i] = $pgroup->id;
-        $frmdata->crspcomment[$i] = $pgroup->comment;
-        $j = 1;
-        foreach ($pgroup->lectureres as $lecturer) {
-            $frmdata->crsplecturerfirst[$i][$j] = $lecturer->firstName;
-            $frmdata->crsplecturerlast[$i][$j] = $lecturer->lastName;
+    if (!empty($crs->parallelGroups)) {
+        $i = 1;
+        foreach ($crs->parallelGroups as $pgroup) {
+            $frmdata->crsptitle[$i] = $pgroup->title;
+            $frmdata->crspid[$i] = $pgroup->id;
+            $frmdata->crspcomment[$i] = $pgroup->comment;
+            if (!empty($pgroup->lecturers)) {
+                $j = 1;
+                foreach ($pgroup->lecturers as $lecturer) {
+                    $frmdata->crsplecturerfirst[$i][$j] = $lecturer->firstName;
+                    $frmdata->crsplecturerlast[$i][$j] = $lecturer->lastName;
+                    $j++;
+                }
+            }
+            $i++;
         }
     }
 

@@ -30,7 +30,7 @@ require_once($CFG->libdir.'/adminlib.php');
 require_once($CFG->dirroot.'/local/campusconnect/directorytree.php');
 require_once($CFG->dirroot.'/local/campusconnect/admin/directorymapping_form.php');
 
-$rootid = required_param('rootid', PARAM_INT);
+$rootid = required_param('id', PARAM_INT);
 $dirtree = campusconnect_directorytree::get_by_root_id($rootid);
 
 $mapdirectory = optional_param('mapdirectory', false, PARAM_TEXT);
@@ -40,7 +40,7 @@ $categoryid = optional_param('category', null, PARAM_INT);
 $directoryid = optional_param('directory', null, PARAM_INT);
 $showdirectory = optional_param('showdirectory', null, PARAM_INT);
 
-$url = new moodle_url('/local/campusconnect/admin/directorymapping.php', array('rootid' => $rootid));
+$url = new moodle_url('/local/campusconnect/admin/directorymapping.php', array('id' => $rootid));
 if ($showmapping && $directoryid) {
     $url->param('showdirectory', $directoryid);
     redirect($url);

@@ -307,9 +307,12 @@ class campusconnect_directorytree {
      * Mark the directory tree as deleted
      */
     public function delete() {
-        // TODO davo - send an admin email - do not delete the category.
-        //global $DB;
-        //$DB->delete_records('local_campusconnect_dirroot', array('id' => $this->recordid));
+        global $CFG;
+        require_once($CFG->dirroot.'/local/campusconnect/notify.php');
+        campusconnect_notification::queue_message($this->ecsid,
+                                                  campusconnect_notification::MESSAGE_DIRTREE,
+                                                  campusconnect_notification::TYPE_DELETE,
+                                                  $this->recordid);
 
         campusconnect_directory::delete_root_directory($this->rootid);
         $this->update_field('mappingmode', self::MODE_DELETED);

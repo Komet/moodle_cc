@@ -65,7 +65,7 @@ $statuses = array(
 );
 $baseediturl = new moodle_url('/local/campusconnect/admin/directorymapping.php');
 foreach ($trees as $tree) {
-    $editurl = new moodle_url($baseediturl, array('rootid' => $tree->get_root_id()));
+    $editurl = new moodle_url($baseediturl, array('id' => $tree->get_root_id()));
     $editlink = html_writer::link($editurl, s($tree->get_title()));
     $status = $statuses[$tree->get_mode()];
 

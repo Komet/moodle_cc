@@ -109,6 +109,13 @@ class campusconnect_notification {
                 'url' => '/course/view.php',
                 'users' => $ecssettings->get_notify_content(),
             ),
+            self::MESSAGE_DIRTREE => (object)array(
+                'string' => 'directorytree',
+                'table' => 'local_campusconnect_dirroot',
+                'name' => 'title',
+                'url' => '/local/campusconnect/directorymapping.php',
+                'users' => $ecssettings->get_notify_content(),
+            ),
         );
 
         $subtypesprefix = array(

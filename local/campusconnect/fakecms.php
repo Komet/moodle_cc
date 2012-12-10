@@ -1,0 +1,188 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * Post messages as if this was a CMS
+ *
+ * @package   local_campusconnect
+ * @copyright 2012 Davo Smith, Synergy Learning
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+require_once(dirname(__FILE__).'/../../config.php');
+global $CFG, $PAGE, $OUTPUT;
+require_once($CFG->dirroot.'/local/campusconnect/participantsettings.php');
+require_once($CFG->dirroot.'/local/campusconnect/connect.php');
+require_once($CFG->dirroot.'/local/campusconnect/event.php');
+require_once($CFG->dirroot.'/local/campusconnect/fakecms_form.php');
+
+$url = new moodle_url('/local/campusconnect/fakecms.php');
+$PAGE->set_url($url);
+$context = context_system::instance();
+$PAGE->set_context($context);
+
+require_login();
+if (!is_siteadmin()) {
+    die("Admin only");
+}
+
+$PAGE->set_heading("CMS Emulator");
+$PAGE->set_title("CMS Emulator");
+
+// Load the details of all known participants in the configured ECS.
+$ecslist = campusconnect_ecssettings::list_ecs();
+$participants = array();
+$allcommunities = array();
+/** @var $cms campusconnect_participantsettings */
+$cms = campusconnect_participantsettings::get_cms_participant();
+if (!$cms) {
+    die("You must configure a CMS import participant, before attempting to use this test code");
+}
+$cmscid = null;
+$cmsmid = $cms->get_mid();
+$thismid = null;
+foreach ($ecslist as $ecsid => $ecsname) {
+    $settings = new campusconnect_ecssettings($ecsid);
+    $allcommunities[$ecsid] = campusconnect_participantsettings::load_communities($settings);
+    foreach ($allcommunities[$ecsid] as $cid => $community) {
+        /** @var $participant campusconnect_participantsettings */
+        foreach ($community->participants as $identifier => $participant) {
+            $participants[$identifier] = $ecsname.' - '.$participant->get_displayname();
+            if ($identifier == $cms->get_identifier()) {
+                $cmscid = $cid; // Found the right community, now find out the MID of this participant there.
+                /** @var $part2 campusconnect_participantsettings */
+                foreach ($community->participants as $id2 => $part2) {
+                    if ($part2->is_me()) {
+                        $thismid = $part2->get_mid();
+                        continue 2;
+                    }
+                }
+                die("Unable to find this VLE in the same community as the CMS - community: {$community->name} ($cid)");
+            }
+        }
+    }
+}
+
+if (is_null($cmscid) || is_null($thismid)) {
+    die("Not able to find out the community ID or the MID of this VLE in the same community as the CMS");
+}
+
+// Find the participants with the same CID and MID as davothe destination CMS/VLE, but on a different ECS.
+$thispart = null;
+$cmspart = null;
+foreach ($allcommunities as $ecsid => $communities) {
+    if ($ecsid == $cms->get_ecs_id()) {
+        continue; // Looking for the ECS that the CMS is sending *from* not *to*
+    }
+    if (!isset($communities[$cmscid])) {
+        continue; // The CMS community is not found on this ECS
+    }
+    foreach ($communities[$cmscid]->participants as $identifier => $participant) {
+        if ($participant->get_mid() == $cmsmid) {
+            $cmspart = $participant;
+        } else if ($participant->get_mid() == $thismid) {
+            $thispart = $participant;
+        }
+    }
+}
+if (is_null($thispart) || is_null($cmspart)) {
+    die("Was not able to identify the CMS participant to send from and the VLE participant to send to");
+}
+
+$ecssettings = new campusconnect_ecssettings($cms->get_ecs_id());
+$connect = new campusconnect_connect($ecssettings);
+
+// Get list of existing directory trees on ECS
+$dirtrees = $connect->get_resource_list(campusconnect_event::RES_DIRECTORYTREE);
+
+
+
+$custom = array(
+    'participants' => $participants,
+    'cmsparticipant' => $cmspart->get_identifier(),
+    'thisparticipant' => $thispart->get_identifier(),
+    'dirresources' => $dirtrees->get_ids(),
+);
+$frmdata = new stdClass();
+
+if ($dirid = optional_param('showdir', false, PARAM_INT)) {
+    $dirtree = $connect->get_resource($dirid, campusconnect_event::RES_DIRECTORYTREE);
+    $frmdata->dirtreetitle = $dirtree->directoryTreeTitle;
+    $frmdata->dirid = $dirtree->id;
+    $frmdata->dirtitle = $dirtree->title;
+    $frmdata->dirparentid = $dirtree->parent->id;
+    $frmdata->dirorder = !empty($dirtree->parent->order) ? $dirtree->parent->order : '';
+    $frmdata->dirrootid = $dirtree->rootID;
+    $frmdata->diraction = 'update';
+    $frmdata->dirresourceid = $dirid;
+}
+
+$form = new fakecms_form(null, $custom);
+$form->set_data($frmdata);
+
+$msg = null;
+if ($data = $form->get_data()) {
+
+    list($srcecs, $srcmid) = explode('_', $data->srcpart);
+    list($dstecs, $dstmid) = explode('_', $data->dstpart);
+    if ($srcecs != $dstecs) {
+        die("Source and destination participants must be on the same ECS server");
+    }
+    $ecssettings = new campusconnect_ecssettings($srcecs);
+    $connect = new campusconnect_connect($ecssettings);
+
+    if (!empty($data->dirsubmit)) {
+        if ($data->diraction == 'create' || $data->diraction == 'update') {
+            $dirtree = (object)array(
+                'directoryTreeTitle' => $data->dirtreetitle,
+                'id' => $data->dirid,
+                'title' => $data->dirtitle,
+                'parent' => (object)array(
+                    'id' => $data->dirparentid,
+                ),
+                'rootID' => $data->dirrootid,
+            );
+            if (!empty($data->dirorder)) {
+                $dirtree->parent->order = $data->dirorder;
+            }
+            if ($data->diraction == 'create') {
+                $dirresourceid = $connect->add_resource(campusconnect_event::RES_DIRECTORYTREE, $dirtree, null, $dstmid);
+                $msg = 'Created new directory tree with resource id: '.$dirresourceid;
+                redirect(new moodle_url($PAGE->url, array('showdir' => $dirresourceid)), $msg, 3);
+            } else {
+                $connect->update_resource($data->dirresourceid, campusconnect_event::RES_DIRECTORYTREE, $dirtree, null, $dstmid);
+                $msg = 'Updated directory tree, resource id: '.$data->dirresourceid;
+                redirect(new moodle_url($PAGE->url, array('showdir' => $data->dirresourceid)), $msg, 3);
+            }
+
+        } else if ($data->diraction == 'delete') {
+            $connect->delete_resource($data->dirresourceid, campusconnect_event::RES_DIRECTORYTREE);
+            $msg = 'Deleted directory tree, resource id: '.$data->dirresourceid;
+            redirect($PAGE->url, $msg, 3);
+
+        } else if ($data->diraction == 'retrieve') {
+            redirect(new moodle_url($PAGE->url, array('showdir' => $data->dirresourceid)));
+        }
+    }
+}
+
+echo $OUTPUT->header();
+echo html_writer::tag('p', 'This form allows you to send data from one participant to another, as if it was from a Campus Management System. It is only meant for testing purposes and you will need to configure two connections to the ECS for it to work (with one connection acting as the CMS, the other acting as the destination VLE).');
+if (!empty($msg)) {
+    echo $OUTPUT->box($msg);
+}
+$form->display();
+echo $OUTPUT->footer();

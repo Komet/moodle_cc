@@ -112,8 +112,9 @@ class campusconnect_notification {
             self::MESSAGE_DIRTREE => (object)array(
                 'string' => 'directorytree',
                 'table' => 'local_campusconnect_dirroot',
+                'id' => 'rootid',
                 'name' => 'title',
-                'url' => '/local/campusconnect/directorymapping.php',
+                'url' => '/local/campusconnect/admin/directorymapping.php',
                 'users' => $ecssettings->get_notify_content(),
             ),
         );
@@ -150,7 +151,11 @@ class campusconnect_notification {
                     foreach ($subnotifications as $notification) {
                         $object = false;
                         if ($notification->data) {
-                            $object = $DB->get_record($type->table, array('id' => $notification->data), "id, {$type->name}");
+                            $id = 'id';
+                            if (isset($type->id)) {
+                                $id = $type->id;
+                            }
+                            $object = $DB->get_record($type->table, array($id => $notification->data), "id, {$type->name}");
                         }
                         if (!$object) {
                             $msg = '';

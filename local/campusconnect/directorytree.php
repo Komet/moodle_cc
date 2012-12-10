@@ -308,14 +308,14 @@ class campusconnect_directorytree {
      */
     public function delete() {
         global $CFG;
+        campusconnect_directory::delete_root_directory($this->rootid);
+        $this->update_field('mappingmode', self::MODE_DELETED);
+
         require_once($CFG->dirroot.'/local/campusconnect/notify.php');
         campusconnect_notification::queue_message($this->ecsid,
                                                   campusconnect_notification::MESSAGE_DIRTREE,
                                                   campusconnect_notification::TYPE_DELETE,
-                                                  $this->recordid);
-
-        campusconnect_directory::delete_root_directory($this->rootid);
-        $this->update_field('mappingmode', self::MODE_DELETED);
+                                                  $this->rootid);
     }
 
     /**

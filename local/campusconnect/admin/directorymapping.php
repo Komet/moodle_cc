@@ -30,7 +30,7 @@ require_once($CFG->libdir.'/adminlib.php');
 require_once($CFG->dirroot.'/local/campusconnect/directorytree.php');
 require_once($CFG->dirroot.'/local/campusconnect/admin/directorymapping_form.php');
 
-$rootid = required_param('id', PARAM_INT);
+$rootid = required_param('id', PARAM_ALPHANUMEXT);
 $dirtree = campusconnect_directorytree::get_by_root_id($rootid);
 
 $mapdirectory = optional_param('mapdirectory', false, PARAM_TEXT);

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/campusconnect/db" VERSION="20121207" COMMENT="XMLDB file for Moodle local/campusconnect"
+<XMLDB PATH="local/campusconnect/db" VERSION="20121210" COMMENT="XMLDB file for Moodle local/campusconnect"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -111,7 +111,7 @@
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="resourceid"/>
         <FIELD NAME="resourceid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the resource on the ECS server" PREVIOUS="id" NEXT="rootid"/>
-        <FIELD NAME="rootid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the root node on the CMS" PREVIOUS="resourceid" NEXT="title"/>
+        <FIELD NAME="rootid" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="The ID of the root node on the CMS" PREVIOUS="resourceid" NEXT="title"/>
         <FIELD NAME="title" TYPE="text" LENGTH="small" NOTNULL="true" SEQUENCE="false" COMMENT="The name of the directory node from the CMS" PREVIOUS="rootid" NEXT="ecsid"/>
         <FIELD NAME="ecsid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the ECS that this resource came from" PREVIOUS="title" NEXT="mid"/>
         <FIELD NAME="mid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The participant this directory tree came from" PREVIOUS="ecsid" NEXT="categoryid"/>
@@ -133,10 +133,10 @@
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="resourceid"/>
         <FIELD NAME="resourceid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the resource on the ECS server" PREVIOUS="id" NEXT="rootid"/>
-        <FIELD NAME="rootid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the root of the directory tree" PREVIOUS="resourceid" NEXT="directoryid"/>
-        <FIELD NAME="directoryid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the directory on the CMS" PREVIOUS="rootid" NEXT="title"/>
+        <FIELD NAME="rootid" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="The ID of the root of the directory tree" PREVIOUS="resourceid" NEXT="directoryid"/>
+        <FIELD NAME="directoryid" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="The ID of the directory on the CMS" PREVIOUS="rootid" NEXT="title"/>
         <FIELD NAME="title" TYPE="text" LENGTH="small" NOTNULL="true" SEQUENCE="false" COMMENT="The title of the directory, from the CMS" PREVIOUS="directoryid" NEXT="parentid"/>
-        <FIELD NAME="parentid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The directoryid of the parent directory" PREVIOUS="title" NEXT="sortorder"/>
+        <FIELD NAME="parentid" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="The directoryid of the parent directory" PREVIOUS="title" NEXT="sortorder"/>
         <FIELD NAME="sortorder" TYPE="int" LENGTH="10" NOTNULL="false" UNSIGNED="false" DEFAULT="0" SEQUENCE="false" COMMENT="Used to define the order in which directories should be displayed" PREVIOUS="parentid" NEXT="categoryid"/>
         <FIELD NAME="categoryid" TYPE="int" LENGTH="10" NOTNULL="false" UNSIGNED="false" SEQUENCE="false" COMMENT="The Moodle category this directory is mapped onto (null if not mapped)" PREVIOUS="sortorder" NEXT="mapping"/>
         <FIELD NAME="mapping" TYPE="int" LENGTH="4" NOTNULL="true" UNSIGNED="false" DEFAULT="0" SEQUENCE="false" COMMENT="The mapping mode (0 - automatic, 1 - manual, 2 - deleted)" PREVIOUS="categoryid"/>

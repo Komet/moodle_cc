@@ -630,5 +630,52 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2012120701, 'local', 'campusconnect');
     }
 
+    ////////////////////////////////////////
+    // Convert all CMS IDs from int => char
+    ////////////////////////////////////////
+    if ($oldversion < 2012121000) {
+        // local_campusconnect_dirroot.rootid
+        $table = new xmldb_table('local_campusconnect_dirroot');
+        $index = new xmldb_index('rootid', XMLDB_INDEX_UNIQUE, array('rootid'));
+        $field = new xmldb_field('rootid', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null, 'resourceid');
+        if ($dbman->index_exists($table, $index)) {
+            $dbman->drop_index($table, $index); // Remove the index (temporarially)
+        }
+        $dbman->change_field_type($table, $field);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index); // Replace the index
+        }
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012121000, 'local', 'campusconnect');
+    }
+
+    if ($oldversion < 2012121001) {
+        // local_campusconnect_dir.rootid
+        $table = new xmldb_table('local_campusconnect_dir');
+        $index = new xmldb_index('rootid', XMLDB_INDEX_NOTUNIQUE, array('rootid'));
+        $field = new xmldb_field('rootid', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null, 'resourceid');
+        if ($dbman->index_exists($table, $index)) {
+            $dbman->drop_index($table, $index); // Remove the index (temporarially)
+        }
+        $dbman->change_field_type($table, $field);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index); // Replace the index
+        }
+
+        // local_campusconnect_dir.directoryid
+        $field = new xmldb_field('directoryid', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null, 'rootid');
+        $dbman->change_field_type($table, $field);
+
+        // local_campusconnect_dir.parentid
+        $field = new xmldb_field('parentid', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null, 'title');
+        $dbman->change_field_type($table, $field);
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012121001, 'local', 'campusconnect');
+    }
+
+
+
     return true;
 }

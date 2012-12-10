@@ -548,6 +548,9 @@ class campusconnect_directorytree {
             }
 
             $dir = new campusconnect_directory();
+            if (!isset($directory->order)) {
+                $directory->order = '';
+            }
             $dir->create($resourceid, $directory->rootID, $directory->id, $directory->parent->id, $directory->title, $directory->order);
         }
 

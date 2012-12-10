@@ -107,17 +107,18 @@ $connect = new campusconnect_connect($ecssettings);
 
 // Get list of existing directory trees on ECS
 $dirtrees = $connect->get_resource_list(campusconnect_event::RES_DIRECTORYTREE);
-
-
+$crses = $connect->get_resource_list(campusconnect_event::RES_COURSE);
 
 $custom = array(
     'participants' => $participants,
     'cmsparticipant' => $cmspart->get_identifier(),
     'thisparticipant' => $thispart->get_identifier(),
     'dirresources' => $dirtrees->get_ids(),
+    'crsresources' => $crses->get_ids(),
 );
 $frmdata = new stdClass();
 
+// Retrieve existing data and display in the form.
 if ($dirid = optional_param('showdir', false, PARAM_INT)) {
     $dirtree = $connect->get_resource($dirid, campusconnect_event::RES_DIRECTORYTREE);
     $frmdata->dirtreetitle = $dirtree->directoryTreeTitle;
@@ -128,6 +129,46 @@ if ($dirid = optional_param('showdir', false, PARAM_INT)) {
     $frmdata->dirrootid = $dirtree->rootID;
     $frmdata->diraction = 'update';
     $frmdata->dirresourceid = $dirid;
+
+} else if ($crsid = optional_param('showcrs', false, PARAM_INT)) {
+    $crs = $connect->get_resource($crsid, campusconnect_event::RES_COURSE);
+
+    $frmdata->crsorganisation = $crs->basicData->organisation;
+    $frmdata->crsid = $crs->basicData->id;
+    $frmdata->crsterm = $crs->basicData->term;
+    $frmdata->crstitle = $crs->basicData->title;
+    $frmdata->crstype = $crs->basicData->courseType;
+    $frmdata->crsmaxpart = $crs->basicData->maxParticipants;
+    $frmdata->crsparallel = $crs->basicData->parallelGroupScenario;
+
+    $i = 1;
+    foreach ($crs->lecturers as $lecturer) {
+        $frmdata->crslecturerfirst[$i] = $lecturer->firstName;
+        $frmdata->crslecturerlast[$i] = $lecturer->lastName;
+        $i++;
+    }
+
+    $i = 1;
+    foreach ($crs->allocations as $allocation) {
+        $frmdata->crsallparent[$i] = $allocation->parentID;
+        $frmdata->crsallorder[$i] = !empty($allocation->order) ? $allocation->order : '';
+        $i++;
+    }
+
+    $i = 1;
+    foreach ($crs->parallelGroups as $pgroup) {
+        $frmdata->crsptitle[$i] = $pgroup->title;
+        $frmdata->crspid[$i] = $pgroup->id;
+        $frmdata->crspcomment[$i] = $pgroup->comment;
+        $j = 1;
+        foreach ($pgroup->lectureres as $lecturer) {
+            $frmdata->crsplecturerfirst[$i][$j] = $lecturer->firstName;
+            $frmdata->crsplecturerlast[$i][$j] = $lecturer->lastName;
+        }
+    }
+
+    $frmdata->crsaction = 'update';
+    $frmdata->crsresourceid = $crsid;
 }
 
 $form = new fakecms_form(null, $custom);
@@ -176,6 +217,78 @@ if ($data = $form->get_data()) {
         } else if ($data->diraction == 'retrieve') {
             redirect(new moodle_url($PAGE->url, array('showdir' => $data->dirresourceid)));
         }
+    } else if (!empty($data->crssubmit)) {
+        if ($data->crsaction == 'create' || $data->crsaction == 'update') {
+            $crs = (object)array(
+                'basicData' => (object)array(
+                    'organisation' => $data->crsorganisation,
+                    'id' => $data->crsid,
+                    'term' => $data->crsterm,
+                    'title' => $data->crstitle,
+                    'courseType' => $data->crstype,
+                    'maxParticipants' => $data->crsmaxpart,
+                    'parallelGroupScenario' => $data->crsparallel,
+                ),
+                'lecturers' => array(),
+                'allocations' => array(),
+                'parallelGroups' => array(),
+            );
+            for ($i=1; $i<4; $i++) {
+                if (!empty($data->crslecturerfirst[$i]) && !empty($data->crslecturerlast[$i])) {
+                    $crs->lecturers[] = (object)array(
+                        'firstName' => $data->crslecturerfirst[$i],
+                        'lastName' => $data->crslecturerlast[$i],
+                    );
+                }
+                if (!empty($data->crsallparent[$i])) {
+                    $allocation = (object)array(
+                        'parentID' => $data->crsallparent[$i],
+                    );
+                    if (!empty($data->crsallorder[$i])) {
+                        $allocation->order = $data->crsallorder[$i];
+                    }
+                    $crs->allocations[] = $allocation;
+                }
+                if (!empty($data->crsptitle[$i]) && !empty($data->crspid[$i])) {
+                    $pgroup = (object)array(
+                        'title' => $data->crsptitle[$i],
+                        'id' => $data->crspid[$i],
+                        'lecturers' => array(),
+                    );
+                    if (!empty($data->crspcomment[$i])) {
+                        $pgroup->comment = $data->crspcomment[$i];
+                    }
+                    for ($j=1; $j<=4; $j++) {
+                        if (!empty($data->crsplecturerfirst[$i][$j]) && !empty($data->crsplecturerlast[$i][$j])) {
+                            $pgroup->lecturers[] = (object)array(
+                                'firstName' => $data->crsplecturerfirst[$i][$j],
+                                'lastName' => $data->crsplecturerlast[$i][$j],
+                            );
+                        }
+                    }
+                    $crs->parallelGroups[] = $pgroup;
+                }
+            }
+
+            if ($data->crsaction == 'create') {
+                $crsresourceid = $connect->add_resource(campusconnect_event::RES_COURSE, $crs, null, $dstmid);
+                $msg = 'Created new course with resource id: '.$crsresourceid;
+                redirect(new moodle_url($PAGE->url, array('showcrs' => $crsresourceid)), $msg, 3);
+            } else {
+                $connect->update_resource($data->crsresourceid, campusconnect_event::RES_COURSE, $crs, null, $dstmid);
+                $msg = 'Updated course, resource id: '.$data->crsresourceid;
+                redirect(new moodle_url($PAGE->url, array('showcrs' => $data->crsresourceid)), $msg, 3);
+            }
+
+        } else if ($data->crsaction == 'delete') {
+            $connect->delete_resource($data->crsresourceid, campusconnect_event::RES_COURSE);
+            $msg = 'Deleted course, resource id: '.$data->crsresourceid;
+            redirect($PAGE->url, $msg, 3);
+
+        } else if ($data->crsaction == 'retrieve') {
+            redirect(new moodle_url($PAGE->url, array('showcrs' => $data->crsresourceid)));
+        }
+
     }
 }
 

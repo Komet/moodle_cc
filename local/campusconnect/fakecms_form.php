@@ -38,11 +38,17 @@ class fakecms_form extends moodleform {
         $cmsparticipant = $this->_customdata['cmsparticipant'];
         $thisparticipant = $this->_customdata['thisparticipant'];
         $dirresources = $this->_customdata['dirresources'];
-        $dirresources = array_combine($dirresources, $dirresources);
+        if (!empty($dirresources)) {
+            $dirresources = array_combine($dirresources, $dirresources);
+        }
         $crsresources = $this->_customdata['crsresources'];
-        $crsresources = array_combine($crsresources, $crsresources);
+        if (!empty($crsresources)) {
+            $crsresources = array_combine($crsresources, $crsresources);
+        }
         $mbrresources = $this->_customdata['mbrresources'];
-        $mbrresources = array_combine($mbrresources, $mbrresources);
+        if (!empty($mbrresources)) {
+            $mbrresources = array_combine($mbrresources, $mbrresources);
+        }
 
         $actions = array(
             'create' => 'create',

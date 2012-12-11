@@ -64,10 +64,10 @@ class fakecms_form extends moodleform {
 
         $mform->addElement('text', 'dirtreetitle', 'Directory tree name');
         $mform->setDefault('dirtreetitle', 'Directory tree');
-        $mform->addElement('text', 'dirrootid', 'Root directory id', array('size' => 20));
-        $mform->addElement('text', 'dirid', 'Directory id', array('size' => 20));
+        $mform->addElement('text', 'dirrootid', 'Root directory id', array('size' => 10));
+        $mform->addElement('text', 'dirid', 'Directory id', array('size' => 10));
         $mform->addElement('text', 'dirtitle', 'Directory title');
-        $mform->addElement('text', 'dirparentid', 'Parent directory id', array('size' => 20));
+        $mform->addElement('text', 'dirparentid', 'Parent directory id', array('size' => 10));
         $mform->addElement('text', 'dirorder', 'Directory order (within parent)', array('size' => 10));
 
         $mform->addElement('submit', 'dirsubmit', 'Send directory request');
@@ -79,12 +79,11 @@ class fakecms_form extends moodleform {
         $mform->disabledIf('crsresourceid', 'crsaction', 'eq', 'create');
 
         $mform->addElement('text', 'crsorganisation', 'Course organisation');
-        $mform->addElement('text', 'crsid', 'Course id', array('size' => 20));
-        $mform->addElement('text', 'crsterm', 'Term', array('size' => 20));
+        $mform->addElement('text', 'crsid', 'Course id', array('size' => 10));
+        $mform->addElement('text', 'crsterm', 'Term', array('size' => 10));
         $mform->addElement('text', 'crstitle', 'Title');
         $mform->addElement('text', 'crstype', 'Course type');
-        $mform->addElement('text', 'crsmaxpart', 'Max participants', array('size' => 20));
-        $mform->addElement('select', 'crsparallel', 'Parallel group scenario', array(-1 => 'none', 1 => 'One course', 2 => 'Separate groups', 3 => 'Separate courses', 4 => 'Separate lecturers'));
+        $mform->addElement('text', 'crsmaxpart', 'Max participants', array('size' => 10));
 
         for ($i=1; $i<=2; $i++) {
             $grp = array(
@@ -96,24 +95,32 @@ class fakecms_form extends moodleform {
 
         for ($i=1; $i<=3; $i++) {
             $grp = array(
-                $mform->createElement('text', "crsallparent[$i]", '', array('size' => 20)),
-                $mform->createElement('text', "crsallorder[$i]", '', array('size' => 20)),
+                $mform->createElement('text', "crsallparent[$i]", '', array('size' => 10)),
+                $mform->createElement('text', "crsallorder[$i]", '', array('size' => 10)),
             );
             $mform->addGroup($grp, "crsallocation[$i]", "Allocation $i (parentdir, order)", ' ', false);
         }
 
         $mform->addElement('static', '', '', 'Parallel groups');
+        $mform->addElement('select', 'crsparallel', 'Parallel group scenario', array(-1 => 'none', 1 => 'One course', 2 => 'Separate groups', 3 => 'Separate courses', 4 => 'Separate lecturers'));
+        $mform->setAdvanced("crsparallel");
         for ($i=1; $i<=3; $i++) {
             $mform->addElement('text', "crsptitle[$i]", "PGroup$i title");
-            $mform->addElement('text', "crspid[$i]", "PGroup$i id");
-            $mform->addElement('text', "crspcomment[$i]", "PGroup$i comment");
+            $mform->setAdvanced("crsptitle[$i]");
+            $mform->addElement('text', "crspid[$i]", "PGroup$i id", array('size' => 10));
+            $mform->setAdvanced("crspid[$i]");
+            $mform->addElement('text', "crspcomment[$i]", "PGroup$i comment", array('size' => 40));
+            $mform->setAdvanced("crspcomment[$i]");
+
             for ($j=1; $j<=3; $j++) {
                 $grp = array(
                     $mform->createElement('text', "crsplecturerfirst[$i][$j]", ''),
                     $mform->createElement('text', "crsplecturerlast[$i][$j]", ''),
                 );
                 $mform->addGroup($grp, "crsplecturer[$i][$j]", "Lecturer $j (first, last)", ' ', false);
+                $mform->setAdvanced("crsplecturer[$i][$j]");
             }
+            $mform->addElement('static', '', '');
         }
 
         $mform->addElement('submit', 'crssubmit', 'Send course request');

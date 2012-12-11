@@ -80,7 +80,7 @@ if (is_null($cmscid) || is_null($thismid)) {
     die("Not able to find out the community ID or the MID of this VLE in the same community as the CMS");
 }
 
-// Find the participants with the same CID and MID as davothe destination CMS/VLE, but on a different ECS.
+// Find the participants with the same CID and MID as the destination CMS/VLE, but on a different ECS.
 $thispart = null;
 $cmspart = null;
 foreach ($allcommunities as $ecsid => $communities) {
@@ -91,9 +91,11 @@ foreach ($allcommunities as $ecsid => $communities) {
         continue; // The CMS community is not found on this ECS
     }
     foreach ($communities[$cmscid]->participants as $identifier => $participant) {
-        if ($participant->get_mid() == $cmsmid) {
+        if ($participant->get_mid() == $cmsmid && $participant->is_me()) {
+            // Found a participant in the CMS community, with the CMS MID and which we can send to.
             $cmspart = $participant;
         } else if ($participant->get_mid() == $thismid) {
+            // Found a participant in the CMS community, which matches the MID we are receiving on (on the other ECS)
             $thispart = $participant;
         }
     }

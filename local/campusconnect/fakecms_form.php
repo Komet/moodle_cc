@@ -41,6 +41,8 @@ class fakecms_form extends moodleform {
         $dirresources = array_combine($dirresources, $dirresources);
         $crsresources = $this->_customdata['crsresources'];
         $crsresources = array_combine($crsresources, $crsresources);
+        $mbrresources = $this->_customdata['mbrresources'];
+        $mbrresources = array_combine($mbrresources, $mbrresources);
 
         $actions = array(
             'create' => 'create',
@@ -50,14 +52,14 @@ class fakecms_form extends moodleform {
         );
 
         // General settings
-        $mform->addElement('header', '', 'General');
+        $mform->addElement('header', 'general', 'General');
         $mform->addElement('select', 'srcpart', 'Send from', $participants);
         $mform->setDefault('srcpart', $cmsparticipant);
         $mform->addElement('select', 'dstpart', 'Send to', $participants);
         $mform->setDefault('dstpart', $thisparticipant);
 
         // Directory trees
-        $mform->addElement('header', '', 'Directory tree');
+        $mform->addElement('header', 'dirtree', 'Directory tree');
         $mform->addElement('select', 'diraction', 'Action', $actions);
         $mform->addElement('select', 'dirresourceid', 'Existing resource', $dirresources);
         $mform->disabledIf('dirresourceid', 'diraction', 'eq', 'create');
@@ -73,7 +75,7 @@ class fakecms_form extends moodleform {
         $mform->addElement('submit', 'dirsubmit', 'Send directory request');
         
         // Courses
-        $mform->addElement('header', '', 'Course');
+        $mform->addElement('header', 'course', 'Course');
         $mform->addElement('select', 'crsaction', 'Action', $actions);
         $mform->addElement('select', 'crsresourceid', 'Existing resource', $crsresources);
         $mform->disabledIf('crsresourceid', 'crsaction', 'eq', 'create');
@@ -101,7 +103,8 @@ class fakecms_form extends moodleform {
             $mform->addGroup($grp, "crsallocation[$i]", "Allocation $i (parentdir, order)", ' ', false);
         }
 
-        $mform->addElement('static', '', '', 'Parallel groups');
+        $mform->addElement('static', 'crsp', '', 'Parallel groups');
+        $mform->setAdvanced('crsp');
         $mform->addElement('select', 'crsparallel', 'Parallel group scenario', array(-1 => 'none', 1 => 'One course', 2 => 'Separate groups', 3 => 'Separate courses', 4 => 'Separate lecturers'));
         $mform->setAdvanced("crsparallel");
         for ($i=1; $i<=3; $i++) {
@@ -111,7 +114,6 @@ class fakecms_form extends moodleform {
             $mform->setAdvanced("crspid[$i]");
             $mform->addElement('text', "crspcomment[$i]", "PGroup$i comment", array('size' => 40));
             $mform->setAdvanced("crspcomment[$i]");
-
             for ($j=1; $j<=3; $j++) {
                 $grp = array(
                     $mform->createElement('text', "crsplecturerfirst[$i][$j]", ''),
@@ -120,10 +122,32 @@ class fakecms_form extends moodleform {
                 $mform->addGroup($grp, "crsplecturer[$i][$j]", "Lecturer $j (first, last)", ' ', false);
                 $mform->setAdvanced("crsplecturer[$i][$j]");
             }
-            $mform->addElement('static', '', '');
+            $mform->addElement('static', "crsp$i", '', '');
+            $mform->setAdvanced("crsp$i");
         }
 
         $mform->addElement('submit', 'crssubmit', 'Send course request');
+
+        // Membership
+        $mform->addElement('header', 'membership', 'Course membership');
+        $mform->addElement('select', 'mbraction', 'Action', $actions);
+        $mform->addElement('select', 'mbrresourceid', 'Existing resource', $mbrresources);
+        $mform->disabledIf('mbrresourceid', 'mbraction', 'eq', 'create');
+        $mform->addElement('text', 'mbrcourseid', 'Course id', array('size' => 10));
+        for ($i=1; $i<=5; $i++) {
+            $mform->addElement('static', "mbr$i", '', '');
+            $mform->addElement('text', "mbrid[$i]", "Person ID $i (username)");
+            $mform->addElement('text', "mbrrole[$i]", "Role $i");
+            for ($j=1; $j<=3; $j++) {
+                $mform->addElement('text', "mbrpgid[$i][$j]", "PGroup $i.$j ID", array('size' => 10));
+                $mform->setAdvanced("mbrpgid[$i][$j]");
+                $mform->addElement('text', "mbrpgrole[$i][$j]", "PGroup $i.$j role");
+                $mform->setAdvanced("mbrpgrole[$i][$j]");
+            }
+        }
+
+        $mform->addElement('submit', 'mbrsubmit', 'Send membership request');
+
         
     }
 }

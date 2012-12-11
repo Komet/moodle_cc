@@ -110,6 +110,7 @@ $connect = new campusconnect_connect($ecssettings);
 // Get list of existing directory trees on ECS
 $dirtrees = $connect->get_resource_list(campusconnect_event::RES_DIRECTORYTREE);
 $crses = $connect->get_resource_list(campusconnect_event::RES_COURSE);
+$memberships = $connect->get_resource_list(campusconnect_event::RES_COURSE_MEMBERS);
 
 $custom = array(
     'participants' => $participants,
@@ -117,6 +118,7 @@ $custom = array(
     'thisparticipant' => $thispart->get_identifier(),
     'dirresources' => $dirtrees->get_ids(),
     'crsresources' => $crses->get_ids(),
+    'mbrresources' => $memberships->get_ids(),
 );
 $frmdata = new stdClass();
 
@@ -181,6 +183,28 @@ if ($dirid = optional_param('showdir', false, PARAM_INT)) {
 
     $frmdata->crsaction = 'update';
     $frmdata->crsresourceid = $crsid;
+
+} else if ($mbrid = optional_param('showmbr', false, PARAM_INT)) {
+    $mbr = $connect->get_resource($mbrid, campusconnect_event::RES_COURSE_MEMBERS);
+
+    $frmdata->mbrcourseid = $mbr->courseID;
+    $i = 1;
+    foreach ($mbr->members as $member) {
+        $frmdata->mbrid[$i] = $member->personID;
+        $frmdata->mbrrole[$i] = $member->courseRole;
+        if (!empty($member->parallelGroups)) {
+            $j = 1;
+            foreach ($member->parallelGroups as $pgroup) {
+                $frmdata->mbrpgid[$i][$j] = $pgroup->id;
+                $frmdata->mbrpgrole[$i][$j] = !empty($pgroup->groupRole) ? $pgroup->groupRole : '';
+                $j++;
+            }
+        }
+        $i++;
+    }
+
+    $frmdata->mbraction = 'update';
+    $frmdata->mbrresourceid = $mbrid;
 }
 
 $form = new fakecms_form(null, $custom);
@@ -229,6 +253,7 @@ if ($data = $form->get_data()) {
         } else if ($data->diraction == 'retrieve') {
             redirect(new moodle_url($PAGE->url, array('showdir' => $data->dirresourceid)));
         }
+
     } else if (!empty($data->crssubmit)) {
         if ($data->crsaction == 'create' || $data->crsaction == 'update') {
             $crs = (object)array(
@@ -301,6 +326,53 @@ if ($data = $form->get_data()) {
             redirect(new moodle_url($PAGE->url, array('showcrs' => $data->crsresourceid)));
         }
 
+    } else if (!empty($data->mbrsubmit)) {
+        if ($data->mbraction == 'create' || $data->mbraction == 'update') {
+            $mbr = (object)array(
+                'courseID' => $data->mbrcourseid,
+                'members' => array(),
+            );
+            for ($i=1; $i<=5; $i++) {
+                if (!empty($data->mbrid[$i])) {
+                    $mbrmbr = new stdClass();
+                    $mbrmbr->personID = $data->mbrid[$i];
+                    if (!empty($data->mbrrole[$i])) {
+                        $mbrmbr->courseRole = $data->mbrrole[$i];
+                    }
+                    for ($j=1; $j<=5; $j++) {
+                        if (!empty($data->mbrpgid[$i][$j])) {
+                            $pgroup = new stdClass();
+                            $pgroup->id = $data->mbrpgid[$i][$j];
+                            if (!empty($data->mbrpgrole[$i][$j])) {
+                                $pgroup->groupRole = $data->mbrpgrole[$i][$j];
+                            }
+                            if (!isset($mbrmbr->parallelGroups)) {
+                                $mbrmbr->parallelGroups = array();
+                            }
+                            $mbrmbr->parallelGroups[] = $pgroup;
+                        }
+                    }
+                    $mbr->members[] = $mbrmbr;
+                }
+            }
+            if ($data->mbraction == 'create') {
+                $mbrresourceid = $connect->add_resource(campusconnect_event::RES_COURSE_MEMBERS, $mbr, null, $dstmid);
+                $msg = 'Created new membership list with resource id: '.$mbrresourceid;
+                redirect(new moodle_url($PAGE->url, array('showmbr' => $mbrresourceid)), $msg, 3);
+            } else {
+                $connect->update_resource($data->mbrresourceid, campusconnect_event::RES_COURSE_MEMBERS, $mbr, null, $dstmid);
+                $msg = 'Updated membership list, resource id: '.$data->mbrresourceid;
+                redirect(new moodle_url($PAGE->url, array('showmbr' => $data->mbrresourceid)), $msg, 3);
+            }
+
+        } else if ($data->mbraction == 'delete') {
+            $connect->delete_resource($data->mbrresourceid, campusconnect_event::RES_COURSE_MEMBERS);
+            $msg = 'Deleted membership list, resource id: '.$data->mbrresourceid;
+            redirect($PAGE->url, $msg, 3);
+
+        } else if ($data->mbraction == 'retrieve') {
+            redirect(new moodle_url($PAGE->url, array('showmbr' => $data->mbrresourceid)));
+        }
     }
 }
 

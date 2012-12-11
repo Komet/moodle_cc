@@ -675,7 +675,18 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2012121001, 'local', 'campusconnect');
     }
 
+    if ($oldversion < 2012121100) {
 
+        // Changing type of field data on table local_campusconnect_notify to char
+        $table = new xmldb_table('local_campusconnect_notify');
+        $field = new xmldb_field('data', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null, 'subtype');
+
+        // Launch change of type for field data
+        $dbman->change_field_type($table, $field);
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012121100, 'local', 'campusconnect');
+    }
 
     return true;
 }

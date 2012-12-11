@@ -640,7 +640,7 @@ class campusconnect_metadata {
 
         // Fix up the status field
         if ($this->external) {
-            if ($remotedetails->status == 'offline') {
+            if (isset($remotedetails->status) && $remotedetails->status == 'offline') {
                 $course->visible = 0;
             } else {
                 $course->visible = 1;

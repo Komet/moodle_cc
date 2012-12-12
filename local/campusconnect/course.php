@@ -691,7 +691,8 @@ class campusconnect_course {
         $ret = array();
         foreach ($course->allocations as $allocation) {
             if ($catid = campusconnect_directorytree::get_category_for_course($allocation->parentID)) {
-                $ret[] = new campusconnect_course_category($catid, $allocation->order, $allocation->parentID);
+                $order = isset($allocation->order) ? $allocation->order : 0;
+                $ret[] = new campusconnect_course_category($catid, $order, $allocation->parentID);
             }
         }
 

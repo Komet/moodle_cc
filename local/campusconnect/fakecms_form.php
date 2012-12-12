@@ -154,6 +154,26 @@ class fakecms_form extends moodleform {
 
         $mform->addElement('submit', 'mbrsubmit', 'Send membership request');
 
-        
+        $js = <<<END
+<script type="text/javascript">
+var elnames = ['dir', 'crs', 'mbr'], i, prefix, sel, fnchange;
+
+fnchange = function (e) {
+        var name = e.currentTarget.id;
+        var prefix = name.substr(3, 3);
+        var action = document.getElementById('id_' + prefix + 'action');
+        action.options[1].selected = true;
+};
+
+for (i = 0; i < elnames.length; i += 1) {
+    prefix = elnames[i];
+    sel = document.getElementById('id_' + prefix + 'resourceid');
+    sel.onchange = fnchange;
+}
+</script>
+END;
+
+
+        $mform->addElement('static', 'javascript', '', $js);
     }
 }

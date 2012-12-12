@@ -1197,7 +1197,9 @@ class campusconnect_directory {
                 // Found directory - update it (if needed).
                 $dir->check_parent_id($directory->parent->id);
                 $dir->set_title($directory->title);
-                $dir->set_order($directory->order);
+                if (isset($directory->order)) {
+                    $dir->set_order($directory->order);
+                }
                 $dir->set_still_exists();
                 return false;
             }

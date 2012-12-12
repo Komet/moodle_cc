@@ -264,12 +264,14 @@ if ($data = $form->get_data()) {
                     'title' => $data->crstitle,
                     'courseType' => $data->crstype,
                     'maxParticipants' => $data->crsmaxpart,
-                    'parallelGroupScenario' => $data->crsparallel,
                 ),
                 'lecturers' => array(),
                 'allocations' => array(),
                 'parallelGroups' => array(),
             );
+            if ($data->crsparallel > 0) {
+                $crs->basicData->parallelGroupScenario = $data->crsparallel;
+            }
             for ($i=1; $i<4; $i++) {
                 if (!empty($data->crslecturerfirst[$i]) && !empty($data->crslecturerlast[$i])) {
                     $crs->lecturers[] = (object)array(

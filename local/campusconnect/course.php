@@ -390,7 +390,7 @@ class campusconnect_course {
                                                    AND c.category = :firstcategoryid', $params, MUST_EXIST);
 
                 $realcourse = (object)array('id' => $realcategory->id, 'category' => $firstcategoryid);
-                $swapcourse = (object)array('id' => $swapcourseid, 'category' => $realcategory->id);
+                $swapcourse = (object)array('id' => $swapcourseid, 'category' => $realcategory->category);
                 $DB->update_record('course', $realcourse);
                 $DB->update_record('course', $swapcourse);
 

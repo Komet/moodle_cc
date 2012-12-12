@@ -688,5 +688,18 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2012121100, 'local', 'campusconnect');
     }
 
+    if ($oldversion < 2012121200) {
+
+        // Changing type of field directoryid on table local_campusconnect_crs to char
+        $table = new xmldb_table('local_campusconnect_crs');
+        $field = new xmldb_field('directoryid', XMLDB_TYPE_CHAR, '255', null, null, null, null, 'sortorder');
+
+        // Launch change of type for field directoryid
+        $dbman->change_field_type($table, $field);
+
+        // campusconnect savepoint reached
+        upgrade_plugin_savepoint(true, 2012121200, 'local', 'campusconnect');
+    }
+
     return true;
 }

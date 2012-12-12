@@ -143,7 +143,9 @@ if ($dirid = optional_param('showdir', false, PARAM_INT)) {
     $frmdata->crstitle = $crs->basicData->title;
     $frmdata->crstype = !empty($crs->basicData->courseType) ? $crs->basicData->courseType : '';
     $frmdata->crsmaxpart = !empty($crs->basicData->maxParticipants) ? $crs->basicData->maxParticipants : '';
-    $frmdata->crsparallel = $crs->basicData->parallelGroupScenario;
+    if (isset($crs->basicData->parallelGroupScenario)) {
+        $frmdata->crsparallel = $crs->basicData->parallelGroupScenario;
+    }
 
     if (!empty($crs->lecturers)) {
         $i = 1;

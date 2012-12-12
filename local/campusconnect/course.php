@@ -210,7 +210,7 @@ class campusconnect_course {
             $pgroups[] = array(); // Make sure there is at least one course to be created.
         }
         $pgclass = new campusconnect_parallelgroups($ecssettings, $resourceid);
-        list ($pgmatched, $pgnotmatched) = $pgclass->match_parallel_groups_to_courses($pgroups);
+        list ($pgmatched, $pgnotmatched) = $pgclass->match_parallel_groups_to_courses($pgroups, $pgroupmode, $currcourse->courseid);
 
         // Compare the existing allocations to the new allocations.
         list($csql, $params) = $DB->get_in_or_equal(array_keys($currcourses), SQL_PARAMS_NAMED);
@@ -1189,7 +1189,7 @@ class campusconnect_parallelgroups {
      *          Each group object contains: $id, $title, $comment, $lecturer (the first lecturer listed)
      */
     public static function get_parallel_groups($course) {
-        if (isset($course->basicData->parallelGroupScenario)) {
+        if (!empty($course->basicData->parallelGroupScenario)) {
             $scenario = $course->basicData->parallelGroupScenario;
         } else {
             return array(array(), self::PGROUP_NONE);
@@ -1312,20 +1312,28 @@ class campusconnect_parallelgroups {
     /**
      * Attempts to organise the parallel groups based on the Moodle courseids that the groups have already been mapped onto.
      * Any groups that cannot be mapped onto an existing course are mapped on to an existing course are returned separately.
-     * @param $pgroups
+     * @param stdClass[] $pgroups
+     * @param int $pgroupsmode the current parallel groups mode
+     * @param int $firstcourseid the ID of the first existing course (needed if there are no exiting pgroups found)
      * @return array [ $matched, $notmatched ] - $matched = associative array $courseid => array of group details
      *                                           $notmatched = array of array of group details
      */
-    public function match_parallel_groups_to_courses($pgroups) {
+    public function match_parallel_groups_to_courses($pgroups, $pgroupsmode, $firstcourseid) {
         global $DB;
 
+        if ($pgroupsmode == self::PGROUP_NONE) {
+            return array(array(), array());
+        }
         $matched = array();
         $notmatched = array();
         $existing = $DB->get_records('local_campusconnect_pgroup', array('ecsid' => $this->ecssettings->get_id(),
                                                                         'resourceid' => $this->resourceid),
                                      '', 'cmsgroupid, id, courseid');
         if (empty($existing)) {
-            return array(array(), $pgroups);
+            // This probably means we've just switched from PGROUP_NONE to one of the scenarios. Assume that the existing
+            // course matches the first pgcourse
+            $pgcourse = array_shift($pgroups);
+            return array(array($firstcourseid => $pgcourse), $pgroups);
         }
 
         foreach ($pgroups as $pcourse) {

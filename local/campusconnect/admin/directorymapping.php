@@ -37,7 +37,7 @@ $mapdirectory = optional_param('mapdirectory', false, PARAM_TEXT);
 $unmapdirectory = optional_param('unmapdirectory', false, PARAM_TEXT);
 $showmapping = optional_param('showmapping', false, PARAM_TEXT);
 $categoryid = optional_param('category', null, PARAM_INT);
-$directoryid = optional_param('directory', null, PARAM_INT);
+$directoryid = optional_param('directory', null, PARAM_ALPHANUMEXT);
 $showdirectory = optional_param('showdirectory', null, PARAM_INT);
 
 $url = new moodle_url('/local/campusconnect/admin/directorymapping.php', array('id' => $rootid));

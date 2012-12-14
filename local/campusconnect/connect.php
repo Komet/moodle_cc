@@ -50,6 +50,8 @@ class campusconnect_connect {
     protected $settings = null;
     /** The response headers from the last request **/
     protected $responseheaders = array();
+    /** Used to output debug information from the curl request */
+    protected $debug = false;
 
     /** HTTP response codes **/
     const HTTP_CODE_OK = 200;
@@ -86,6 +88,19 @@ class campusconnect_connect {
      */
     public function get_import_category() {
         return $this->settings->get_import_category();
+    }
+
+    /**
+     * Used to turn curl debugging on or off. With debugging on, extra information about the curl response will
+     * be output.
+     * @param bool $debug true to enable debugging
+     */
+    public function set_debug($debug) {
+        if ($debug) {
+            $this->debug = true;
+        } else {
+            $this->debug = false;
+        }
     }
 
     /**
@@ -581,6 +596,10 @@ class campusconnect_connect {
             throw new coding_exception('campusconnect_connect: call() - should not be attempting to connect to disabled ECS ('.$this->get_ecs_id().')');
         }
 
+        if ($this->debug) {
+            $this->set_option(CURLINFO_HEADER_OUT, true);
+        }
+
         $this->set_option(CURLOPT_HTTPHEADER, $this->get_headers());
         $this->set_option(CURLOPT_HEADERFUNCTION, array($this, 'parse_response_header'));
         $this->responseheaders = array();
@@ -588,6 +607,10 @@ class campusconnect_connect {
         if (($res = curl_exec($this->curlresource)) === false) {
             throw new campusconnect_connect_exception('curl error: '.curl_error($this->curlresource).
                                                       ' ('.curl_errno($this->curlresource).')');
+        }
+
+        if ($this->debug) {
+            var_dump(curl_getinfo($this->curlresource));
         }
 
         return $res;

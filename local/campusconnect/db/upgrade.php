@@ -706,9 +706,16 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         // Changing type of field directoryid on table local_campusconnect_crs to char
         $table = new xmldb_table('local_campusconnect_pgroup');
         $field = new xmldb_field('cmsgroupid', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null, 'resourceid');
+        $index = new xmldb_index('cmsgroupid', XMLDB_INDEX_UNIQUE, array('cmsgroupid'));
 
         // Launch change of type for field directoryid
+        if ($dbman->index_exists($table, $index)) {
+            $dbman->drop_index($table, $index); // Remove the index (temporarially)
+        }
         $dbman->change_field_type($table, $field);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index); // Replace the index
+        }
 
         // campusconnect savepoint reached
         upgrade_plugin_savepoint(true, 2012121400, 'local', 'campusconnect');

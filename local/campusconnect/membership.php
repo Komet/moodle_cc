@@ -428,15 +428,13 @@ class campusconnect_membership {
                         $context = context_course::instance($pgroup->courseid);
                         role_unassign_all(array('contextid' => $context->id, 'userid' => $userid,
                                                'component' => 'enrol_campusconnect', 'itemid' => $enrolinstance->id));
-                        role_assign($roleid, $userid, $context->id, 'enrol_campusconnect', $enrolinstance->id);
-
                     } else {
                         // Created => enrol the user with the given role.
                         if ($output) {
                             mtrace("Enroling user '{$membership->personid}' ({$userid}) in course '{$membership->cmscourseid}' ({$pgroup->courseid}) with role '{$membership->role}' ({$roleid})");
                         }
-                        $enrol->enrol_user($enrolinstance, $userid, $roleid);
                     }
+                    $enrol->enrol_user($enrolinstance, $userid, $roleid);
 
                     // Enrol the user in the relevant group.
                     if ($pgroup->groupid) {

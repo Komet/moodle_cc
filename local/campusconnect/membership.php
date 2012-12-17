@@ -571,7 +571,7 @@ class campusconnect_membership {
 
         // Call 'assign_role' on each of them.
         foreach ($memberships as $membership) {
-            if (!isset($courseids[$membership->cmscourseid])) {
+            if (!isset($mappedcourseids[$membership->cmscourseid])) {
                 continue; // Course doesn't (yet) exist - skip it.
             }
             $courseidarray = $mappedcourseids[$membership->cmscourseid];

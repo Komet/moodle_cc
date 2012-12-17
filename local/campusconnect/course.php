@@ -984,10 +984,10 @@ class campusconnect_course_url {
 
             // Update ECS server.
             if ($courseurl->urlstatus == self::STATUS_CREATED) {
-                //$urlresourceid = $connect->add_resource(campusconnect_event::RES_COURSE_URL, $data, null, $cms->get_mid());
+                $urlresourceid = $connect->add_resource(campusconnect_event::RES_COURSE_URL, $data, null, $cms->get_mid());
             }
             if ($courseurl->urlstatus == self::STATUS_UPDATED) {
-                //$connect->update_resource($courseurl->urlresourceid, campusconnect_event::RES_COURSE_URL, $data, null, $cms->get_mid());
+                $connect->update_resource($courseurl->urlresourceid, campusconnect_event::RES_COURSE_URL, $data, null, $cms->get_mid());
             }
 
             // Update local crs record.

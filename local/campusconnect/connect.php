@@ -220,6 +220,8 @@ class campusconnect_connect {
             throw new campusconnect_connect_exception('get_resource_list - bad response: '.$this->get_status());
         }
 
+        $this->check_contenttype('text/uri-list');
+
         return $this->parse_uri_list($result);
     }
 
@@ -251,6 +253,11 @@ class campusconnect_connect {
             return false; // Resource does not exist on the server.
         }
 
+        if (!$this->check_contenttype('application/json', false)) {
+            $this->check_contenttype('text/uri-list');
+            return $this->get_from_uri_list($result);
+        }
+
         if ($transferdetails) {
             return new campusconnect_details($this->parse_json($result));
         } else {
@@ -270,8 +277,12 @@ class campusconnect_connect {
         if (!campusconnect_event::is_valid_resource($type)) {
             throw new coding_exception("add_resource: unknown resource type $type");
         }
-        if (!is_object($post)) {
-            throw new coding_exception('add_resource - expected \'post\' to be an object');
+        if (is_object($post)) {
+            $sendurilist = false;
+        } else if (is_string($post)) {
+            $sendurilist = true;
+        } else {
+            throw new coding_exception('add_resource - expected \'post\' to be an object or a string');
         }
         if (is_null($targetmids) && is_null($targetcommunityids)) {
             throw new coding_exception('add_resource - must specify either \'targetmids\' or \'targetcommunityids\'');
@@ -279,8 +290,12 @@ class campusconnect_connect {
             throw new coding_exception('add_resource - cannot specify both \'targetmids\' and \'targetcommunityids\'');
         }
 
-        $poststr = json_encode($post);
-        $this->init_connection('/'.$type);
+        if ($sendurilist) {
+            $poststr = $post;
+        } else {
+            $poststr = json_encode($post);
+        }
+        $this->init_connection('/'.$type, $sendurilist);
         $this->set_postfields($poststr);
         $this->include_response_header();
         if (!is_null($targetmids)) {
@@ -301,7 +316,7 @@ class campusconnect_connect {
      * Update a previously shared resource
      * @param int $id the id allocated when the resource was first posted
      * @param string $type the type of resource to load (see campusconnect_event for list)
-     * @param object $post the new details
+     * @param object|string $post the new details
      * @param string $targetcommunityids a comma-separated list of community IDs that have access to this resource
      * @param string $targetmids a comma-separated list of participant IDs that have access to this resource
      * @return object the response from the ECS server
@@ -310,8 +325,12 @@ class campusconnect_connect {
         if (!campusconnect_event::is_valid_resource($type)) {
             throw new coding_exception("update_resource: unknown resource type $type");
         }
-        if (!is_object($post)) {
-            throw new coding_exception('add_resource - expected \'post\' to be an object');
+        if (is_object($post)) {
+            $sendurilist = false;
+        } else if (is_string($post)) {
+            $sendurilist = true;
+        } else {
+            throw new coding_exception('add_resource - expected \'post\' to be an object or a string');
         }
         if (!$id) {
             throw new campusconnect_connect_exception('update_resource - no resource id given');
@@ -322,7 +341,7 @@ class campusconnect_connect {
             throw new coding_exception('update_resource - cannot specify both \'targetmids\' and \'targetcommunityids\'');
         }
 
-        $this->init_connection("/$type/$id");
+        $this->init_connection("/$type/$id", $sendurilist);
         if (!is_null($targetmids)) {
             $this->set_memberships($targetmids);
         } else {
@@ -333,7 +352,11 @@ class campusconnect_connect {
         if (!$fp = fopen('php://temp', 'w+')) {
             throw new campusconnect_connect_exception('update_resource - unable to create temporary file');
         }
-        $poststr = json_encode($post);
+        if ($sendurilist) {
+            $poststr = $post;
+        } else {
+            $poststr = json_encode($post);
+        }
         fwrite($fp, $poststr);
         fseek($fp, 0);
         $this->set_putfile($fp, strlen($poststr));
@@ -364,6 +387,7 @@ class campusconnect_connect {
         $this->set_delete();
 
         $result = $this->call();
+        $this->check_contenttype('application/json');
         return $this->parse_json($result);
     }
 
@@ -383,7 +407,7 @@ class campusconnect_connect {
         if (!$this->check_status(self::HTTP_CODE_OK)) {
             throw new campusconnect_connect_exception('get_memberships - bad response: '.$this->get_status());
         }
-
+        $this->check_contenttype('application/json');
         return $this->parse_json($result);
     }
 
@@ -464,6 +488,33 @@ class campusconnect_connect {
     }
 
     /**
+     * Extract the content type from the header
+     * @return string the content type
+     */
+    protected function get_contenttype_from_header() {
+        if (!isset($this->responseheaders['Content-Type'])) {
+            return '';
+        }
+        return trim(explode(';', $this->responseheaders['Content-Type'])[0]);
+    }
+
+    /**
+     * Check to see if the content type header matches the expected value.
+     * @param string $expected the content type to check for
+     * @param bool $throwexception optional if true (default), then throw an exception on failure, otherwise return false on failure
+     * @return bool true if it matches
+     */
+    protected function check_contenttype($expected, $throwexception = true) {
+        if ($this->get_contenttype_from_header() != $expected) {
+            if ($throwexception) {
+                throw new campusconnect_connect_exception("expected content type '$expected' got type '".$this->get_contenttype_from_header()."'");
+            }
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * Callback function to parse the response header into an array of
      * headername => headervalue
      * @param resource $handle the curl resource
@@ -492,7 +543,7 @@ class campusconnect_connect {
      * Initialise the curl connection to a particular resource on the ECS server
      * @param string $resourcepath - the path to the desired resource on the server
      */
-    protected function init_connection($resourcepath) {
+    protected function init_connection($resourcepath, $sendurilist = false) {
 
         if (substr($resourcepath, 0, 1) != '/' || substr($resourcepath, -1) == '/') {
             throw new coding_exception('Resource path must start with \'/\' and not end with \'/\'');
@@ -505,7 +556,11 @@ class campusconnect_connect {
         $this->set_option(CURLOPT_VERBOSE, 1);
         $this->set_option(CURLINFO_HEADER_OUT, 1);
         $this->set_header('Accept', 'application/json');
-        $this->set_header('Content-Type', 'application/json');
+        if ($sendurilist) {
+            $this->set_header('Content-Type', 'text/uri-list');
+        } else {
+            $this->set_header('Content-Type', 'application/json');
+        }
 
         switch ($this->settings->get_auth_type()) {
         case campusconnect_ecssettings::AUTH_NONE:
@@ -646,6 +701,45 @@ class campusconnect_connect {
         $ret = array();
         foreach ($this->headers as $key => $val) {
             $ret[] = "$key: $val";
+        }
+        return $ret;
+    }
+
+    /**
+     * Given a list of URIs, download each of the resources from the URIs, JSON decode them and return as an
+     * array
+     * @param $urilist
+     * @return stdClass[]
+     */
+    protected function get_from_uri_list($urilist) {
+        $ret = array();
+        $urls = explode("\n", $urilist);
+        foreach ($urls as $url) {
+            $url = trim($url);
+            if (empty($url)) {
+                continue; // Ignore empty / whitespace only lines
+            }
+            if ($url{0} == '#') {
+                continue; // Ignore comment lines
+            }
+
+            $c = curl_init($url);
+            curl_setopt($c, CURLOPT_RETURNTRANSFER, 1);
+            curl_setopt($c, CURLOPT_VERBOSE, 1);
+            $res = curl_exec($c);
+            if ($res === false) {
+                throw new campusconnect_connect_exception('curl error: '.curl_error($c).
+                                                              ' ('.curl_errno($c).')');
+            }
+            $res = json_decode($res);
+            if (is_null($res)) {
+                throw new campusconnect_connect_exception('Invalid item downloaded from resource');
+            }
+            if (is_array($res)) {
+                $ret = array_merge($ret, $res);
+            } else {
+                $ret[] = $res;
+            }
         }
         return $ret;
     }

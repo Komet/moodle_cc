@@ -55,11 +55,11 @@ class campusconnect_membership {
      * Create a new membership list
      * @param int $resourceid the resourceid on the ECS server
      * @param campusconnect_ecssettings $ecssettings
-     * @param object $membership the details of the membership list
+     * @param object|object[] $memberships the details of the membership list
      * @param campusconnect_details $transferdetails
      * @return bool true if successful
      */
-    public static function create($resourceid, campusconnect_ecssettings $ecssettings, $membership, campusconnect_details $transferdetails) {
+    public static function create($resourceid, campusconnect_ecssettings $ecssettings, $memberships, campusconnect_details $transferdetails) {
         global $DB;
 
         $cms = campusconnect_participantsettings::get_cms_participant();
@@ -73,17 +73,23 @@ class campusconnect_membership {
             throw new campusconnect_course_exception("Cannot create a membership list from resource $resourceid - it already exists.");
         }
 
+        if (!is_array($memberships)) {
+            $memberships = array($memberships);
+        }
+
         $ins = new stdClass();
         $ins->resourceid = $resourceid;
-        $ins->cmscourseid = $membership->courseID;
         $ins->status = self::STATUS_CREATED;
 
-        foreach ($membership->members as $member) {
-            $ins->personid = $member->personID;
-            $ins->role = $member->courseRole;
-            $ins->parallelgroups = self::prepare_parallel_groups($member);
+        foreach ($memberships as $membership) {
+            $ins->cmscourseid = $membership->courseID;
+            foreach ($membership->members as $member) {
+                $ins->personid = $member->personID;
+                $ins->role = $member->courseRole;
+                $ins->parallelgroups = self::prepare_parallel_groups($member);
 
-            $DB->insert_record('local_campusconnect_mbr', $ins);
+                $DB->insert_record('local_campusconnect_mbr', $ins);
+            }
         }
 
         return true;
@@ -93,11 +99,11 @@ class campusconnect_membership {
      * Update an existing membership list
      * @param int $resourceid the resourceid on the ECS server
      * @param campusconnect_ecssettings $ecssettings
-     * @param object $membership the details of the membership list
+     * @param object|object[] $memberships the details of the membership list
      * @param campusconnect_details $transferdetails
      * @return bool true if successful
      */
-    public static function update($resourceid, campusconnect_ecssettings $ecssettings, $membership, campusconnect_details $transferdetails) {
+    public static function update($resourceid, campusconnect_ecssettings $ecssettings, $memberships, campusconnect_details $transferdetails) {
         global $DB;
 
         $cms = campusconnect_participantsettings::get_cms_participant();
@@ -109,77 +115,86 @@ class campusconnect_membership {
 
         $currmembers = self::get_by_resourceid($resourceid);
         if (!$currmembers) {
-            return self::create($resourceid, $ecssettings, $membership, $transferdetails);
+            return self::create($resourceid, $ecssettings, $memberships, $transferdetails);
         }
 
-        // Check the courseID first
+        // Sort all the existing memberships by courseid and personid
         $sortedcurrmembers = array();
-        foreach ($currmembers as $currmember) {
-            if ($currmember->cmscourseid != $membership->courseID) {
-                // The courseid has changed (not sure if this is allowed, but deal with it anyway)
-                // => mark the enrolment to be deleted (a new enrolment will be created below)
-                if ($currmember->status != self::STATUS_DELETED) {
-                    if ($currmember->status == self::STATUS_CREATED) {
-                        // Record created, but never used => just delete the record
-                        $DB->delete_records('local_campusconnect_mbr', array('id' => $currmember->id));
-                    } else {
-                        // Record created & used => mark for deletion
-                        $upd = new stdClass();
-                        $upd->id = $currmember->id;
-                        $upd->status = self::STATUS_DELETED;
-                        $DB->update_record('local_campusconnect_mbr', $upd);
-                    }
+        foreach ($memberships as $membership) {
+            $sortedcurrmembers[$membership->courseID] = array();
+            foreach ($currmembers as $idx => $currmember) {
+                if ($currmember->cmscourseid == $membership->courseID) {
+                    $sortedcurrmembers[$membership->courseID][$currmember->personid] = $currmember;
                 }
-            } else {
-                $sortedcurrmembers[$currmember->personid] = $currmember;
+                unset($currmembers[$idx]);
+            }
+        }
+
+        // Mark any records that do not match any cmscourseid as deleted (a new enrolment will be created below)
+        foreach ($currmembers as $currmember) {
+            if ($currmember->status != self::STATUS_DELETED) {
+                if ($currmember->status == self::STATUS_CREATED) {
+                    // Record created, but never used => just delete the record
+                    $DB->delete_records('local_campusconnect_mbr', array('id' => $currmember->id));
+                } else {
+                    // Record created & used => mark for deletion
+                    $upd = new stdClass();
+                    $upd->id = $currmember->id;
+                    $upd->status = self::STATUS_DELETED;
+                    $DB->update_record('local_campusconnect_mbr', $upd);
+                }
             }
         }
 
         // Now compare the membership lists - add new members, update roles for existing members, remove expired members
-        foreach ($membership->members as $member) {
-            $pgroups = self::prepare_parallel_groups($member);
-            if (array_key_exists($member->personID, $sortedcurrmembers)) {
-                // Existing member - check if the role has changed.
-                $curr = $sortedcurrmembers[$member->personID];
-                if ($curr->role == $member->courseRole && $curr->status != self::STATUS_DELETED
-                    && $curr->parallelgroups == $pgroups) {
-                    // Unchanged role assignment - nothing to update.
-                } else {
-                    $upd = new stdClass();
-                    $upd->id = $curr->id;
-                    $upd->role = $member->courseRole;
-                    $upd->parallelgroups = $pgroups;
-                    if ($curr->status != self::STATUS_CREATED) {
-                        $upd->status = self::STATUS_UPDATED;
+        foreach ($memberships as $membership) {
+            foreach ($membership->members as $member) {
+                $pgroups = self::prepare_parallel_groups($member);
+                if (isset($sortedcurrmembers[$membership->courseID][$member->personID])) {
+                    // Existing member - check if the role has changed.
+                    $curr = $sortedcurrmembers[$membership->courseID][$member->personID];
+                    if ($curr->role == $member->courseRole && $curr->status != self::STATUS_DELETED
+                        && $curr->parallelgroups == $pgroups) {
+                        // Unchanged role assignment - nothing to update.
+                    } else {
+                        $upd = new stdClass();
+                        $upd->id = $curr->id;
+                        $upd->role = $member->courseRole;
+                        $upd->parallelgroups = $pgroups;
+                        if ($curr->status != self::STATUS_CREATED) {
+                            $upd->status = self::STATUS_UPDATED;
+                        }
+                        $DB->update_record('local_campusconnect_mbr', $upd);
                     }
-                    $DB->update_record('local_campusconnect_mbr', $upd);
-                }
-                unset($sortedcurrmembers[$member->personID]); // Remove from list, so not deleted at the end.
-            } else {
-                // New member
-                $ins = new stdClass();
-                $ins->resourceid = $resourceid;
-                $ins->cmscourseid = $membership->courseID;
-                $ins->status = self::STATUS_CREATED;
-                $ins->personid = $member->personID;
-                $ins->role = $member->courseRole;
-                $ins->parallelgroups = $pgroups;
+                    unset($sortedcurrmembers[$membership->courseID][$member->personID]); // Remove from list, so not deleted at the end.
+                } else {
+                    // New member
+                    $ins = new stdClass();
+                    $ins->resourceid = $resourceid;
+                    $ins->cmscourseid = $membership->courseID;
+                    $ins->status = self::STATUS_CREATED;
+                    $ins->personid = $member->personID;
+                    $ins->role = $member->courseRole;
+                    $ins->parallelgroups = $pgroups;
 
-                $DB->insert_record('local_campusconnect_mbr', $ins);
+                    $DB->insert_record('local_campusconnect_mbr', $ins);
+                }
             }
         }
 
         // Remove any members who are no longer in the list.
-        foreach ($sortedcurrmembers as $removedmember) {
-            if ($removedmember->status == self::STATUS_CREATED) {
-                // Record was created but never processed - just delete it.
-                $DB->delete_records('local_campusconnect_mbr', array('id' => $removedmember->id));
-            } else if ($removedmember->status != self::STATUS_DELETED) {
-                // Mark record as ready for deletion.
-                $upd = new stdClass();
-                $upd->id = $removedmember->id;
-                $upd->status = self::STATUS_DELETED;
-                $DB->update_record('local_campusconnect_mbr', $upd);
+        foreach ($sortedcurrmembers as $coursemembers) {
+            foreach ($coursemembers as $removedmember) {
+                if ($removedmember->status == self::STATUS_CREATED) {
+                    // Record was created but never processed - just delete it.
+                    $DB->delete_records('local_campusconnect_mbr', array('id' => $removedmember->id));
+                } else if ($removedmember->status != self::STATUS_DELETED) {
+                    // Mark record as ready for deletion.
+                    $upd = new stdClass();
+                    $upd->id = $removedmember->id;
+                    $upd->status = self::STATUS_DELETED;
+                    $DB->update_record('local_campusconnect_mbr', $upd);
+                }
             }
         }
 

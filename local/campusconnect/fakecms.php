@@ -29,6 +29,17 @@ require_once($CFG->dirroot.'/local/campusconnect/connect.php');
 require_once($CFG->dirroot.'/local/campusconnect/event.php');
 require_once($CFG->dirroot.'/local/campusconnect/fakecms_form.php');
 
+$membershipdir = $CFG->dataroot.'/fakecms/';
+check_dir_exists($membershipdir, true, true);
+if ($filename = optional_param('sendfile', null, PARAM_FILE)) {
+    $filepath = $membershipdir.$filename;
+    if (file_exists($filepath)) {
+        header('Content-type: application/json');
+        readfile($filepath);
+        die();
+    }
+}
+
 $url = new moodle_url('/local/campusconnect/fakecms.php');
 $PAGE->set_url($url);
 $context = context_system::instance();
@@ -188,6 +199,10 @@ if ($dirid = optional_param('showdir', false, PARAM_INT)) {
 
 } else if ($mbrid = optional_param('showmbr', false, PARAM_INT)) {
     $mbr = $connect->get_resource($mbrid, campusconnect_event::RES_COURSE_MEMBERS);
+
+    if (is_array($mbr)) {
+        $mbr = reset($mbr);
+    }
 
     $frmdata->mbrcourseid = $mbr->courseID;
     $i = 1;
@@ -360,14 +375,18 @@ if ($data = $form->get_data()) {
                 }
             }
             if ($data->mbraction == 'create') {
-                $mbrresourceid = $connect->add_resource(campusconnect_event::RES_COURSE_MEMBERS, $mbr, null, $dstmid);
-                $msg = 'Created new membership list with resource id: '.$mbrresourceid;
-                redirect(new moodle_url($PAGE->url, array('showmbr' => $mbrresourceid)), $msg, 3);
+                $data->mbrresourceid = $connect->add_resource(campusconnect_event::RES_COURSE_MEMBERS, array(), null, $dstmid);
+                $msg = 'Created new membership list with resource id: '.$data->mbrresourceid;
             } else {
-                $connect->update_resource($data->mbrresourceid, campusconnect_event::RES_COURSE_MEMBERS, $mbr, null, $dstmid);
                 $msg = 'Updated membership list, resource id: '.$data->mbrresourceid;
-                redirect(new moodle_url($PAGE->url, array('showmbr' => $data->mbrresourceid)), $msg, 3);
             }
+
+            // Write the contents to a file, so it can be served back to the VLE later - put the access URL in the resource
+            file_put_contents($membershipdir.$data->mbrresourceid, json_encode($mbr));
+            $url = new moodle_url('/local/campusconnect/fakecms.php', array('sendfile' => $data->mbrresourceid));
+            $urls = $url->out();
+            $connect->update_resource($data->mbrresourceid, campusconnect_event::RES_COURSE_MEMBERS, $urls, null, $dstmid);
+            redirect(new moodle_url($PAGE->url, array('showmbr' => $data->mbrresourceid)), $msg, 3);
 
         } else if ($data->mbraction == 'delete') {
             $connect->delete_resource($data->mbrresourceid, campusconnect_event::RES_COURSE_MEMBERS);

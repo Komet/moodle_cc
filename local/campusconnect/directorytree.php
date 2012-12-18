@@ -459,39 +459,45 @@ class campusconnect_directorytree {
         $connect = new campusconnect_connect($ecssettings);
         $resources = $connect->get_resource_list(campusconnect_event::RES_DIRECTORYTREE);
         foreach ($resources->get_ids() as $resourceid) {
-            $directory = $connect->get_resource($resourceid, campusconnect_event::RES_DIRECTORYTREE);
+            $directories = $connect->get_resource($resourceid, campusconnect_event::RES_DIRECTORYTREE);
 
-            if (!$directory) {
+            if (!$directories) {
                 // Resource failed to download - not sure why that would ever happen, but just skip it.
                 $ret->errors[] = get_string('faileddownload', 'local_campusconnect',
                                             campusconnect_event::RES_DIRECTORYTREE.'/'.$resourceid);
                 continue;
             }
 
-            if ($directory->parent->id) {
-                // Not a root directory.
-                campusconnect_directory::check_update_directory($resourceid, $directory);
-                continue;
+            if (!is_array($directories)) {
+                $directories = array($directories);
             }
 
-            if ($directory->id != $directory->rootID) {
-                throw new campusconnect_directorytree_exception("Root directory id ($directory->id) does not match the rootID ($directory->rootID)");
-            }
-            if ($directory->title != $directory->directoryTreeTitle) {
-                throw new campusconnect_directorytree_exception("Root directory title ($directory->title) does not match the directoryTreeTitle ($directory->directoryTreeTitle)");
-            }
+            foreach ($directories as $directory) {
+                if ($directory->parent->id) {
+                    // Not a root directory.
+                    campusconnect_directory::check_update_directory($resourceid, $directory);
+                    continue;
+                }
 
-            if (array_key_exists($directory->id, $currenttrees)) {
-                // Update existing tree.
-                $currenttrees[$directory->id]->set_title($directory->title);
-                $currenttrees[$directory->id]->set_still_exists(); // So we can track any trees that no longer exist on ECS.
-                $ret->updated[] = $currenttrees[$directory->id]->resourceid;
-            } else {
-                // Create new tree.
-                $newtree = new campusconnect_directorytree();
-                $newtree->create($resourceid, $directory->id, $directory->title, $cms->get_ecs_id(), $cms->get_mid());
-                $currenttrees[$newtree->get_root_id()] = $newtree;
-                $ret->created[] = $newtree->resourceid;
+                if ($directory->id != $directory->rootID) {
+                    throw new campusconnect_directorytree_exception("Root directory id ($directory->id) does not match the rootID ($directory->rootID)");
+                }
+                if ($directory->title != $directory->directoryTreeTitle) {
+                    throw new campusconnect_directorytree_exception("Root directory title ($directory->title) does not match the directoryTreeTitle ($directory->directoryTreeTitle)");
+                }
+
+                if (array_key_exists($directory->id, $currenttrees)) {
+                    // Update existing tree.
+                    $currenttrees[$directory->id]->set_title($directory->title);
+                    $currenttrees[$directory->id]->set_still_exists(); // So we can track any trees that no longer exist on ECS.
+                    $ret->updated[] = $currenttrees[$directory->id]->resourceid;
+                } else {
+                    // Create new tree.
+                    $newtree = new campusconnect_directorytree();
+                    $newtree->create($resourceid, $directory->id, $directory->title, $cms->get_ecs_id(), $cms->get_mid());
+                    $currenttrees[$newtree->get_root_id()] = $newtree;
+                    $ret->created[] = $newtree->resourceid;
+                }
             }
         }
 
@@ -517,11 +523,11 @@ class campusconnect_directorytree {
      * Used by the ECS event processing to create new directories / directory trees
      * @param int $resourceid - the ID on the ECS server
      * @param campusconnect_ecssettings $ecssettings - the ECS being connected to
-     * @param object $directory - the resource data from ECS
+     * @param object|object[] $directories - the resource data from ECS
      * @param campusconnect_details $details - the metadata for the resource on the ECS
      * @return bool true if successful
      */
-    public static function create_directory($resourceid, campusconnect_ecssettings $ecssettings, $directory, campusconnect_details $details) {
+    public static function create_directory($resourceid, campusconnect_ecssettings $ecssettings, $directories, campusconnect_details $details) {
         global $DB;
 
         $mid = $details->get_sender_mid();
@@ -531,27 +537,35 @@ class campusconnect_directorytree {
             throw new campusconnect_directorytree_exception("Received create directory event from non-CMS participant");
         }
 
-        $isdirectorytree = $directory->parent->id ? false : true;
-        if ($isdirectorytree) {
-            if ($DB->record_exists('local_campusconnect_dirroot', array('rootid' => $directory->rootID))) {
-                return self::update_directory($resourceid, $ecssettings, $directory, $details);
-                //throw new campusconnect_directorytree_exception("Cannot create a directory tree root node {$directory->rootID} - it already exists.");
-            }
+        if (!is_array($directories)) {
+            $directories = array($directories);
+        }
 
-            $tree = new campusconnect_directorytree();
-            $tree->create($resourceid, $directory->rootID, $directory->title, $ecsid, $mid);
+        foreach ($directories as $directory) {
+            $isdirectorytree = $directory->parent->id ? false : true;
+            if ($isdirectorytree) {
+                if ($DB->record_exists('local_campusconnect_dirroot', array('rootid' => $directory->rootID))) {
+                    self::update_directory($resourceid, $ecssettings, $directory, $details);
+                    continue;
+                    //throw new campusconnect_directorytree_exception("Cannot create a directory tree root node {$directory->rootID} - it already exists.");
+                }
 
-        } else {
-            if ($DB->record_exists('local_campusconnect_dir', array('directoryid' => $directory->id))) {
-                return self::update_directory($resourceid, $ecssettings, $directory, $details);
-                //throw new campusconnect_directorytree_exception("Cannot create a directory tree {$directory->id} - it already exists.");
-            }
+                $tree = new campusconnect_directorytree();
+                $tree->create($resourceid, $directory->rootID, $directory->title, $ecsid, $mid);
 
-            $dir = new campusconnect_directory();
-            if (!isset($directory->order)) {
-                $directory->order = '';
+            } else {
+                if ($DB->record_exists('local_campusconnect_dir', array('directoryid' => $directory->id))) {
+                    self::update_directory($resourceid, $ecssettings, $directory, $details);
+                    continue;
+                    //throw new campusconnect_directorytree_exception("Cannot create a directory tree {$directory->id} - it already exists.");
+                }
+
+                $dir = new campusconnect_directory();
+                if (empty($directory->order)) {
+                    $directory->order = null;
+                }
+                $dir->create($resourceid, $directory->rootID, $directory->id, $directory->parent->id, $directory->title, $directory->order);
             }
-            $dir->create($resourceid, $directory->rootID, $directory->id, $directory->parent->id, $directory->title, $directory->order);
         }
 
         return true;
@@ -561,11 +575,11 @@ class campusconnect_directorytree {
      * Used by the ECS event processing to update directories / directory trees
      * @param int $resourceid - the ID on the ECS server
      * @param campusconnect_ecssettings $ecssettings - the ECS being connected to
-     * @param object $directory - the resource data from ECS
+     * @param object|object[] $directories - the resource data from ECS
      * @param campusconnect_details $details - the metadata for the resource on the ECS
      * @return bool true if successful
      */
-    public static function update_directory($resourceid, campusconnect_ecssettings $ecssettings, $directory, campusconnect_details $details) {
+    public static function update_directory($resourceid, campusconnect_ecssettings $ecssettings, $directories, campusconnect_details $details) {
         global $DB;
 
         $mid = $details->get_sender_mid();
@@ -575,24 +589,36 @@ class campusconnect_directorytree {
             throw new campusconnect_directorytree_exception("Received update directory event from non-CMS participant");
         }
 
-        $isdirectorytree = $directory->parent->id ? false : true;
-        if ($isdirectorytree) {
-            if (!$currdirtree = $DB->get_record('local_campusconnect_dirroot', array('rootid' => $directory->rootID))) {
-                return self::create_directory($resourceid, $ecssettings, $directory, $details);
+        if (!is_array($directories)) {
+            $directories = array($directories);
+        }
+
+        foreach ($directories as $directory) {
+            $isdirectorytree = $directory->parent->id ? false : true;
+            if ($isdirectorytree) {
+                if (!$currdirtree = $DB->get_record('local_campusconnect_dirroot', array('rootid' => $directory->rootID))) {
+                    self::create_directory($resourceid, $ecssettings, $directory, $details);
+                    continue;
+                }
+
+                $tree = new campusconnect_directorytree($currdirtree);
+                $tree->set_title($directory->title);
+
+            } else {
+                if (!$currdir = $DB->get_record('local_campusconnect_dir', array('directoryid' => $directory->id))) {
+                    self::create_directory($resourceid, $ecssettings, $directory, $details);
+                    continue;
+                }
+
+
+                if (empty($directory->order)) {
+                    $directory->order = null;
+                }
+                $dir = new campusconnect_directory($currdir);
+                $dir->check_parent_id($directory->parent->id);
+                $dir->set_title($directory->title);
+                $dir->set_order($directory->order);
             }
-
-            $tree = new campusconnect_directorytree($currdirtree);
-            $tree->set_title($directory->title);
-
-        } else {
-            if (!$currdir = $DB->get_record('local_campusconnect_dir', array('directoryid' => $directory->id))) {
-                return self::create_directory($resourceid, $ecssettings, $directory, $details);
-            }
-
-            $dir = new campusconnect_directory($currdir);
-            $dir->check_parent_id($directory->parent->id);
-            $dir->set_title($directory->title);
-            $dir->set_order($directory->order);
         }
 
         return true;
@@ -607,22 +633,90 @@ class campusconnect_directorytree {
     public static function delete_directory($resourceid, campusconnect_ecssettings $ecssettings) {
         global $DB;
 
-        $dirtree = $DB->get_record('local_campusconnect_dirroot', array('resourceid' => $resourceid));
-        if ($dirtree) {
+        $cms = campusconnect_participantsettings::get_cms_participant();
+        if ($ecssettings->get_id() != $cms->get_ecs_id()) {
+            throw new campusconnect_directorytree_exception("Received delete directory event from non-CMS participant");
+        }
+
+        $dirtrees = $DB->get_records('local_campusconnect_dirroot', array('resourceid' => $resourceid));
+        foreach ($dirtrees as $dirtree) {
             $dirtree = new campusconnect_directorytree($dirtree);
             $dirtree->delete();
-            return true;
         }
 
-        $dir = $DB->get_record('local_campusconnect_dir', array('resourceid' => $resourceid));
-        if ($dir) {
+        $dirs = $DB->get_records('local_campusconnect_dir', array('resourceid' => $resourceid));
+        foreach ($dirs as $dir) {
             $dir = new campusconnect_directory($dir);
             $dir->delete();
-            return true;
         }
 
-        // Not found - but don't worry about it.
         return true;
+    }
+
+    /**
+     * Go through the list of directories from the ECS and remove any local directories that have the same resource id,
+     * but are not in the list from the ECS
+     * @param int $resourceid the resourceid that these directories are associated with
+     * @param campusconnect_ecssettings $ecssettings
+     * @param object|object[] $directories the list of directories from the ECS
+     * @param campusconnect_details $details
+     */
+    public static function delete_missing_directories($resourceid, campusconnect_ecssettings $ecssettings, $directories, campusconnect_details $details) {
+        global $DB;
+
+        $mid = $details->get_sender_mid();
+        $ecsid = $ecssettings->get_id();
+        $cms = campusconnect_participantsettings::get_cms_participant();
+        if (!$cms || $cms->get_mid() != $mid || $cms->get_ecs_id() != $ecsid) {
+            throw new campusconnect_directorytree_exception("Received update directory event from non-CMS participant");
+        }
+
+        // Get the details of the existing directories / trees in Moodle
+        $existingtreesdb = $DB->get_records('local_campusconnect_dirroot', array('resourceid' => $resourceid,
+                                                                                'ecsid' => $ecsid, 'mid' => $mid));
+        $existingdirsdb = $DB->get_records('local_campusconnect_dir', array('resourceid' => $resourceid));
+        /** @var campusconnect_directorytree[] $existingtrees */
+        $existingtrees = array();
+        /** @var campusconnect_directory[] $existingdirs */
+        $existingdirs = array();
+        foreach ($existingtreesdb as $existingtreedb) {
+            $existingtrees[$existingtreedb->rootid] = new campusconnect_directorytree($existingtreedb);
+        }
+        foreach ($existingdirsdb as $existingdirdb) {
+            $existingdirs[$existingdirdb->directoryid] = new campusconnect_directory($existingdirdb);
+        }
+        if (!is_array($directories)) {
+            $directories = array($directories);
+        }
+        unset($existingtreesdb, $existingdirsdb);
+
+        // Loop through all the directories / trees in this resource and match them up with the existing directories in Moodle
+        foreach ($directories as $directory) {
+            $isdirectorytree = $directory->parent->id ? false : true;
+            if ($isdirectorytree) {
+                if (!isset($existingtrees[$directory->rootID])) {
+                    throw new coding_exception("delete_missing_directories - found a directory tree {$directory->rootID} in the resource that does not exist in Moodle (after doing the update)");
+                }
+                $existingtrees[$directory->rootID]->set_still_exists();
+            } else {
+                if (!isset($existingdirs[$directory->id])) {
+                    throw new coding_exception("delete_missing_directories - found a directory {$directory->id} in the resource that does not exist in Moodle (after doing the update)");
+                }
+                $existingdirs[$directory->id]->set_still_exists();
+            }
+        }
+
+        // Delete any trees / directories no longer found in this resource
+        foreach ($existingtrees as $existingtree) {
+            if (!$existingtree->still_exists()) {
+                $existingtree->delete();
+            }
+        }
+        foreach ($existingdirs as $existingdir) {
+            if (!$existingdir->still_exists()) {
+                $existingdir->delete();
+            }
+        }
     }
 
     public static function check_all_mappings() {

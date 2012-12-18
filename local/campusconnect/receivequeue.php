@@ -336,7 +336,11 @@ class campusconnect_receivequeue {
         }
 
         mtrace("CampusConnect: update directorytree: ".$event->get_resource_id()."\n");
-        return campusconnect_directorytree::update_directory($event->get_resource_id(), $settings, $resource, $details);
+        if ($status = campusconnect_directorytree::update_directory($event->get_resource_id(), $settings, $resource, $details)) {
+            campusconnect_directorytree::delete_missing_directories($event->get_resource_id(), $settings, $resource, $details);
+        }
+
+        return $status;
     }
 
     /**

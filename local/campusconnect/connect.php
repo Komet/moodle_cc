@@ -277,7 +277,7 @@ class campusconnect_connect {
         if (!campusconnect_event::is_valid_resource($type)) {
             throw new coding_exception("add_resource: unknown resource type $type");
         }
-        if (is_object($post)) {
+        if (is_object($post) || is_array($post)) {
             $sendurilist = false;
         } else if (is_string($post)) {
             $sendurilist = true;
@@ -325,12 +325,12 @@ class campusconnect_connect {
         if (!campusconnect_event::is_valid_resource($type)) {
             throw new coding_exception("update_resource: unknown resource type $type");
         }
-        if (is_object($post)) {
+        if (is_object($post) || is_array($post)) {
             $sendurilist = false;
         } else if (is_string($post)) {
             $sendurilist = true;
         } else {
-            throw new coding_exception('add_resource - expected \'post\' to be an object or a string');
+            throw new coding_exception('update_resource - expected \'post\' to be an object or a string');
         }
         if (!$id) {
             throw new campusconnect_connect_exception('update_resource - no resource id given');

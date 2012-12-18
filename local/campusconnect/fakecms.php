@@ -24,10 +24,6 @@
 
 require_once(dirname(__FILE__).'/../../config.php');
 global $CFG, $PAGE, $OUTPUT;
-require_once($CFG->dirroot.'/local/campusconnect/participantsettings.php');
-require_once($CFG->dirroot.'/local/campusconnect/connect.php');
-require_once($CFG->dirroot.'/local/campusconnect/event.php');
-require_once($CFG->dirroot.'/local/campusconnect/fakecms_form.php');
 
 $membershipdir = $CFG->dataroot.'/fakecms/';
 check_dir_exists($membershipdir, true, true);
@@ -39,6 +35,11 @@ if ($filename = optional_param('sendfile', null, PARAM_FILE)) {
         die();
     }
 }
+
+require_once($CFG->dirroot.'/local/campusconnect/participantsettings.php');
+require_once($CFG->dirroot.'/local/campusconnect/connect.php');
+require_once($CFG->dirroot.'/local/campusconnect/event.php');
+require_once($CFG->dirroot.'/local/campusconnect/fakecms_form.php');
 
 $url = new moodle_url('/local/campusconnect/fakecms.php');
 $PAGE->set_url($url);

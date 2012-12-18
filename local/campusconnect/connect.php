@@ -495,7 +495,8 @@ class campusconnect_connect {
         if (!isset($this->responseheaders['Content-Type'])) {
             return '';
         }
-        return trim(explode(';', $this->responseheaders['Content-Type'])[0]);
+        $contenttype = explode(';', $this->responseheaders['Content-Type']);
+        return trim($contenttype[0]);
     }
 
     /**

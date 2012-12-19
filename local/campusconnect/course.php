@@ -77,8 +77,6 @@ class campusconnect_course {
             return false; // The directory has not yet been mapped onto a category => cannot yet create the course.
         }
 
-        self::set_course_defaults($coursedata);
-
         list($pgroups, $pgroupmode) = campusconnect_parallelgroups::get_parallel_groups($course);
         if (count($pgroups) < 1) {
             $pgroups[] = array(); // Make sure there is at least one course to be created.
@@ -113,6 +111,7 @@ class campusconnect_course {
         $internallink = 0;
 
         $coursedata = clone $coursedata;
+        self::set_course_defaults($coursedata);
         $coursedata->fullname = $pgclass->update_course_name($coursedata->fullname, $pgroupmode, $pgcourse);
 
         foreach ($categories as $category) {

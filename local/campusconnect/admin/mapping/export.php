@@ -134,8 +134,10 @@ class campusconnect_export_form extends moodleform {
                     $mform->setType('fieldname', PARAM_RAW);
                     $mform->setDefault($elname, array('text'=>$currentmappings[$remotemap], 'format'=>FORMAT_HTML));
                 } else if ($metadata->is_remote_text_field($remotemap, false)) {
-                    $mform->addElement('text', $elname, $remotemap, $currentmappings[$remotemap]);
-                    $mform->setDefault($elname, $currentmappings[$remotemap]);
+                    $mform->addElement('text', $elname, $remotemap);
+                    if (isset($currentmappings[$remotemap])) {
+                        $mform->setDefault($elname, $currentmappings[$remotemap]);
+                    }
                 } else {
                     $maparray = $metadata->list_local_to_remote_fields($remotemap, false);
                     if ($maparray) {
@@ -146,8 +148,10 @@ class campusconnect_export_form extends moodleform {
                     } else {
                         $maps = array('' => $strnomappings);
                     }
-                    $mform->addElement('select', $elname, $remotemap, $maps, $currentmappings[$remotemap]);
-                    $mform->setDefault($elname, $currentmappings[$remotemap]);
+                    $mform->addElement('select', $elname, $remotemap, $maps);
+                    if (isset($currentmappings[$remotemap])) {
+                        $mform->setDefault($elname, $currentmappings[$remotemap]);
+                    }
                 }
             }
 
@@ -165,8 +169,10 @@ class campusconnect_export_form extends moodleform {
                     $mform->setType('fieldname', PARAM_RAW);
                     $mform->setDefault($elname, array('text'=>$currentmappings[$remotemap], 'format'=>FORMAT_HTML));
                 } else if ($metadata->is_remote_text_field($remotemap, true)) {
-                    $mform->addElement('text', $elname, $remotemap, $currentmappings[$remotemap]);
-                    $mform->setDefault($elname, $currentmappings[$remotemap]);
+                    $mform->addElement('text', $elname, $remotemap);
+                    if (isset($currentmappings[$remotemap])) {
+                        $mform->setDefault($elname, $currentmappings[$remotemap]);
+                    }
                 } else {
                     $maparray = $metadata->list_local_to_remote_fields($remotemap, true);
                     if ($maparray) {
@@ -177,8 +183,10 @@ class campusconnect_export_form extends moodleform {
                     } else {
                         $maps = array('' => $strnomappings);
                     }
-                    $mform->addElement('select', $elname, $remotemap, $maps, $currentmappings[$remotemap]);
-                    $mform->setDefault($elname, $currentmappings[$remotemap]);
+                    $mform->addElement('select', $elname, $remotemap, $maps);
+                    if (isset($currentmappings[$remotemap])) {
+                        $mform->setDefault($elname, $currentmappings[$remotemap]);
+                    }
                 }
             }
         }

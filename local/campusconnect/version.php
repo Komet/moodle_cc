@@ -28,3 +28,8 @@ $plugin->cron = 1; // Run every second (or as oftern as cron is run)
 $plugin->component = 'local_campusconnect';
 $plugin->maturity = MATURITY_BETA;
 $plugin->release = '2.2+ (Build: 2012121400)';
+$plugin->dependencies = array(
+    'auth_campusconnect' => ANY_VERSION,
+    'block_campusconnect' => ANY_VERSION,
+    'enrol_campusconnect' => ANY_VERSION
+);

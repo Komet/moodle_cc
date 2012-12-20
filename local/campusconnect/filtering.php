@@ -186,7 +186,7 @@ class campusconnect_filtering {
     public static function create_in_category() {
         $config = self::get_config();
         if (isset($config->filteringusesinglecategory) && $config->filteringusesinglecategory) {
-            if (isset($config->filtersinglecategory)) {
+            if (isset($config->filteringsinglecategory)) {
                 return $config->filteringsinglecategory;
             }
         }

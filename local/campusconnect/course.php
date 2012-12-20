@@ -682,7 +682,7 @@ class campusconnect_course {
         }
 
         // No course filtering rules - use the 'allocations' specified by the CMS.
-        if (!isset($course->allocations)) {
+        if (empty($course->allocations)) {
             debugging("Warning - course request without 'allocations' details - using default import category");
             return $ecssettings->get_import_category();
         }

@@ -739,6 +739,11 @@ class campusconnect_course {
                     $upd->directoryid = $firstnewcategory->get_directoryid();
                     $upd->sortorder = $firstnewcategory->get_order();
                     $DB->update_record('local_campusconnect_crs', $upd);
+
+                    // Make sure this does not get 'cleaned up' later on.
+                    $currcourse->directoryid = $upd->directoryid;
+                    $currcourse->sortorder = $upd->sortorder;
+                    $unchangedcategories[$currcourse->id] = $firstnewcategory;
                 } else {
                     // No newly-mapped categories, so will need to move it into an existing category.
                     $removecrsid = array_shift(array_keys($unchangedcategories));

@@ -121,6 +121,10 @@ class campusconnect_courselink {
             return true;
         }
 
+        if (is_array($courselink)) {
+            $courselink = reset($courselink);
+        }
+
         $coursedata = self::map_course_settings($courselink, $settings);
 
         if ($partsettings->get_import_type() == campusconnect_participantsettings::IMPORT_LINK) {
@@ -194,6 +198,10 @@ class campusconnect_courselink {
             }
         } else {
             $partsettings = null;
+        }
+
+        if (is_array($courselink)) {
+            $courselink = reset($courselink);
         }
 
         $coursedata = self::map_course_settings($courselink, $settings);

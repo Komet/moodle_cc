@@ -55,11 +55,11 @@ class campusconnect_membership {
      * Create a new membership list
      * @param int $resourceid the resourceid on the ECS server
      * @param campusconnect_ecssettings $ecssettings
-     * @param object|object[] $memberships the details of the membership list
+     * @param object|object[] $membership the details of the membership list
      * @param campusconnect_details $transferdetails
      * @return bool true if successful
      */
-    public static function create($resourceid, campusconnect_ecssettings $ecssettings, $memberships, campusconnect_details $transferdetails) {
+    public static function create($resourceid, campusconnect_ecssettings $ecssettings, $membership, campusconnect_details $transferdetails) {
         global $DB;
 
         $cms = campusconnect_participantsettings::get_cms_participant();
@@ -73,23 +73,21 @@ class campusconnect_membership {
             throw new campusconnect_course_exception("Cannot create a membership list from resource $resourceid - it already exists.");
         }
 
-        if (!is_array($memberships)) {
-            $memberships = array($memberships);
+        if (is_array($membership)) {
+            $membership = reset($membership);
         }
 
         $ins = new stdClass();
         $ins->resourceid = $resourceid;
         $ins->status = self::STATUS_CREATED;
 
-        foreach ($memberships as $membership) {
-            $ins->cmscourseid = $membership->courseID;
-            foreach ($membership->members as $member) {
-                $ins->personid = $member->personID;
-                $ins->role = $member->courseRole;
-                $ins->parallelgroups = self::prepare_parallel_groups($member);
+        $ins->cmscourseid = $membership->courseID;
+        foreach ($membership->members as $member) {
+            $ins->personid = $member->personID;
+            $ins->role = $member->courseRole;
+            $ins->parallelgroups = self::prepare_parallel_groups($member);
 
-                $DB->insert_record('local_campusconnect_mbr', $ins);
-            }
+            $DB->insert_record('local_campusconnect_mbr', $ins);
         }
 
         return true;
@@ -99,11 +97,11 @@ class campusconnect_membership {
      * Update an existing membership list
      * @param int $resourceid the resourceid on the ECS server
      * @param campusconnect_ecssettings $ecssettings
-     * @param object|object[] $memberships the details of the membership list
+     * @param object|object[] $membership the details of the membership list
      * @param campusconnect_details $transferdetails
      * @return bool true if successful
      */
-    public static function update($resourceid, campusconnect_ecssettings $ecssettings, $memberships, campusconnect_details $transferdetails) {
+    public static function update($resourceid, campusconnect_ecssettings $ecssettings, $membership, campusconnect_details $transferdetails) {
         global $DB;
 
         $cms = campusconnect_participantsettings::get_cms_participant();
@@ -115,19 +113,21 @@ class campusconnect_membership {
 
         $currmembers = self::get_by_resourceid($resourceid);
         if (!$currmembers) {
-            return self::create($resourceid, $ecssettings, $memberships, $transferdetails);
+            return self::create($resourceid, $ecssettings, $membership, $transferdetails);
+        }
+
+        if (is_array($membership)) {
+            $membership = reset($membership);
         }
 
         // Sort all the existing memberships by courseid and personid
         $sortedcurrmembers = array();
-        foreach ($memberships as $membership) {
-            $sortedcurrmembers[$membership->courseID] = array();
-            foreach ($currmembers as $idx => $currmember) {
-                if ($currmember->cmscourseid == $membership->courseID) {
-                    $sortedcurrmembers[$membership->courseID][$currmember->personid] = $currmember;
-                }
-                unset($currmembers[$idx]);
+        $sortedcurrmembers[$membership->courseID] = array();
+        foreach ($currmembers as $idx => $currmember) {
+            if ($currmember->cmscourseid == $membership->courseID) {
+                $sortedcurrmembers[$membership->courseID][$currmember->personid] = $currmember;
             }
+            unset($currmembers[$idx]);
         }
 
         // Mark any records that do not match any cmscourseid as deleted (a new enrolment will be created below)
@@ -147,38 +147,36 @@ class campusconnect_membership {
         }
 
         // Now compare the membership lists - add new members, update roles for existing members, remove expired members
-        foreach ($memberships as $membership) {
-            foreach ($membership->members as $member) {
-                $pgroups = self::prepare_parallel_groups($member);
-                if (isset($sortedcurrmembers[$membership->courseID][$member->personID])) {
-                    // Existing member - check if the role has changed.
-                    $curr = $sortedcurrmembers[$membership->courseID][$member->personID];
-                    if ($curr->role == $member->courseRole && $curr->status != self::STATUS_DELETED
-                        && $curr->parallelgroups == $pgroups) {
-                        // Unchanged role assignment - nothing to update.
-                    } else {
-                        $upd = new stdClass();
-                        $upd->id = $curr->id;
-                        $upd->role = $member->courseRole;
-                        $upd->parallelgroups = $pgroups;
-                        if ($curr->status != self::STATUS_CREATED) {
-                            $upd->status = self::STATUS_UPDATED;
-                        }
-                        $DB->update_record('local_campusconnect_mbr', $upd);
-                    }
-                    unset($sortedcurrmembers[$membership->courseID][$member->personID]); // Remove from list, so not deleted at the end.
+        foreach ($membership->members as $member) {
+            $pgroups = self::prepare_parallel_groups($member);
+            if (isset($sortedcurrmembers[$membership->courseID][$member->personID])) {
+                // Existing member - check if the role has changed.
+                $curr = $sortedcurrmembers[$membership->courseID][$member->personID];
+                if ($curr->role == $member->courseRole && $curr->status != self::STATUS_DELETED
+                    && $curr->parallelgroups == $pgroups) {
+                    // Unchanged role assignment - nothing to update.
                 } else {
-                    // New member
-                    $ins = new stdClass();
-                    $ins->resourceid = $resourceid;
-                    $ins->cmscourseid = $membership->courseID;
-                    $ins->status = self::STATUS_CREATED;
-                    $ins->personid = $member->personID;
-                    $ins->role = $member->courseRole;
-                    $ins->parallelgroups = $pgroups;
-
-                    $DB->insert_record('local_campusconnect_mbr', $ins);
+                    $upd = new stdClass();
+                    $upd->id = $curr->id;
+                    $upd->role = $member->courseRole;
+                    $upd->parallelgroups = $pgroups;
+                    if ($curr->status != self::STATUS_CREATED) {
+                        $upd->status = self::STATUS_UPDATED;
+                    }
+                    $DB->update_record('local_campusconnect_mbr', $upd);
                 }
+                unset($sortedcurrmembers[$membership->courseID][$member->personID]); // Remove from list, so not deleted at the end.
+            } else {
+                // New member
+                $ins = new stdClass();
+                $ins->resourceid = $resourceid;
+                $ins->cmscourseid = $membership->courseID;
+                $ins->status = self::STATUS_CREATED;
+                $ins->personid = $member->personID;
+                $ins->role = $member->courseRole;
+                $ins->parallelgroups = $pgroups;
+
+                $DB->insert_record('local_campusconnect_mbr', $ins);
             }
         }
 

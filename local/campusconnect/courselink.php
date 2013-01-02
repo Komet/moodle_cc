@@ -102,11 +102,11 @@ class campusconnect_courselink {
      * Create a new courselink with the details provided.
      * @param int $resourceid the id of this link on the ECS server
      * @param campusconnect_ecssettings $settings the settings for this ECS server
-     * @param object|object[] $courselinks the details of the course from the ECS server
+     * @param object $courselink the details of the course from the ECS server
      * @param campusconnect_details $transferdetails the details of where the link came from / went to
      * @return bool false if a problem occurred
      */
-    public static function create($resourceid, campusconnect_ecssettings $settings, $courselinks, campusconnect_details $transferdetails) {
+    public static function create($resourceid, campusconnect_ecssettings $settings, $courselink, campusconnect_details $transferdetails) {
         global $DB;
 
         if (is_null($transferdetails)) {
@@ -121,20 +121,96 @@ class campusconnect_courselink {
             return true;
         }
 
+        $coursedata = self::map_course_settings($courselink, $settings);
+
         if ($partsettings->get_import_type() == campusconnect_participantsettings::IMPORT_LINK) {
             if (self::get_by_resourceid($resourceid, $settings->get_id())) {
                 mtrace("Cannot create a courselink to resource $resourceid - it already exists.");
                 return true; // To remove this update from the list.
             }
 
-            if (!is_array($courselinks)) {
-                $courselinks = array($courselinks);
+            $coursedata->category = $settings->get_import_category();
+
+            if ($settings->get_id() > 0) {
+                $baseshortname = $coursedata->shortname;
+                $num = 1;
+                while ($DB->record_exists('course', array('shortname' => $coursedata->shortname))) {
+                    $num++;
+                    $coursedata->shortname = "{$baseshortname}_{$num}";
+                }
+                $course = create_course($coursedata);
+            } else {
+                // Nasty hack for unit testing - 'create_course' is too complex to
+                // be practical to mock up the database responses
+                global $DB;
+                $course = $coursedata;
+                /** @noinspection PhpUndefinedMethodInspection */
+                $course->id = $DB->mock_create_course($coursedata);
             }
 
-            foreach ($courselinks as $courselink) {
-                $coursedata = self::map_course_settings($courselink, $settings);
-                $coursedata->category = $settings->get_import_category();
+            $ins = new stdClass();
+            $ins->courseid = $course->id;
+            $ins->url = $courselink->url;
+            $ins->resourceid = $resourceid;
+            $ins->ecsid = $settings->get_id();
+            $ins->mid = $mid;
 
+            $DB->insert_record('local_campusconnect_clink', $ins);
+
+            campusconnect_notification::queue_message($settings->get_id(),
+                                                      campusconnect_notification::MESSAGE_IMPORT_COURSELINK,
+                                                      campusconnect_notification::TYPE_CREATE,
+                                                      $course->id);
+        }
+
+        return true;
+    }
+
+    /**
+     * Update a new courselink with the details provided.
+     * @param int $resourceid the id of this link on the ECS server
+     * @param campusconnect_ecssettings $settings the settings for this ECS server
+     * @param object $courselink the details of the course from the ECS server
+     * @param mixed $transferdetails campusconnect_details | null the details of where the link came from / went to
+     * @param int $mid set when doing a full update (and $transferdetails = null)
+     * @return bool true if successfully updated
+     */
+    public static function update($resourceid, campusconnect_ecssettings $settings, $courselink, $transferdetails, $mid = null) {
+        global $DB;
+
+        if ((is_null($transferdetails) && is_null($mid)) ||
+            (!is_null($transferdetails) && !is_null($mid))) {
+            throw new coding_exception('campusconnect_courselink::update must set EITHER $transferdetails OR $mid');
+        }
+
+        if (is_null($mid)) {
+            /** @var $transferdetails campusconnect_details */
+            $mid = $transferdetails->get_sender_mid();
+            $ecsid = $settings->get_id();
+            $partsettings = new campusconnect_participantsettings($ecsid, $mid);
+
+            if (!$partsettings->is_import_enabled()) {
+                return true;
+            }
+        } else {
+            $partsettings = null;
+        }
+
+        $coursedata = self::map_course_settings($courselink, $settings);
+
+        if ($partsettings && $partsettings->get_import_type() == campusconnect_participantsettings::IMPORT_LINK) {
+            if (!$currlink = self::get_by_resourceid($resourceid, $settings->get_id())) {
+                return self::create($resourceid, $settings, $courselink, $transferdetails);
+                //throw new campusconnect_courselink_exception("Cannot update courselink to resource $resourceid - it doesn't exist");
+            }
+
+            if ($currlink->mid != $mid) {
+                throw new campusconnect_courselink_exception("Participant $mid attempted to update resource created by participant {$currlink->mid}");
+            }
+
+            if (!$DB->record_exists('course', array('id' => $currlink->courseid))) {
+                // The course has been deleted - recreate it.
+                $coursedata->category = $settings->get_import_category();
                 if ($settings->get_id() > 0) {
                     $baseshortname = $coursedata->shortname;
                     $num = 1;
@@ -152,197 +228,43 @@ class campusconnect_courselink {
                     $course->id = $DB->mock_create_course($coursedata);
                 }
 
-                $ins = new stdClass();
-                $ins->courseid = $course->id;
-                $ins->url = $courselink->url;
-                $ins->resourceid = $resourceid;
-                $ins->ecsid = $settings->get_id();
-                $ins->mid = $mid;
-
-                $DB->insert_record('local_campusconnect_clink', $ins);
+                // Update the courselink record to point at this new course.
+                $upd = new stdClass();
+                $upd->id = $currlink->id;
+                $upd->courseid = $course->id;
+                $DB->update_record('local_campusconnect_clink', $upd);
 
                 campusconnect_notification::queue_message($settings->get_id(),
                                                           campusconnect_notification::MESSAGE_IMPORT_COURSELINK,
                                                           campusconnect_notification::TYPE_CREATE,
-                                                          $course->id);
-            }
-        }
+                                                          $coursedata->id);
+            } else {
+                // Course still exists - update it.
+                $coursedata->id = $currlink->courseid;
+                if ($settings->get_id() > 0) {
+                    // Nasty hack for unit testing - 'update_course' is too complex to
+                    // be practical to mock up the database responses
+                    update_course($coursedata);
 
-        return true;
-    }
-
-    /**
-     * Update a new courselink with the details provided.
-     * @param int $resourceid the id of this link on the ECS server
-     * @param campusconnect_ecssettings $settings the settings for this ECS server
-     * @param object|object[] $courselinks the details of the course from the ECS server
-     * @param mixed $transferdetails campusconnect_details | null the details of where the link came from / went to
-     * @param int $mid set when doing a full update (and $transferdetails = null)
-     * @return bool true if successfully updated
-     */
-    public static function update($resourceid, campusconnect_ecssettings $settings, $courselinks, $transferdetails, $mid = null) {
-        global $DB;
-
-        if ((is_null($transferdetails) && is_null($mid)) ||
-            (!is_null($transferdetails) && !is_null($mid))) {
-            throw new coding_exception('campusconnect_courselink::update must set EITHER $transferdetails OR $mid');
-        }
-
-        $ecsid = $settings->get_id();
-        if (is_null($mid)) {
-            /** @var $transferdetails campusconnect_details */
-            $mid = $transferdetails->get_sender_mid();
-            $partsettings = new campusconnect_participantsettings($ecsid, $mid);
-
-            if (!$partsettings->is_import_enabled()) {
-                return true;
-            }
-        } else {
-            $partsettings = null;
-        }
-
-
-        if ($partsettings && $partsettings->get_import_type() == campusconnect_participantsettings::IMPORT_LINK) {
-            if (!$currlinks = self::get_by_resourceid($resourceid, $ecsid)) {
-                return self::create($resourceid, $settings, $courselinks, $transferdetails);
-                //throw new campusconnect_courselink_exception("Cannot update courselink to resource $resourceid - it doesn't exist");
-            }
-
-            // Sort the current links (in Moodle) by their URL
-            $sortedcurrlinks = array();
-            foreach ($currlinks as $currlink) {
-                $sortedcurrlinks[$currlink->url] = $currlink;
-            }
-
-            if (!is_array($courselinks)) {
-                $courselinks = array($courselinks);
-            }
-
-            // Match up any courselinks with unchanged URLs
-            foreach ($courselinks as $idx => $courselink) {
-                if (isset($sortedcurrlinks[$courselink->url])) {
-                    // Note the match-up (but process it later)
-                    $sortedcurrlinks[$courselink->url]->updatelink = $courselink;
-                    // Remove from the list of course links to match up
-                    unset($courselinks[$idx]);
-                }
-            }
-
-            // Match up any remaining courselinks
-            foreach ($courselinks as $idx => $courselink) {
-                foreach ($sortedcurrlinks as $currlink) {
-                    if (!isset($currlink->updatelink)) {
-                        // Match up to a currently unmatched link
-                        $currlink->updatelink = $courselink;
-                        // Remove from the list of course links to match up
-                        unset($courselinks[$idx]);
-                        continue 2;
-                    }
-                }
-                // If we have got here, then there are no more unmatched courselink records - need to create a new one
-                $newlink = new stdClass();
-                $newlink->id = 0;
-                $newlink->courseid = 0;
-                $newlink->url = '';
-                $newlink->mid = $mid;
-                $newlink->updatelink = $courselink;
-                $sortedcurrlinks[$courselink->url] = $newlink;
-            }
-
-            foreach ($sortedcurrlinks as $currlink) {
-                if (!isset($currlink->updatelink)) {
-                    // This course link no longer exists - delete it.
-                    $msg = "{$currlink->courseid} ($resourceid)";
-                    if ($coursename = $DB->get_field('course', 'fullname', array('id' => $currlink->courseid))) {
-                        $msg .= ' - '.format_string($coursename);
-                    }
                     campusconnect_notification::queue_message($settings->get_id(),
                                                               campusconnect_notification::MESSAGE_IMPORT_COURSELINK,
-                                                              campusconnect_notification::TYPE_DELETE,
-                                                              0, $msg);
-                    if ($ecsid > 0) {
-                        // Nasty hack for unit testing - 'delete_course' is too complex to
-                        // be practical to mock up the database responses
-                        delete_course($currlink->courseid, false);
-                    } else {
-                        /** @noinspection PhpUndefinedMethodInspection */
-                        $DB->mock_delete_course($currlink->courseid);
-                    }
-                    $DB->delete_records('local_campusconnect_clink', array('id' => $currlink->id));
-                    continue;
-                }
-                $courselink = $currlink->updatelink;
-                $coursedata = self::map_course_settings($courselink, $settings);
-
-                if ($currlink->mid != $mid) {
-                    throw new campusconnect_courselink_exception("Participant $mid attempted to update resource created by participant {$currlink->mid}");
-                }
-
-                if (!$currlink->courseid || !$DB->record_exists('course', array('id' => $currlink->courseid))) {
-                    // The link is new or the course has been deleted - (re)create it.
-                    $coursedata->category = $settings->get_import_category();
-                    if ($ecsid > 0) {
-                        $baseshortname = $coursedata->shortname;
-                        $num = 1;
-                        while ($DB->record_exists('course', array('shortname' => $coursedata->shortname))) {
-                            $num++;
-                            $coursedata->shortname = "{$baseshortname}_{$num}";
-                        }
-                        $course = create_course($coursedata);
-                    } else {
-                        // Nasty hack for unit testing - 'create_course' is too complex to
-                        // be practical to mock up the database responses
-                        global $DB;
-                        $course = $coursedata;
-                        /** @noinspection PhpUndefinedMethodInspection */
-                        $course->id = $DB->mock_create_course($coursedata);
-                    }
-
-                    // Update the courselink record to point at this new course.
-                    if ($currlink->id) {
-                        $upd = new stdClass();
-                        $upd->id = $currlink->id;
-                        $upd->courseid = $course->id;
-                        $upd->url = $courselink->url;
-                        $DB->update_record('local_campusconnect_clink', $upd);
-                    } else {
-                        // New courselink record
-                        $ins = new stdClass();
-                        $ins->courseid = $course->id;
-                        $ins->url = $courselink->url;
-                        $ins->resourceid = $resourceid;
-                        $ins->ecsid = $ecsid;
-                        $ins->mid = $mid;
-                        $ins->id = $DB->insert_record('local_campusconnect_clink', $ins);
-                    }
-                    campusconnect_notification::queue_message($ecsid,
-                                                              campusconnect_notification::MESSAGE_IMPORT_COURSELINK,
-                                                              campusconnect_notification::TYPE_CREATE,
-                                                              $course->id);
+                                                              campusconnect_notification::TYPE_UPDATE,
+                                                              $coursedata->id);
                 } else {
-                    // Course still exists - update it.
-                    $coursedata->id = $currlink->courseid;
-                    if ($ecsid > 0) {
-                        // Nasty hack for unit testing - 'update_course' is too complex to
-                        // be practical to mock up the database responses
-                        update_course($coursedata);
-                        campusconnect_notification::queue_message($ecsid,
-                                                                  campusconnect_notification::MESSAGE_IMPORT_COURSELINK,
-                                                                  campusconnect_notification::TYPE_UPDATE,
-                                                                  $coursedata->id);
-                    } else {
-                        global $DB;
-                        /** @noinspection PhpUndefinedMethodInspection */
-                        $DB->mock_update_course($coursedata);
-                    }
-
-                    if ($currlink->url != $courselink->url) {
-                        $upd = new stdClass();
-                        $upd->id = $currlink->id;
-                        $upd->url = $courselink->url;
-                        $DB->update_record('local_campusconnect_clink', $upd);
-                    }
+                    global $DB;
+                    /** @noinspection PhpUndefinedMethodInspection */
+                    $DB->mock_update_course($coursedata);
                 }
+
+
+            }
+
+            if ($currlink->url != $courselink->url) {
+                $upd = new stdClass();
+                $upd->id = $currlink->id;
+                $upd->url = $courselink->url;
+
+                $DB->update_record('local_campusconnect_clink', $upd);
             }
         }
 
@@ -358,26 +280,24 @@ class campusconnect_courselink {
     public static function delete($resourceid, campusconnect_ecssettings $settings) {
         global $DB;
 
-        if ($currlinks = self::get_by_resourceid($resourceid, $settings->get_id())) {
-            foreach ($currlinks as $currlink) {
-                $msg = "{$currlink->courseid} ($resourceid)";
-                if ($coursename = $DB->get_field('course', 'fullname', array('id' => $currlink->courseid))) {
-                    $msg .= ' - '.format_string($coursename);
-                }
-                campusconnect_notification::queue_message($settings->get_id(),
-                                                          campusconnect_notification::MESSAGE_IMPORT_COURSELINK,
-                                                          campusconnect_notification::TYPE_DELETE,
-                                                          0, $msg);
-                if ($settings->get_id() > 0) {
-                    // Nasty hack for unit testing - 'delete_course' is too complex to
-                    // be practical to mock up the database responses
-                    delete_course($currlink->courseid, false);
-                } else {
-                    /** @noinspection PhpUndefinedMethodInspection */
-                    $DB->mock_delete_course($currlink->courseid);
-                }
-                $DB->delete_records('local_campusconnect_clink', array('id' => $currlink->id));
+        if ($currlink = self::get_by_resourceid($resourceid, $settings->get_id())) {
+            $msg = "{$currlink->courseid} ($resourceid)";
+            if ($coursename = $DB->get_field('course', 'fullname', array('id' => $currlink->courseid))) {
+                $msg .= ' - '.format_string($coursename);
             }
+            campusconnect_notification::queue_message($settings->get_id(),
+                                                      campusconnect_notification::MESSAGE_IMPORT_COURSELINK,
+                                                      campusconnect_notification::TYPE_DELETE,
+                                                      0, $msg);
+            if ($settings->get_id() > 0) {
+                // Nasty hack for unit testing - 'delete_course' is too complex to
+                // be practical to mock up the database responses
+                delete_course($currlink->courseid, false);
+            } else {
+                /** @noinspection PhpUndefinedMethodInspection */
+                $DB->mock_delete_course($currlink->courseid);
+            }
+            $DB->delete_records('local_campusconnect_clink', array('id' => $currlink->id));
         }
 
         return true;
@@ -608,7 +528,7 @@ class campusconnect_courselink {
     public static function get_by_resourceid($resourceid, $ecsid) {
         global $DB;
         $params = array('resourceid' => $resourceid, 'ecsid' => $ecsid);
-        return $DB->get_records('local_campusconnect_clink', $params);
+        return $DB->get_record('local_campusconnect_clink', $params);
     }
 
     /**

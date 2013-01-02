@@ -137,12 +137,25 @@ $frmdata = new stdClass();
 // Retrieve existing data and display in the form.
 if ($dirid = optional_param('showdir', false, PARAM_INT)) {
     $dirtree = $connect->get_resource($dirid, campusconnect_event::RES_DIRECTORYTREE);
-    $frmdata->dirtreetitle = $dirtree->directoryTreeTitle;
-    $frmdata->dirid = $dirtree->id;
-    $frmdata->dirtitle = $dirtree->title;
-    $frmdata->dirparentid = $dirtree->parent->id;
-    $frmdata->dirorder = !empty($dirtree->parent->order) ? $dirtree->parent->order : '';
-    $frmdata->dirrootid = $dirtree->rootID;
+    if (isset($dirtree->nodes)) {
+        $node = reset($dirtree->nodes); // Fakecms can only cope with a single node in a data structure
+        $frmdata->dirrootid = $dirtree->rootID;
+        $frmdata->dirtreetitle = $dirtree->directoryTreeTitle;
+        $frmdata->dirid = $node->id;
+        $frmdata->dirtitle = $node->title;
+        $frmdata->dirparentid = $node->parent->id;
+        $frmdata->dirorder = !empty($node->order) ? $node->order : '';
+    } else {
+        $frmdata->dirtreetitle = $dirtree->directoryTreeTitle;
+        $frmdata->dirid = $dirtree->id;
+        $frmdata->dirtitle = $dirtree->title;
+        $frmdata->dirparentid = $dirtree->parent->id;
+        $frmdata->dirorder = !empty($dirtree->order) ? $dirtree->order : '';
+        if (empty($frmdata->dirorder) && !empty($dirtree->parent->order)) {
+            $frmdata->dirorder = $dirtree->parent->order; // Fix trees that had the 'order' field in the wrong place
+        }
+        $frmdata->dirrootid = $dirtree->rootID;
+    }
     $frmdata->diraction = 'update';
     $frmdata->dirresourceid = $dirid;
 
@@ -242,17 +255,21 @@ if ($data = $form->get_data()) {
     if (!empty($data->dirsubmit)) {
         if ($data->diraction == 'create' || $data->diraction == 'update') {
             $dirtree = (object)array(
+                'rootID' => $data->dirrootid,
                 'directoryTreeTitle' => $data->dirtreetitle,
+                'nodes' => array(),
+            );
+            $node = (object)array(
                 'id' => $data->dirid,
                 'title' => $data->dirtitle,
                 'parent' => (object)array(
                     'id' => $data->dirparentid,
                 ),
-                'rootID' => $data->dirrootid,
             );
             if (!empty($data->dirorder)) {
-                $dirtree->parent->order = $data->dirorder;
+                $node->order = $data->dirorder;
             }
+            $dirtree->nodes[] = $node;
             if ($data->diraction == 'create') {
                 $dirresourceid = $connect->add_resource(campusconnect_event::RES_DIRECTORYTREE, $dirtree, null, $dstmid);
                 $msg = 'Created new directory tree with resource id: '.$dirresourceid;

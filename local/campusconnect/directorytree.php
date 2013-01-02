@@ -736,22 +736,23 @@ class campusconnect_directorytree {
         foreach ($existingdirsdb as $existingdirdb) {
             $existingdirs[$existingdirdb->directoryid] = new campusconnect_directory($existingdirdb);
         }
-        if (!is_array($directories)) {
-            $directories = array($directories);
+        if (is_array($directories)) {
+            $directories = reset($directories);
         }
+        self::convert_from_old_schema($directories);
         unset($existingtreesdb, $existingdirsdb);
 
         // Loop through all the directories / trees in this resource and match them up with the existing directories in Moodle
-        foreach ($directories as $directory) {
+        foreach ($directories->nodes as $directory) {
             $isdirectorytree = $directory->parent->id ? false : true;
             if ($isdirectorytree) {
-                if (!isset($existingtrees[$directory->rootID])) {
-                    throw new coding_exception("delete_missing_directories - found a directory tree {$directory->rootID} in the resource that does not exist in Moodle (after doing the update)");
+                if (!isset($existingtrees[$directories->rootID])) {
+                    throw new coding_exception("delete_missing_directories - found a directory tree {$directories->rootID} in the resource that does not exist in Moodle (after doing the update)");
                 }
-                $existingtrees[$directory->rootID]->set_still_exists();
+                $existingtrees[$directories->rootID]->set_still_exists();
             } else {
                 if (!isset($existingdirs[$directory->id])) {
-                    throw new coding_exception("delete_missing_directories - found a directory {$directory->id} in the resource that does not exist in Moodle (after doing the update)");
+                    throw new coding_exception("delete_missing_directories - found a directory {$directories->id} in the resource that does not exist in Moodle (after doing the update)");
                 }
                 $existingdirs[$directory->id]->set_still_exists();
             }

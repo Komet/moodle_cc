@@ -419,6 +419,34 @@ class campusconnect_directorytree {
     }
 
     /**
+     * If the directory tree format matches the old schema, then update it to the new schema
+     * @param $directories
+     */
+    public static function convert_from_old_schema($directories) {
+        if (isset($directories->nodes)) {
+            return; // New schema => nothing to do
+        }
+
+        $node = (object)array(
+            'id' => $directories->id,
+            'title' => $directories->title,
+            'parent' => (object)array(
+                'id' => $directories->parent->id
+            )
+        );
+        if (isset($directories->order)) {
+            $node->order = $directories->order;
+        }
+        if (isset($directories->term)) {
+            $node->term = $directories->term;
+        }
+        if (isset($directories->parent->title)) {
+            $node->parent->title = $directories->parent->title;
+        }
+        $directories->nodes = array($node);
+    }
+
+    /**
      * Full update of all directory trees from ECS
      * @param campusconnect_ecssettings $ecssettings
      * @return object an object containing: ->created = array of resourceids created
@@ -468,22 +496,23 @@ class campusconnect_directorytree {
                 continue;
             }
 
-            if (!is_array($directories)) {
-                $directories = array($directories);
+            if (is_array($directories)) {
+                $directories = reset($directories);
             }
+            self::convert_from_old_schema($directories); // Handle any directory trees matching the old version of the schema
 
-            foreach ($directories as $directory) {
+            foreach ($directories->nodes as $directory) {
                 if ($directory->parent->id) {
                     // Not a root directory.
-                    campusconnect_directory::check_update_directory($resourceid, $directory);
+                    campusconnect_directory::check_update_directory($resourceid, $directory, $directories->rootID);
                     continue;
                 }
 
-                if ($directory->id != $directory->rootID) {
-                    throw new campusconnect_directorytree_exception("Root directory id ($directory->id) does not match the rootID ($directory->rootID)");
+                if ($directory->id != $directories->rootID) {
+                    throw new campusconnect_directorytree_exception("Root directory id ($directory->id) does not match the rootID ($directories->rootID)");
                 }
-                if ($directory->title != $directory->directoryTreeTitle) {
-                    throw new campusconnect_directorytree_exception("Root directory title ($directory->title) does not match the directoryTreeTitle ($directory->directoryTreeTitle)");
+                if ($directory->title != $directories->directoryTreeTitle) {
+                    throw new campusconnect_directorytree_exception("Root directory title ($directory->title) does not match the directoryTreeTitle ($directories->directoryTreeTitle)");
                 }
 
                 if (array_key_exists($directory->id, $currenttrees)) {
@@ -537,25 +566,36 @@ class campusconnect_directorytree {
             throw new campusconnect_directorytree_exception("Received create directory event from non-CMS participant");
         }
 
-        if (!is_array($directories)) {
-            $directories = array($directories);
+        if (is_array($directories)) {
+            $directories = reset($directories);
         }
+        self::convert_from_old_schema($directories);
 
-        foreach ($directories as $directory) {
+        foreach ($directories->nodes as $directory) {
             $isdirectorytree = $directory->parent->id ? false : true;
             if ($isdirectorytree) {
-                if ($DB->record_exists('local_campusconnect_dirroot', array('rootid' => $directory->rootID))) {
-                    self::update_directory($resourceid, $ecssettings, $directory, $details);
+                if ($DB->record_exists('local_campusconnect_dirroot', array('rootid' => $directories->rootID))) {
+                    $toupdate = (object)array(
+                        'rootID' => $directories->rootID,
+                        'directoryTreeTitle' => $directories->directoryTreeTitle,
+                        'nodes' => array($directory)
+                    );
+                    self::update_directory($resourceid, $ecssettings, $toupdate, $details);
                     continue;
                     //throw new campusconnect_directorytree_exception("Cannot create a directory tree root node {$directory->rootID} - it already exists.");
                 }
 
                 $tree = new campusconnect_directorytree();
-                $tree->create($resourceid, $directory->rootID, $directory->title, $ecsid, $mid);
+                $tree->create($resourceid, $directories->rootID, $directory->title, $ecsid, $mid);
 
             } else {
                 if ($DB->record_exists('local_campusconnect_dir', array('directoryid' => $directory->id))) {
-                    self::update_directory($resourceid, $ecssettings, $directory, $details);
+                    $toupdate = (object)array(
+                        'rootID' => $directories->rootID,
+                        'directoryTreeTitle' => $directories->directoryTreeTitle,
+                        'nodes' => array($directory)
+                    );
+                    self::update_directory($resourceid, $ecssettings, $toupdate, $details);
                     continue;
                     //throw new campusconnect_directorytree_exception("Cannot create a directory tree {$directory->id} - it already exists.");
                 }
@@ -564,7 +604,7 @@ class campusconnect_directorytree {
                 if (empty($directory->order)) {
                     $directory->order = null;
                 }
-                $dir->create($resourceid, $directory->rootID, $directory->id, $directory->parent->id, $directory->title, $directory->order);
+                $dir->create($resourceid, $directories->rootID, $directory->id, $directory->parent->id, $directory->title, $directory->order);
             }
         }
 
@@ -589,15 +629,21 @@ class campusconnect_directorytree {
             throw new campusconnect_directorytree_exception("Received update directory event from non-CMS participant");
         }
 
-        if (!is_array($directories)) {
-            $directories = array($directories);
+        if (is_array($directories)) {
+            $directories = reset($directories);
         }
+        self::convert_from_old_schema($directories);
 
-        foreach ($directories as $directory) {
+        foreach ($directories->nodes as $directory) {
             $isdirectorytree = $directory->parent->id ? false : true;
             if ($isdirectorytree) {
-                if (!$currdirtree = $DB->get_record('local_campusconnect_dirroot', array('rootid' => $directory->rootID))) {
-                    self::create_directory($resourceid, $ecssettings, $directory, $details);
+                if (!$currdirtree = $DB->get_record('local_campusconnect_dirroot', array('rootid' => $directories->rootID))) {
+                    $tocreate = (object)array(
+                        'rootID' => $directories->rootID,
+                        'directoryTreeTitle' => $directories->directoryTreeTitle,
+                        'nodes' => array($directory)
+                    );
+                    self::create_directory($resourceid, $ecssettings, $tocreate, $details);
                     continue;
                 }
 
@@ -606,7 +652,12 @@ class campusconnect_directorytree {
 
             } else {
                 if (!$currdir = $DB->get_record('local_campusconnect_dir', array('directoryid' => $directory->id))) {
-                    self::create_directory($resourceid, $ecssettings, $directory, $details);
+                    $tocreate = (object)array(
+                        'rootID' => $directories->rootID,
+                        'directoryTreeTitle' => $directories->directoryTreeTitle,
+                        'nodes' => array($directory)
+                    );
+                    self::create_directory($resourceid, $ecssettings, $tocreate, $details);
                     continue;
                 }
 
@@ -1281,11 +1332,12 @@ class campusconnect_directory {
      * Update the directory details from the ECS
      * @param int $resourceid
      * @param object $directory the details, direct from the ECS
+     * @param int $rootid the id of the root of the directory tree
      * @return mixed campusconnect_directory | false : returns the directory,
      *                 if a new directory was created, false if it already existed
      */
-    public static function check_update_directory($resourceid, $directory) {
-        $dirs = self::get_directories($directory->rootID);
+    public static function check_update_directory($resourceid, $directory, $rootid) {
+        $dirs = self::get_directories($rootid);
         foreach ($dirs as $dir) {
             if ($dir->get_directory_id() == $directory->id) {
                 // Found directory - update it (if needed).
@@ -1301,7 +1353,7 @@ class campusconnect_directory {
 
         // Not found - create it.
         $dir = new campusconnect_directory();
-        $dir->create($resourceid, $directory->rootID, $directory->id, $directory->parent->id, $directory->title, $directory->order);
+        $dir->create($resourceid, $rootid, $directory->id, $directory->parent->id, $directory->title, $directory->order);
         $dir->set_still_exists();
         return $dir;
     }

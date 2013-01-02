@@ -725,7 +725,7 @@ class campusconnect_course {
         foreach ($removecategoryids as $rcrsid => $rcatid) {
             $currcourse = $currcourses[$rcrsid];
             if ($currcourse->internallink == 0) { // We are trying to remove the 'real' course - instead move it.
-                if (!empty($newcategories)) {
+                if (!empty($newcategories) || $firstnewcategory) {
                     // Move it into the newly-mapped category.
                     /** @var $firstnewcategory campusconnect_course_category */
                     if ($firstnewcategory === false) {
@@ -749,7 +749,7 @@ class campusconnect_course {
                     $removecrsid = array_shift(array_keys($unchangedcategories));
                     $updatecategory = array_shift($unchangedcategories);
 
-                    if ($updatecategory->internallink == 0) {
+                    if ($currcourses[$removecrsid]->internallink == 0) {
                         throw new coding_exception("Attempting to replace one 'real course' with another - this should not happen");
                     }
 

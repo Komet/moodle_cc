@@ -732,14 +732,15 @@ class campusconnect_connect {
                 throw new campusconnect_connect_exception('curl error: '.curl_error($c).
                                                               ' ('.curl_errno($c).')');
             }
-            $res = json_decode($res);
-            if (is_null($res)) {
-                throw new campusconnect_connect_exception('Invalid item downloaded from resource');
+            $result = json_decode($res);
+            if (is_null($result)) {
+                $details = "\nURL: $url \nReturned data: $res";
+                throw new campusconnect_connect_exception('Invalid item downloaded from resource'.$details);
             }
-            if (is_array($res)) {
-                $ret = array_merge($ret, $res);
+            if (is_array($result)) {
+                $ret = array_merge($ret, $result);
             } else {
-                $ret[] = $res;
+                $ret[] = $result;
             }
         }
         return $ret;

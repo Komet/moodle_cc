@@ -451,7 +451,8 @@ class campusconnect_connect {
             if (empty($line)) {
                 continue;
             }
-            $id = array_pop(explode("/", $line));
+            $id = explode("/", $line);
+            $id = array_pop($id);
             $uris->add($line, $id);
         }
         return $uris;

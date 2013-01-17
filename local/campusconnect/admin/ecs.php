@@ -100,10 +100,15 @@ if ($form->is_cancelled()) {
 if ($data = $form->get_data()) {
 
     $data->crontime = ($data->pollingtimemin * 60) + $data->pollingtimesec;
-    $data->url = $data->protocol.'://'.$data->url;
+    $url = $data->url;
     if (!empty($data->port)) {
-        $data->url .= ':'.$data->port;
+        $spliturl = explode('/', $url, 2);
+        $url = $spliturl[0].':'.$data->port;
+        if (isset($spliturl[1])) {
+            $url .= '/'.$spliturl[1];
+        }
     }
+    $data->url = $data->protocol.'://'.$url;
 
     $ecssettings->save_settings($data);
 

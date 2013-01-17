@@ -303,7 +303,9 @@ class campusconnect_directorytree {
     public function set_still_exists() {
         $this->stillexists = true;
         if ($this->mappingmode == self::MODE_DELETED) {
-            throw new coding_exception("ECS updating directory tree that is marked as deleted");
+            //throw new coding_exception("ECS updating directory tree that is marked as deleted");
+            // Not sure how it ended up being marked as deleted, but try to resurrect it now.
+            $this->update_field('mappingmode', self::MODE_PENDING);
         }
     }
 
@@ -536,8 +538,8 @@ class campusconnect_directorytree {
 
                 if (array_key_exists($directory->id, $currenttrees)) {
                     // Update existing tree.
-                    $currenttrees[$directory->id]->set_title($directory->title);
                     $currenttrees[$directory->id]->set_still_exists(); // So we can track any trees that no longer exist on ECS.
+                    $currenttrees[$directory->id]->set_title($directory->title);
                     $ret->updated[] = $currenttrees[$directory->id]->resourceid;
                 } else {
                     // Create new tree.
@@ -1216,6 +1218,10 @@ class campusconnect_directory {
      */
     public function set_still_exists() {
         $this->stillexists = true;
+        if ($this->mapping == self::MAPPING_DELETED) {
+            // Should not be the case, but resurrect the directory by setting the mapping to automatic
+            $this->set_field('mapping', self::MAPPING_AUTOMATIC);
+        }
     }
 
     /**

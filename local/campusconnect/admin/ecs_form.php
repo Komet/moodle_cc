@@ -66,7 +66,7 @@ class campusconnect_ecs_form extends moodleform {
         $mform->disabledIf('certpath', 'auth', 'neq', campusconnect_ecssettings::AUTH_CERTIFICATE);
         $mform->addElement('text', 'keypath', get_string('certificatekey', 'local_campusconnect'), array('size' => 70));
         $mform->disabledIf('keypath', 'auth', 'neq', campusconnect_ecssettings::AUTH_CERTIFICATE);
-        $mform->addElement('text', 'keypass', get_string('keypassword', 'local_campusconnect'));
+        $mform->addElement('password', 'keypass', get_string('keypassword', 'local_campusconnect'));
         $mform->disabledIf('keypass', 'auth', 'neq', campusconnect_ecssettings::AUTH_CERTIFICATE);
         $mform->addElement('text', 'cacertpath', get_string('cacertificate', 'local_campusconnect'), array('size' => 70));
         $mform->disabledIf('cacertpath', 'auth', 'neq', campusconnect_ecssettings::AUTH_CERTIFICATE);

@@ -424,26 +424,36 @@ class campusconnect_directorytree {
      */
     public static function convert_from_old_schema($directories) {
         if (isset($directories->nodes)) {
-            return; // New schema => nothing to do
+            // New schema - push a root node into the list of nodes for easier processing
+            $node = (object)array(
+                'id' => $directories->rootID,
+                'title' => $directories->directoryTreeTitle,
+                'term' => $directories->term,
+                'parent' => (object)array(
+                    'id' => 0,
+                )
+            );
+            array_unshift($directories->nodes, $node);
+        } else {
+            // Old schema - create 'nodes' array from the single directory structure
+            $node = (object)array(
+                'id' => $directories->id,
+                'title' => $directories->title,
+                'parent' => (object)array(
+                    'id' => $directories->parent->id
+                )
+            );
+            if (isset($directories->order)) {
+                $node->order = $directories->order;
+            }
+            if (isset($directories->term)) {
+                $node->term = $directories->term;
+            }
+            if (isset($directories->parent->title)) {
+                $node->parent->title = $directories->parent->title;
+            }
+            $directories->nodes = array($node);
         }
-
-        $node = (object)array(
-            'id' => $directories->id,
-            'title' => $directories->title,
-            'parent' => (object)array(
-                'id' => $directories->parent->id
-            )
-        );
-        if (isset($directories->order)) {
-            $node->order = $directories->order;
-        }
-        if (isset($directories->term)) {
-            $node->term = $directories->term;
-        }
-        if (isset($directories->parent->title)) {
-            $node->parent->title = $directories->parent->title;
-        }
-        $directories->nodes = array($node);
     }
 
     /**
@@ -1353,8 +1363,9 @@ class campusconnect_directory {
         }
 
         // Not found - create it.
+        $order = isset($directory->order) ? $directory->order : null;
         $dir = new campusconnect_directory();
-        $dir->create($resourceid, $rootid, $directory->id, $directory->parent->id, $directory->title, $directory->order);
+        $dir->create($resourceid, $rootid, $directory->id, $directory->parent->id, $directory->title, $order);
         $dir->set_still_exists();
         return $dir;
     }

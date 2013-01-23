@@ -74,11 +74,15 @@ foreach ($ecslist as $ecsid => $ecs) {
     } else {
         print '<td style="text-align: center">'.get_string('no').'</td>';
     }
+    $certexpiry = $ecsdetails->get_certificate_expiry();
+    if ($certexpiry) {
+        $certexpiry = '<strong>'.get_string('certificateexpiry', 'local_campusconnect').':</strong> '.$certexpiry;
+    }
     print "<td><div class='info'>
         <strong><a href='".new moodle_url('/local/campusconnect/admin/ecs.php', array('id'=>$ecsid))."'>$ecs</a></strong><br />
-        <strong>Server Address:</strong> $url
+        <strong>".get_string('serveraddress', 'local_campusconnect').":</strong> $url $certexpiry
     </div></td>";
-    print '<td><a href='.new moodle_url('/local/campusconnect/admin/ecs.php', array('id'=>$ecsid)).'>Edit</a> | <a href='.new moodle_url('/local/campusconnect/admin/ecs.php', array('delete'=>$ecsid, 'sesskey'=>sesskey())).'>Delete</a></td>';
+    print '<td><a href='.new moodle_url('/local/campusconnect/admin/ecs.php', array('id'=>$ecsid)).'>'.get_string('edit').'</a> | <a href='.new moodle_url('/local/campusconnect/admin/ecs.php', array('delete'=>$ecsid, 'sesskey'=>sesskey())).'>'.get_string('delete').'</a></td>';
     print '</tr>';
 }
 print '</tbody></table>';

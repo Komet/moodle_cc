@@ -213,6 +213,17 @@ class campusconnect_ecssettings {
         return explode(',',$this->notifycourses);
     }
 
+    public function get_certificate_expiry() {
+        if ($this->auth != self::AUTH_CERTIFICATE) {
+            return '';
+        }
+        if (empty($this->certpath)) {
+            return '';
+        }
+        $certinfo = openssl_x509_parse(file_get_contents($this->certpath));
+        return userdate($certinfo['validTo_time_t'], get_string('strftimedate'));
+    }
+
     protected function load_settings($ecsid) {
         global $DB;
 

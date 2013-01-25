@@ -1251,7 +1251,7 @@ class campusconnect_parallelgroups {
         foreach ($course->parallelGroups as $group) {
             $details = new stdClass();
             $details->id = $group->id;
-            $details->title = $group->title;
+            $details->title = !empty($group->title) ? $group->title : '';
             $details->comment = isset($group->comment) ? $group->comment : null;
             if (isset($group->lecturers)) {
                 // Only use the first lecturer name => map all groups starting with same lecturer onto same course
@@ -1470,7 +1470,7 @@ class campusconnect_parallelgroups {
         require_once($CFG->dirroot.'/group/lib.php');
         $data = new stdClass();
         $data->courseid = $course->id;
-        $data->name = $pgroup->title;
+        $data->name = !empty($pgroup->title) ? $pgroup->title : $pgroup->id;
         if (isset($pgroup->comment) && !is_null($pgroup->comment)) {
             $data->description = $pgroup->comment;
             $data->descriptionformat = FORMAT_PLAIN;
@@ -1495,7 +1495,7 @@ class campusconnect_parallelgroups {
         $extra = '';
         if ($pgroupmode == self::PGROUP_SEPARATE_COURSES) {
             $pgroup = reset($pcourse);
-            if (!empty($pgroup)) {
+            if (!empty($pgroup->title)) {
                 $extra = " ({$pgroup->title})";
             }
         } else if ($pgroupmode == self::PGROUP_SEPARATE_LECTURERS) {

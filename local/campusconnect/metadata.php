@@ -585,7 +585,8 @@ class campusconnect_metadata {
                     }
                     break;
                 case 'link':
-                    $details[$fieldname] = html_writer::link($details[$basename]->href, $details[$basename]->title);
+                    $title = (isset($details[$basename]->title)) ? $details[$basename]->title : $details[$basename]->href;
+                    $details[$fieldname] = html_writer::link($details[$basename]->href, $title);
                     break;
                 case 'lang': // TODO davo - test if this needs any conversion.
                 case 'url':

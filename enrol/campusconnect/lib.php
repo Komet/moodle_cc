@@ -33,22 +33,22 @@ class enrol_campusconnect_plugin extends enrol_plugin {
         return true;
     }
 
-    public function allow_enrol(stdClass $instance) {
+    public function allow_enrol($instance) {
         // users with enrol cap may NOT enrol other users via this plugin
         return false;
     }
 
-    public function allow_unenrol(stdClass $instance) {
+    public function allow_unenrol($instance) {
         // users with unenrol cap may NOT unenrol other users via this plugin
         return false;
     }
 
-    public function allow_manage(stdClass $instance) {
+    public function allow_manage($instance) {
         // users with manage cap may NOT tweak period and status
         return false;
     }
 
-    public function instance_deleteable(stdClass $instance) {
+    public function instance_deleteable($instance) {
         // users should NOT be able to delete the instance
         return false;
     }

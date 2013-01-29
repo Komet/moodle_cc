@@ -99,6 +99,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             debuglog("Destination URL is not a Moodle course");
             return; // URL didn't match a Moodle course URL
         }
+        debuglog("Destination URL: {$SESSION->wantsurl}");
 
         require_once($CFG->dirroot.'/local/campusconnect/connect.php');
         $connecterrors = false;

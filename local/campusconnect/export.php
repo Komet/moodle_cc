@@ -317,7 +317,7 @@ class campusconnect_export {
             }
             $metadata = new campusconnect_metadata($connect->get_settings());
             $data = $metadata->map_course_to_remote($course);
-            $url = new moodle_url('/course/view.php', array('id' => $course->id));
+            $url = new moodle_url('/local/campusconnect/viewcourse.php', array('id' => $course->id));
             $data->url = $url->out();
 
             // Update ECS server.
@@ -489,7 +489,7 @@ class campusconnect_export {
                 } else {
                     $course = $DB->get_record('course', array('id' => $courseid));
                     $data = $metadata->map_course_to_remote($course);
-                    $url = new moodle_url('/course/view.php', array('id' => $course->id));
+                    $url = new moodle_url('/local/campusconnect/viewcourse.php', array('id' => $course->id));
                     $data->url = $url->out();
 
                     $connect->update_resource($resourceid, campusconnect_event::RES_COURSELINK, $data, null, $mids);
@@ -512,7 +512,7 @@ class campusconnect_export {
 
             $course = $DB->get_record('course', array('id' => $courseid));
             $data = $metadata->map_course_to_remote($course);
-            $url = new moodle_url('/course/view.php', array('id' => $course->id));
+            $url = new moodle_url('/local/campusconnect/viewcourse.php', array('id' => $course->id));
             $data->url = $url->out();
 
             $resourceid = $connect->add_resource(campusconnect_event::RES_COURSELINK, $data, null, $mids);

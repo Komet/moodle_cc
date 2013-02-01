@@ -477,7 +477,7 @@ class campusconnect_courselink {
         $realm = campusconnect_connect::generate_realm($courselink->url, $userdata);
         $post = (object)array('realm' => $realm);
         if (self::INCLUDE_LEGACY_PARAMS) {
-            //$post->url = $courselink->url;
+            $post->url = $courselink->url;
         }
 
         return $connect->add_auth($post, $courselink->mid);

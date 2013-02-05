@@ -41,7 +41,8 @@ $expectedparams = array(
 );
 $destparams = array('id' => $courseid);
 foreach ($expectedparams as $expectedparam) {
-    if ($val = optional_param($expectedparam, null, PARAM_TEXT)) {
+    $val = optional_param($expectedparam, null, PARAM_TEXT);
+    if (!is_null($val)) {
         $destparams[$expectedparam] = $val;
     }
 }

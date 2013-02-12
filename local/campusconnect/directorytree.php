@@ -584,7 +584,8 @@ class campusconnect_directorytree {
         $ecsid = $ecssettings->get_id();
         $cms = campusconnect_participantsettings::get_cms_participant();
         if (!$cms || $cms->get_mid() != $mid || $cms->get_ecs_id() != $ecsid) {
-            throw new campusconnect_directorytree_exception("Received create directory event from non-CMS participant");
+            mtrace("Warning: received create directory event from non-CMS participant");
+            return true;
         }
 
         if (is_array($directories)) {
@@ -647,7 +648,8 @@ class campusconnect_directorytree {
         $ecsid = $ecssettings->get_id();
         $cms = campusconnect_participantsettings::get_cms_participant();
         if (!$cms || $cms->get_mid() != $mid || $cms->get_ecs_id() != $ecsid) {
-            throw new campusconnect_directorytree_exception("Received update directory event from non-CMS participant");
+            mtrace("Warning: received update directory event from non-CMS participant");
+            return true;
         }
 
         if (is_array($directories)) {
@@ -706,8 +708,9 @@ class campusconnect_directorytree {
         global $DB;
 
         $cms = campusconnect_participantsettings::get_cms_participant();
-        if ($ecssettings->get_id() != $cms->get_ecs_id()) {
-            throw new campusconnect_directorytree_exception("Received delete directory event from non-CMS participant");
+        if (!$cms || $ecssettings->get_id() != $cms->get_ecs_id()) {
+            mtrace("Warning: received delete directory event from non-CMS participant");
+            return true;
         }
 
         $dirtrees = $DB->get_records('local_campusconnect_dirroot', array('resourceid' => $resourceid));
@@ -740,7 +743,8 @@ class campusconnect_directorytree {
         $ecsid = $ecssettings->get_id();
         $cms = campusconnect_participantsettings::get_cms_participant();
         if (!$cms || $cms->get_mid() != $mid || $cms->get_ecs_id() != $ecsid) {
-            throw new campusconnect_directorytree_exception("Received update directory event from non-CMS participant");
+            mtrace("Warning: received update directory event from non-CMS participant");
+            return;
         }
 
         // Get the details of the existing directories / trees in Moodle

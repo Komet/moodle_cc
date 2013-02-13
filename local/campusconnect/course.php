@@ -64,6 +64,9 @@ class campusconnect_course {
         if (!$cms || $cms->get_mid() != $mid || $cms->get_ecs_id() != $ecsid) {
             throw new campusconnect_course_exception("Received create course event from non-CMS participant");
         }
+        if (is_array($course)) {
+            throw new campusconnect_course_exception("Course resource must contain a single course, not an array of courses");
+        }
 
         $coursedata = self::map_course_settings($course, $ecssettings);
         if (self::get_by_resourceid($resourceid, $ecssettings->get_id())) {
@@ -186,6 +189,9 @@ class campusconnect_course {
         $ecsid = $ecssettings->get_id();
         if (!$cms || $cms->get_mid() != $mid || $cms->get_ecs_id() != $ecsid) {
             throw new campusconnect_course_exception("Received update course event from non-CMS participant");
+        }
+        if (is_array($course)) {
+            throw new campusconnect_course_exception("Course resource must contain a single course, not an array of courses");
         }
 
         $currcourses = self::get_by_resourceid($resourceid, $ecsid);

@@ -26,6 +26,7 @@ defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
 require_once($CFG->dirroot.'/local/campusconnect/notify.php');
+require_once($CFG->dirroot.'/local/campusconnect/log.php');
 
 /**
  * Exception thrown by the campusconnect_courselink object
@@ -62,15 +63,17 @@ class campusconnect_course {
         $mid = $transferdetails->get_sender_mid();
         $ecsid = $ecssettings->get_id();
         if (!$cms || $cms->get_mid() != $mid || $cms->get_ecs_id() != $ecsid) {
-            throw new campusconnect_course_exception("Received create course event from non-CMS participant");
+            campusconnect_log::add("Recieved create course ({$resourceid}) event from non-CMS participant");
+            return true; // Remove the event.
         }
         if (is_array($course)) {
-            throw new campusconnect_course_exception("Course resource must contain a single course, not an array of courses");
+            campusconnect_log::add("Course resource ({$resourceid}) must contain a single course, not an array of courses");
+            return true; // Remove the event.
         }
 
         $coursedata = self::map_course_settings($course, $ecssettings);
         if (self::get_by_resourceid($resourceid, $ecssettings->get_id())) {
-            debugging("Cannot create a course from resource $resourceid - it already exists.");
+            campusconnect_log::add("Cannot create a course from resource $resourceid - it already exists.");
             return true; // The event should be removed from the queue, so we don't get this error again.
         }
 
@@ -188,10 +191,12 @@ class campusconnect_course {
         $mid = $transferdetails->get_sender_mid();
         $ecsid = $ecssettings->get_id();
         if (!$cms || $cms->get_mid() != $mid || $cms->get_ecs_id() != $ecsid) {
-            throw new campusconnect_course_exception("Received update course event from non-CMS participant");
+            campusconnect_log::add("Recieved update course ({$resourceid}) event from non-CMS participant");
+            return true; // Remove the event.
         }
         if (is_array($course)) {
-            throw new campusconnect_course_exception("Course resource must contain a single course, not an array of courses");
+            campusconnect_log::add("Course resource ({$resourceid}) must contain a single course, not an array of courses");
+            return true; // Remove the event.
         }
 
         $currcourses = self::get_by_resourceid($resourceid, $ecsid);
@@ -202,7 +207,8 @@ class campusconnect_course {
 
         $currcourse = reset($currcourses);
         if ($currcourse->mid != $mid) {
-            throw new campusconnect_course_exception("Participant $mid attempted to update resource created by participant {$currcourse->mid}");
+            campusconnect_log::add("Participant $mid attempted to update resource created by participant {$currcourse->mid}");
+            return true; // Remove the event.
         }
 
         $categories = self::get_categories($course, $ecssettings);
@@ -670,7 +676,7 @@ class campusconnect_course {
      * @param campusconnect_ecssettings $ecssettings
      * @return campusconnect_course_category[] empty if the directory is not yet mapped, so the course cannot be created
      */
-    protected static function get_categories(stdClass $course, campusconnect_ecssettings $ecssettings) {
+    protected static function get_categories($course, campusconnect_ecssettings $ecssettings) {
         global $CFG;
         require_once($CFG->dirroot.'/local/campusconnect/filtering.php');
 

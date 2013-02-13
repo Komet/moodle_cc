@@ -153,7 +153,6 @@ $jsmodule = array(
     ),
     'requires' => array('node', 'event')
 );
-$PAGE->requires->yui2_lib('treeview');
 $PAGE->requires->js_init_call('M.campusconnect_directorymapping.init', array($opts), true, $jsmodule);
 
 // Generate the category & directory trees.

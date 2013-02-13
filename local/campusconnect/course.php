@@ -68,6 +68,7 @@ class campusconnect_course {
         }
         if (is_array($course)) {
             campusconnect_log::add("Course resource ({$resourceid}) must contain a single course, not an array of courses");
+            campusconnect_log::add_object($course);
             return true; // Remove the event.
         }
 
@@ -196,6 +197,7 @@ class campusconnect_course {
         }
         if (is_array($course)) {
             campusconnect_log::add("Course resource ({$resourceid}) must contain a single course, not an array of courses");
+            campusconnect_log::add_object($course);
             return true; // Remove the event.
         }
 

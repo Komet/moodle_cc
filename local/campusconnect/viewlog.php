@@ -32,4 +32,6 @@ if (!is_siteadmin()) {
     die('Admin only');
 }
 
+echo '<pre>';
 campusconnect_log::outputlog();
+echo '</pre>';

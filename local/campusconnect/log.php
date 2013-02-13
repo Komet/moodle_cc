@@ -44,6 +44,13 @@ class campusconnect_log {
         }
     }
 
+    public static function add_object($obj) {
+        ob_start();
+        print_r($obj);
+        $out = ob_get_clean();
+        self::add($out, false);
+    }
+
     public static function outputlog() {
         global $CFG;
         $filename = $CFG->dataroot.'/'.self::LOGNAME;

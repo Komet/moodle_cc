@@ -23,6 +23,8 @@
  */
 
 defined('MOODLE_INTERNAL') || die();
+global $CFG;
+require_once($CFG->dirroot.'/local/campusconnect/log.php');
 
 class campusconnect_directorytree_exception extends moodle_exception {
     function __construct($msg) {
@@ -584,7 +586,7 @@ class campusconnect_directorytree {
         $ecsid = $ecssettings->get_id();
         $cms = campusconnect_participantsettings::get_cms_participant();
         if (!$cms || $cms->get_mid() != $mid || $cms->get_ecs_id() != $ecsid) {
-            mtrace("Warning: received create directory event from non-CMS participant");
+            campusconnect_log::add("Warning: received create directory ({$resourceid}) event from non-CMS participant");
             return true;
         }
 
@@ -648,7 +650,7 @@ class campusconnect_directorytree {
         $ecsid = $ecssettings->get_id();
         $cms = campusconnect_participantsettings::get_cms_participant();
         if (!$cms || $cms->get_mid() != $mid || $cms->get_ecs_id() != $ecsid) {
-            mtrace("Warning: received update directory event from non-CMS participant");
+            campusconnect_log::add("Warning: received update directory ({$resourceid}) event from non-CMS participant");
             return true;
         }
 
@@ -709,7 +711,7 @@ class campusconnect_directorytree {
 
         $cms = campusconnect_participantsettings::get_cms_participant();
         if (!$cms || $ecssettings->get_id() != $cms->get_ecs_id()) {
-            mtrace("Warning: received delete directory event from non-CMS participant");
+            campusconnect_log::add("Warning: received delete directory ({$resourceid}) event from non-CMS participant");
             return true;
         }
 
@@ -743,7 +745,7 @@ class campusconnect_directorytree {
         $ecsid = $ecssettings->get_id();
         $cms = campusconnect_participantsettings::get_cms_participant();
         if (!$cms || $cms->get_mid() != $mid || $cms->get_ecs_id() != $ecsid) {
-            mtrace("Warning: received update directory event from non-CMS participant");
+            campusconnect_log::add("Warning: received update directory ({$resourceid}) event from non-CMS participant");
             return;
         }
 

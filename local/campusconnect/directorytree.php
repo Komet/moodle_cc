@@ -1542,9 +1542,9 @@ class campusconnect_directory {
             self::$dirs[$rootid][$recordid] = $directory;
         }
         if (!isset(self::$newdirs[$rootid])) {
-            $newdirs[$rootid] = array();
+            self::$newdirs[$rootid] = array();
         }
-        $newdirs[$rootid][$recordid] = $directory;
+        self::$newdirs[$rootid][$recordid] = $directory;
     }
 
     /**

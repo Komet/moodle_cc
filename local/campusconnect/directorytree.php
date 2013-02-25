@@ -257,7 +257,7 @@ class campusconnect_directorytree {
      */
     public function unmap_category() {
         if ($this->mappingmode == self::MODE_DELETED) {
-            throw new coding_exception("Cannot map deleted directory trees");
+            throw new coding_exception("Cannot unmap deleted directory trees");
         }
 
         if (empty($this->categoryid)) {
@@ -801,9 +801,9 @@ class campusconnect_directorytree {
     public static function check_all_mappings() {
         global $DB;
 
-        // Check all directory tree mappings.
+        // Check all (non-deleted) directory tree mappings.
         $categoryids = array();
-        $trees = $DB->get_records('local_campusconnect_dirroot');
+        $trees = $DB->get_records_select('local_campusconnect_dirroot', 'mappingmode <> ?', array(self::MODE_DELETED));
         /** @var $dirtrees campusconnect_directorytree[] */
         $dirtrees = array();
         foreach ($trees as $tree) {
@@ -1556,6 +1556,9 @@ class campusconnect_directory {
     public static function create_all_categories($rootid, $rootcategoryid) {
         $dirs = self::get_directories($rootid);
         foreach ($dirs as $dir) {
+            if ($dir->mapping == self::MAPPING_DELETED) {
+                continue; // Ignore any deleted directories when creating categories.
+            }
             if (!$dir->get_category_id()) {
                 $dir->create_category($rootcategoryid, false);
             }

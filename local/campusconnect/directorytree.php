@@ -532,10 +532,14 @@ class campusconnect_directorytree {
                 }
 
                 if ($directory->id != $directories->rootID) {
-                    throw new campusconnect_directorytree_exception("Root directory id ($directory->id) does not match the rootID ($directories->rootID)");
+                    campusconnect_log::add("Root directory id ($directory->id) does not match the rootID ($directories->rootID)");
+                    campusconnect_log::add_object($directories);
+                    throw new campusconnect_directorytree_exception("Root directory id ($directory->id) does not match the rootID ($directories->rootID) - see log file for details");
                 }
                 if ($directory->title != $directories->directoryTreeTitle) {
-                    throw new campusconnect_directorytree_exception("Root directory title ($directory->title) does not match the directoryTreeTitle ($directories->directoryTreeTitle)");
+                    campusconnect_log::add("Root directory title ($directory->title) does not match the directoryTreeTitle ($directories->directoryTreeTitle)");
+                    campusconnect_log::add_object($directories);
+                    throw new campusconnect_directorytree_exception("Root directory title ($directory->title) does not match the directoryTreeTitle ($directories->directoryTreeTitle) -  see log file for details");
                 }
 
                 if (array_key_exists($directory->id, $currenttrees)) {

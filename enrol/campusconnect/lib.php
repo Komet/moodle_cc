@@ -33,17 +33,17 @@ class enrol_campusconnect_plugin extends enrol_plugin {
         return true;
     }
 
-    public function allow_enrol($instance) {
+    public function allow_enrol(stdClass $instance) {
         // users with enrol cap may NOT enrol other users via this plugin
         return false;
     }
 
-    public function allow_unenrol($instance) {
+    public function allow_unenrol(stdClass $instance) {
         // users with unenrol cap may NOT unenrol other users via this plugin
         return false;
     }
 
-    public function allow_manage($instance) {
+    public function allow_manage(stdClass $instance) {
         // users with manage cap may NOT tweak period and status
         return false;
     }

@@ -60,4 +60,9 @@ class campusconnect_log {
             echo "No log entries";
         }
     }
+
+    public static function clearlog() {
+        global $CFG;
+        @unlink($CFG->dataroot.'/'.self::LOGNAME);
+    }
 }

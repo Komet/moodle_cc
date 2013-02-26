@@ -32,6 +32,20 @@ if (!is_siteadmin()) {
     die('Admin only');
 }
 
+if (optional_param('confirmclearlog', null, PARAM_INT)) {
+    require_sesskey();
+    campusconnect_log::clearlog();
+    redirect($PAGE->url);
+
+} else if (optional_param('clearlog', null, PARAM_INT)) {
+    echo '<h2>Are you sure you want to clear all log entries?</h2>';
+    echo '<a href="'.$PAGE->url->out(true, array('confirmclearlog' => 1, 'sesskey' => sesskey())).'">Yes</a>';
+    echo '&nbsp;&nbsp;&nbsp;&nbsp;<a href="'.$PAGE->url->out(true).'">No</a>';
+    die();
+}
+
+echo '<a href="'.$PAGE->url->out(true, array('clearlog' => 1)).'">Clear log</a>';
+
 echo '<pre>';
 campusconnect_log::outputlog();
 echo '</pre>';

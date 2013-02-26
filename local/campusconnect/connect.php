@@ -711,7 +711,7 @@ class campusconnect_connect {
      * Given a list of URIs, download each of the resources from the URIs, JSON decode them and return as an
      * array
      * @param $urilist
-     * @return stdClass[]
+     * @return stdClass
      */
     protected function get_from_uri_list($urilist) {
         $ret = array();
@@ -738,12 +738,18 @@ class campusconnect_connect {
                 $details = "\nURL: $url \nReturned data: $res";
                 throw new campusconnect_connect_exception('Invalid item downloaded from resource'.$details);
             }
+
+            return $result;
+            /*
+            // Retained in case we want to return more than one item in the furture.
             if (is_array($result)) {
                 $ret = array_merge($ret, $result);
             } else {
                 $ret[] = $result;
             }
+            */
         }
-        return $ret;
+        //return $ret;
+        return null;
     }
 }

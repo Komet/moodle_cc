@@ -67,9 +67,8 @@ class campusconnect_course {
             return true; // Remove the event.
         }
         if (is_array($course)) {
-            campusconnect_log::add("Course resource ({$resourceid}) must contain a single course, not an array of courses");
-            campusconnect_log::add_object($course);
-            return true; // Remove the event.
+            campusconnect_log::add("Course resource ({$resourceid}) should contain a single course, not an array of courses");
+            $course = reset($course);
         }
 
         $coursedata = self::map_course_settings($course, $ecssettings);
@@ -197,8 +196,7 @@ class campusconnect_course {
         }
         if (is_array($course)) {
             campusconnect_log::add("Course resource ({$resourceid}) must contain a single course, not an array of courses");
-            campusconnect_log::add_object($course);
-            return true; // Remove the event.
+            $course = reset($course);
         }
 
         $currcourses = self::get_by_resourceid($resourceid, $ecsid);

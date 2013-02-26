@@ -349,6 +349,10 @@ class campusconnect_receivequeue {
      * @return bool true if successful
      */
     protected function process_course_event(campusconnect_event $event) {
+        if (!campusconnect_course::enabled()) {
+            return true; // Course creation disabled.
+        }
+
         $settings = new campusconnect_ecssettings($event->get_ecs_id());
         $status = $event->get_status();
 

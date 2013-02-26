@@ -40,6 +40,7 @@ class campusconnect_coursefiltering_form extends moodleform {
 
         // Form elements
         $mform->addElement('header', '', get_string('coursefilteringsettings', 'local_campusconnect'));
+        $mform->addElement('selectyesno', 'courseenabled', get_string('courseenabled', 'local_campusconnect'));
         $mform->addElement('selectyesno', 'enabled', get_string('enablefiltering', 'local_campusconnect'));
         $mform->addElement('select', 'defaultcategory', get_string('defaultcategory', 'local_campusconnect'), $categorylist);
         $mform->addElement('selectyesno', 'usesinglecategory', get_string('usesinglecategory', 'local_campusconnect'));

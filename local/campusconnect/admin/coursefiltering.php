@@ -44,6 +44,7 @@ $PAGE->set_url($url);
 
 // Process the general settings form.
 $globalsettings = campusconnect_filtering::load_global_settings();
+$globalsettings['courseenabled'] = campusconnect_course::enabled();
 $attributescount = max(count($globalsettings['attributes']), 3);
 $custom = array(
     'attributes' => campusconnect_metadata::list_remote_fields(false),
@@ -66,6 +67,7 @@ if ($data = $form->get_data()) {
         }
     }
     campusconnect_filtering::save_global_settings($data);
+    campusconnect_course::set_enabled($data->courseenabled);
     redirect($PAGE->url); // To remove the POST params from the page load.
 }
 

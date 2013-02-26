@@ -56,6 +56,7 @@ $string['contentnotificationdesc'] = 'Enter one or more usernames of users (comm
 $string['course'] = 'Course';
 $string['courseattributes'] = 'Course attributes';
 $string['courseavailablefields'] = 'Available Fields for Course';
+$string['courseenabled'] = 'Import courses';
 $string['courseextavailablefields'] = 'Available Fields for External Course';
 $string['coursefiltering'] = 'Course filtering';
 $string['coursefilteringsettings'] = 'Course filtering settings';

@@ -46,6 +46,34 @@ class campusconnect_course_exception extends moodle_exception {
  */
 class campusconnect_course {
 
+    protected static $enabled = null;
+
+    /**
+     * Is course creation enabled?
+     * @return bool
+     */
+    public static function enabled() {
+        if (is_null(self::$enabled)) {
+            self::$enabled = get_config('local_campusconnect', 'courseenabled');
+            if (self::$enabled === false) {
+                self::$enabled = 1; // Default to enabled, if no value yet saved.
+            }
+        }
+        return (self::$enabled != 0);
+    }
+
+    /**
+     * Update the settings for course creation.
+     * @param $enabled
+     */
+    public static function set_enabled($enabled) {
+        $val = $enabled ? 1 : 0;
+        if (self::$enabled != $val) {
+            set_config('courseenabled', $val, 'local_campusconnect');
+            self::$enabled = $val;
+        }
+    }
+
     /**
      * Used by the ECS event processing to create new courses
      * @param int $resourceid - the ID on the ECS server
@@ -468,6 +496,10 @@ class campusconnect_course {
         global $DB;
 
         $ret = (object)array('created' => array(), 'updated' => array(), 'deleted' => array());
+
+        if (!campusconnect_course::enabled()) {
+            return $ret; // Course creation disabled.
+        }
 
         // Get the CMS participant.
         /** @var $cms campusconnect_participantsettings */

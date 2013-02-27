@@ -38,6 +38,7 @@ $expectedparams = array(
     'ecs_firstname',
     'ecs_lastname',
     'ecs_email',
+    'ecs_institution'
 );
 $destparams = array('id' => $courseid);
 foreach ($expectedparams as $expectedparam) {

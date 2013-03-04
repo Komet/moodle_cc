@@ -49,7 +49,7 @@ foreach ($expectedparams as $expectedparam) {
 }
 
 // Make sure 'wantsurl' param (used by auth_campusconnect) includes the ECS authentication details
-$url = new moodle_url('/course/view.php', $destparams);
+$url = new moodle_url('/local/campusconnect/viewcourse.php', $destparams);
 $SESSION->wantsurl = $url->out(false);
 
 // Make sure the 'wantsurl' param is not overridden by require_login => this will redirect to the course + test

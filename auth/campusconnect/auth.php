@@ -95,9 +95,14 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         }
         $courseurl = new moodle_url('/course/view.php', array('id' => $paramassoc['id']));
         $courseurl = $courseurl->out();
+        $courseviewurl = new moodle_url('/local/campusconnect/viewcourse.php', array('id' => $paramassoc['id']));
+        $courseviewurl = $courseviewurl->out();
         if (substr_compare($SESSION->wantsurl, $courseurl, 0, strlen($courseurl)) !== 0) {
-            debuglog("Destination URL is not a Moodle course");
-            return; // URL didn't match a Moodle course URL
+            $courseurl = $courseviewurl;
+            if (substr_compare($SESSION->wantsurl, $courseurl, 0, strlen($courseurl)) !== 0) {
+                debuglog("Destination URL is not a Moodle course");
+                return; // URL didn't match a Moodle course URL
+            }
         }
         debuglog("Destination URL: {$SESSION->wantsurl}");
 

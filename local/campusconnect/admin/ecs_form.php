@@ -33,9 +33,8 @@ class campusconnect_ecs_form extends moodleform {
 
     public function definition() {
 
-        global $DB;
+        $roles = role_fix_names(get_all_roles(), context_system::instance(), ROLENAME_ORIGINAL);
 
-        $roles = $DB->get_records('role');
         $strrequired = get_string('required');
 
         $mform = $this->_form;
@@ -97,7 +96,7 @@ class campusconnect_ecs_form extends moodleform {
 
         $optroles = array();
         foreach ($roles as $role) {
-            $optroles[$role->shortname] = $role->name;
+            $optroles[$role->shortname] = $role->localname;
         }
         $mform->addElement('select', 'importrole', get_string('roleassignments', 'local_campusconnect'), $optroles);
         $mform->setDefault('importrole', 'student');

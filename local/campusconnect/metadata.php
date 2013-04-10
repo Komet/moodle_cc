@@ -321,7 +321,7 @@ class campusconnect_metadata {
         }
 
         if (is_null($this->importmappings['summary'])) {
-            $this->importmappings['summary'] = self::generate_default_summary();
+            $this->importmappings['summary'] = self::generate_default_summary($external);
         }
     }
 

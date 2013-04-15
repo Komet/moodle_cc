@@ -484,7 +484,8 @@ class campusconnect_connect {
         if (!isset($header['Location'])) {
             return false;
         }
-        $id = array_pop(explode('/', $header['Location']));
+        $location = explode('/', $header['Location']);
+        $id = array_pop($location);
         return intval($id);
     }
 

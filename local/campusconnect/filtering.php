@@ -404,7 +404,7 @@ class campusconnect_filtering {
             }
             $childcats = html_writer::tag('ul', $childcats);
         }
-        $name = s($category->name);
+        $name = format_string($category->name);
         if ($category->id == $selectedcategory) {
             $name .= ' ===&gt;';
             $ret = html_writer::tag('span', $name, array('class' => 'selectedcategory'));

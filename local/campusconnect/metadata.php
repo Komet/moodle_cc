@@ -666,7 +666,7 @@ class campusconnect_metadata {
             if (isset($course->$fieldname)) {
                 switch ($fieldtype) {
                 case 'date':
-                    $course->$fieldname = userdate($course->$fieldname, '%Y-%m-%dT%H:%M:%S%z');
+                    $course->$fieldname = userdate($course->$fieldname, '%Y-%m-%dT%H:%M:%S%z', 99, false);
                     break;
                 case 'list':
                     $course->$fieldname = explode(',', $course->$fieldname);

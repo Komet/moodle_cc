@@ -28,6 +28,8 @@ global $CFG;
 require_once($CFG->dirroot.'/local/campusconnect/ecssettings.php');
 require_once($CFG->dirroot.'/local/campusconnect/urilist.php');
 
+define('CAMPUSCONNECT_LOG_CONNECTION_DATA', true);
+
 class campusconnect_connect_exception extends moodle_exception {
     function __construct($msg) {
         parent::__construct('error', 'local_campusconnect', '', $msg);
@@ -118,6 +120,8 @@ class campusconnect_connect {
         $this->init_connection('/sys/auths');
         $this->set_memberships($targetmid);
         $this->set_postfields($poststr);
+
+        self::log($poststr);
 
         $result = $this->call();
         if (!$this->check_status(self::HTTP_CODE_CREATED)) {
@@ -297,6 +301,9 @@ class campusconnect_connect {
         }
         $this->init_connection('/'.$type, $sendurilist);
         $this->set_postfields($poststr);
+
+        self::log($poststr);
+
         $this->include_response_header();
         if (!is_null($targetmids)) {
             $this->set_memberships($targetmids);
@@ -357,6 +364,9 @@ class campusconnect_connect {
         } else {
             $poststr = json_encode($post);
         }
+
+        self::log($poststr);
+
         fwrite($fp, $poststr);
         fseek($fp, 0);
         $this->set_putfile($fp, strlen($poststr));
@@ -591,6 +601,8 @@ class campusconnect_connect {
             throw new coding_exception('Unknown auth type: '.$this->settings->get_auth_type());
             break;
         }
+
+        self::log($this->settings->get_url().$resourcepath);
     }
 
     /**
@@ -670,6 +682,8 @@ class campusconnect_connect {
         if ($this->debug) {
             var_dump(curl_getinfo($this->curlresource));
         }
+
+        self::log($res);
 
         return $res;
     }
@@ -752,5 +766,18 @@ class campusconnect_connect {
         }
         //return $ret;
         return null;
+    }
+
+    /**
+     * If CAMPUSCONNECT_LOG_JSON_DATA is defined, output the msg to the log file.
+     * @param $msg
+     */
+    protected function log($msg) {
+        global $CFG;
+        if (!defined('CAMPUSCONNECT_LOG_CONNECTION_DATA')) {
+            return;
+        }
+        require_once($CFG->dirroot.'/local/campusconnect/log.php');
+        campusconnect_log::add($msg, false);
     }
 }

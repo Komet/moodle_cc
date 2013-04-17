@@ -128,7 +128,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             foreach ($ecslist as $ecsid => $ecsname) {
                 $settings = new campusconnect_ecssettings($ecsid);
                 debuglog("Comparing hash URL: {$baseurl} with ECS server '$ecsname' ($ecsid): ".$settings->get_url());
-                if ($settings->get_url() == $baseurl) {
+                if (self::strip_port($settings->get_url()) == self::strip_port($baseurl)) {
                     // Found an ECS with matching URL - attempt to authenticate the hash.
                     try {
                         $connect = new campusconnect_connect($settings);
@@ -263,6 +263,26 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         $frm = (object)array('username' => $ccuser->username, 'password' => '');
         $user = clone($ccuser);
         auth_plugin_campusconnect::$authenticateduser = clone($ccuser);
+    }
+
+    /**
+     * Return the given URL with the port number removed.
+     * @param $url
+     * @return string
+     */
+    public static function strip_port($url) {
+        $parts = parse_url($url);
+        $wantedparts = array('scheme', 'host', 'path', 'query');
+        $ret = '';
+        foreach ($wantedparts as $part) {
+            if (array_key_exists($part, $parts)) {
+                $ret .= $parts[$part];
+                if ($part == 'scheme') {
+                    $ret .= '://';
+                }
+            }
+        }
+        return $ret;
     }
 
     /**

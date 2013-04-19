@@ -35,16 +35,14 @@ class campusconnect_rolemapping_form extends moodleform {
     protected $mappings;
 
     public function definition() {
-        global $DB;
-
-        $this->roles = $DB->get_records_menu('role', array(), 'id', 'id, name');
+        $this->roles = array();
+        $roles = role_fix_names(get_all_roles(), context_system::instance(), ROLENAME_ORIGINAL);
         $allowedroleids = get_roles_for_contextlevels(CONTEXT_COURSE);
-        foreach ($this->roles as $id => $name) {
-            if (!in_array($id, $allowedroleids)) {
-                unset($this->roles[$id]);
+        foreach ($roles as $role) {
+            if (in_array($role->id, $allowedroleids)) {
+                $this->roles[$role->id] = $role->localname;
             }
         }
-        $this->roles = role_fix_names($this->roles, context_system::instance());
     }
 
     function set_data($default_values) {

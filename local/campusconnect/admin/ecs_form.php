@@ -86,6 +86,7 @@ class campusconnect_ecs_form extends moodleform {
         $selectarray[] = $mform->createElement('select', 'pollingtimesec', '', range(0, 59));
         $selectarray[] = $mform->createElement('static', 'pollingsecs', '', get_string('seconds', 'local_campusconnect'));
         $mform->addGroup($selectarray, 'pollingtime', get_string('pollingtime', 'local_campusconnect'), array(' '), false);
+        $mform->addHelpButton('pollingtime', 'pollingtime', 'local_campusconnect');
 
         $mform->addElement('text', 'importcategory', get_string('categoryid', 'local_campusconnect'));
         $mform->addElement('static', 'categoryiddesc', '', get_string('categoryiddesc', 'local_campusconnect'));

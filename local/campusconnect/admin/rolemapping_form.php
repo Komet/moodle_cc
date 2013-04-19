@@ -38,6 +38,12 @@ class campusconnect_rolemapping_form extends moodleform {
         global $DB;
 
         $this->roles = $DB->get_records_menu('role', array(), 'id', 'id, name');
+        $allowedroleids = get_roles_for_contextlevels(CONTEXT_COURSE);
+        foreach ($this->roles as $id => $name) {
+            if (!in_array($id, $allowedroleids)) {
+                unset($this->roles[$id]);
+            }
+        }
         $this->roles = role_fix_names($this->roles, context_system::instance());
     }
 

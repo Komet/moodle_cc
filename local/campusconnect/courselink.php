@@ -425,19 +425,17 @@ class campusconnect_courselink {
      * @return mixed string | false - the URL to redirect to
      */
     public static function check_redirect($courseid) {
-        global $USER, $CFG;
+        global $USER;
 
-        require_once($CFG->dirroot.'/local/campusconnect/debuglog.php');
-
-        debuglog("\n\n****Checking for external courselink redirect for course {$courseid}****");
+        self::log("\n\n****Checking for external courselink redirect for course {$courseid}****");
 
         if (!$courselink = self::get_by_courseid($courseid)) {
-            debuglog("Not an external courselink");
+            self::log("Not an external courselink");
             return false;
         }
 
         $url = $courselink->url;
-        debuglog("Link to external url: {$url}");
+        self::log("Link to external url: {$url}");
 
         if (!isguestuser()) {
             // Add the auth token.
@@ -448,16 +446,16 @@ class campusconnect_courselink {
             }
             $hash = self::get_ecs_hash($courselink, $USER);
             if (self::INCLUDE_LEGACY_PARAMS) {
-                debuglog("Adding legacy ecs_hash: {$hash}");
+                self::log("Adding legacy ecs_hash: {$hash}");
                 $url .= 'ecs_hash='.$hash.'&';
             }
-            debuglog("Adding ecs_hash_url: ".self::get_encoded_hash_url($courselink, $hash));
+            self::log("Adding ecs_hash_url: ".self::get_encoded_hash_url($courselink, $hash));
             $url .= 'ecs_hash_url='.self::get_encoded_hash_url($courselink, $hash);
-            debuglog("Adding user params: ".self::get_user_data_params($USER));
+            self::log("Adding user params: ".self::get_user_data_params($USER));
             $url .= '&'.self::get_user_data_params($USER);
         }
 
-        debuglog("Redirecting to: {$url}");
+        self::log("Redirecting to: {$url}");
 
         return $url;
     }
@@ -601,5 +599,14 @@ class campusconnect_courselink {
         }
 
         return $ret;
+    }
+
+    protected static function log($msg) {
+        global $CFG;
+
+        if ($CFG->debug == DEBUG_DEVELOPER) {
+            require_once($CFG->dirroot.'/local/campusconnect/log.php');
+            campusconnect_log::add($msg, false, false);
+        }
     }
 }

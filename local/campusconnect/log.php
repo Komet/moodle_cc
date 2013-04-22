@@ -27,7 +27,7 @@ defined('MOODLE_INTERNAL') || die();
 class campusconnect_log {
     const LOGNAME = 'campusconnect.log';
 
-    public static function add($msg, $output = true) {
+    public static function add($msg, $output = true, $serverlog = true) {
         global $CFG;
 
         $fp = fopen($CFG->dataroot.'/'.self::LOGNAME, 'a');
@@ -42,13 +42,16 @@ class campusconnect_log {
         if ($output) {
             mtrace($msg);
         }
+        if ($serverlog) {
+            debugging($msg, DEBUG_NORMAL);
+        }
     }
 
-    public static function add_object($obj) {
+    public static function add_object($obj, $serverlog = true) {
         ob_start();
         print_r($obj);
         $out = ob_get_clean();
-        self::add($out, false);
+        self::add($out, false, $serverlog);
     }
 
     public static function outputlog() {

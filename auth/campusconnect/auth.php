@@ -64,17 +64,15 @@ class auth_plugin_campusconnect extends auth_plugin_base {
     function loginpage_hook() {
         global $SESSION, $CFG, $DB;
 
-        require_once($CFG->dirroot.'/local/campusconnect/debuglog.php');
-
-        debuglog("\n\n====Login required - checking for CampusConnect authentication====");
+        self::log("\n\n====Login required - checking for CampusConnect authentication====");
 
         if (!isset($SESSION) || !isset($SESSION->wantsurl)) {
-            debuglog("No destination URL");
+            self::log("No destination URL");
             return;
         }
         $urlparse = parse_url($SESSION->wantsurl);
         if (!is_array($urlparse) || !isset($urlparse['query'])) {
-            debuglog("Destination URL lacks query string");
+            self::log("Destination URL lacks query string");
             return;
         }
         $urlquery = str_replace('&amp;', '&', $urlparse['query']);
@@ -90,7 +88,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
 
         // Check the incoming URL matches a valid Moodle course URL
         if (!isset($paramassoc['id'])) {
-            debuglog("No courseid in the destination URL");
+            self::log("No courseid in the destination URL");
             return; // URL didn't include a course ID
         }
         $courseurl = new moodle_url('/course/view.php', array('id' => $paramassoc['id']));
@@ -100,11 +98,11 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         if (substr_compare($SESSION->wantsurl, $courseurl, 0, strlen($courseurl)) !== 0) {
             $courseurl = $courseviewurl;
             if (substr_compare($SESSION->wantsurl, $courseurl, 0, strlen($courseurl)) !== 0) {
-                debuglog("Destination URL is not a Moodle course");
+                self::log("Destination URL is not a Moodle course");
                 return; // URL didn't match a Moodle course URL
             }
         }
-        debuglog("Destination URL: {$SESSION->wantsurl}");
+        self::log("Destination URL: {$SESSION->wantsurl}");
 
         require_once($CFG->dirroot.'/local/campusconnect/connect.php');
         $connecterrors = false;
@@ -112,13 +110,13 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         $ecslist = campusconnect_ecssettings::list_ecs();
         $authenticatingecs = null;
         if (!empty($paramassoc['ecs_hash_url'])) {
-            debuglog("ecs_hash_url found: {$paramassoc['ecs_hash_url']}");
+            self::log("ecs_hash_url found: {$paramassoc['ecs_hash_url']}");
 
             // Newer 'ecs_hash_url' param included => use this to determine the ECS to authenticate against.
             $hashurl = $paramassoc['ecs_hash_url'];
             $matches = array();
             if (!preg_match('|(.*)/sys/auths/(.*)|', $hashurl, $matches)) {
-                debuglog("Unable to parse ecs_hash_url");
+                self::log("Unable to parse ecs_hash_url");
                 return; // Not able to parse the 'ecs_hash_url' successfully.
             }
             $baseurl = $matches[1];
@@ -127,23 +125,23 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             $ecslist = campusconnect_ecssettings::list_ecs();
             foreach ($ecslist as $ecsid => $ecsname) {
                 $settings = new campusconnect_ecssettings($ecsid);
-                debuglog("Comparing hash URL: {$baseurl} with ECS server '$ecsname' ($ecsid): ".$settings->get_url());
+                self::log("Comparing hash URL: {$baseurl} with ECS server '$ecsname' ($ecsid): ".$settings->get_url());
                 if (self::strip_port($settings->get_url()) == self::strip_port($baseurl)) {
                     // Found an ECS with matching URL - attempt to authenticate the hash.
                     try {
                         $connect = new campusconnect_connect($settings);
                         $auth = $connect->get_auth($hash);
-                        debuglog("Checking hash against ECS server:");
-                        debuglog_print_r($auth);
+                        self::log("Checking hash against ECS server:");
+                        self::log_print_r($auth);
                         if (is_object($auth) && isset($auth->hash) && $auth->hash == $hash) {
                             if (isset($auth->realm)) {
                                 $realm = campusconnect_connect::generate_realm($courseurl, $paramassoc);
                                 if ($realm != $auth->realm) {
-                                    debuglog("Locally generated realm: {$realm} does not match auth realm: {$auth->realm}");
+                                    self::log("Locally generated realm: {$realm} does not match auth realm: {$auth->realm}");
                                     continue; // Params do not match those when the original hash was generated.
                                 }
                             } else {
-                                debuglog("Realm not included in auth response");
+                                self::log("Realm not included in auth response");
                             }
                             $authenticated = true;
                             $authenticatingecs = $ecsid;
@@ -159,29 +157,29 @@ class auth_plugin_campusconnect extends auth_plugin_base {
 
             // Fall back to the legacy 'ecs_hash' param
             if (empty($paramassoc['ecs_hash'])) {
-                debuglog("Neither ecs_hash nor ecs_hash_url included in destination URL");
+                self::log("Neither ecs_hash nor ecs_hash_url included in destination URL");
                 return;
             }
             $hash = $paramassoc['ecs_hash'];
-            debuglog("ecs_hash found: {$hash}");
+            self::log("ecs_hash found: {$hash}");
 
             foreach ($ecslist as $ecsid => $ecsname) {
-                debuglog("Attempting to authenticate hash against '{$ecsname}' ($ecsid)");
+                self::log("Attempting to authenticate hash against '{$ecsname}' ($ecsid)");
                 // Try each of the active ECS and see if the hash authenticates.
                 $settings = new campusconnect_ecssettings($ecsid);
                 try {
                     $connect = new campusconnect_connect($settings);
                     $auth = $connect->get_auth($hash);
-                    debuglog_print_r($auth);
+                    self::log_print_r($auth);
                     if (is_object($auth) && isset($auth->hash) && ($auth->hash == $hash)) {
                         if (isset($auth->realm)) {
                             $realm = campusconnect_connect::generate_realm($courseurl, $paramassoc);
                             if ($realm != $auth->realm) {
-                                debuglog("Locally generated realm: {$realm} does not match auth realm: {$auth->realm}");
+                                self::log("Locally generated realm: {$realm} does not match auth realm: {$auth->realm}");
                                 continue;
                             }
                         } else {
-                            debuglog("Realm not included in auth response");
+                            self::log("Realm not included in auth response");
                         }
                         $authenticated = true;
                         $authenticatingecs = $ecsid;
@@ -198,7 +196,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             if ($connecterrors) {
                 print_error('ecserror_subject', 'local_campusconnect');
             }
-            debuglog("No ECS servers have authenticated the ECS hash");
+            self::log("No ECS servers have authenticated the ECS hash");
             return;
         }
 
@@ -207,23 +205,23 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             $uidhash = $paramassoc['ecs_uid']; // New name for the parameter.
         } else {
             if (!isset($paramassoc['ecs_uid_hash'])) {
-                debuglog("Neither ecs_uid nor ecs_uid_hash found in destination URL");
+                self::log("Neither ecs_uid nor ecs_uid_hash found in destination URL");
                 return;
             }
             $uidhash = $paramassoc['ecs_uid_hash']; // Legacy name for the parameter.
         }
         if (!isset($paramassoc['ecs_login'])) {
-            debuglog("ecs_login not found in destination URL");
+            self::log("ecs_login not found in destination URL");
             return;
         }
         $username = $this->username_from_params($paramassoc['ecs_login'], $uidhash, $authenticatingecs);
         $basicuserfields = array('firstname', 'lastname', 'email');
 
-        debuglog("Authentication successful");
+        self::log("Authentication successful");
 
         //If user does not exist, create:
         if (!$ccuser = get_complete_user_data('username', $username)){
-            debuglog("Creating a new user account with username {$username}");
+            self::log("Creating a new user account with username {$username}");
             $ccuser = new stdClass();
             $ccuser->username = $username;
             foreach ($basicuserfields as $field) {
@@ -241,8 +239,8 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             $ccuser = get_complete_user_data('id', $id);
         }
 
-        debuglog("User account details:");
-        debuglog_print_r($ccuser);
+        self::log("User account details:");
+        self::log_print_r($ccuser);
 
         //Do we need to update details?
         $needupdate = false;
@@ -253,8 +251,8 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             }
         }
         if ($needupdate) {
-            debuglog("Updating user account details:");
-            debuglog_print_r($ccuser);
+            self::log("Updating user account details:");
+            self::log_print_r($ccuser);
             $DB->update_record('user', $ccuser);
         }
 
@@ -517,5 +515,23 @@ class auth_plugin_campusconnect extends auth_plugin_base {
 
         //Delete logs:
         $DB->delete_records('log', array('userid' => $user->id));
+    }
+
+    protected static function log($msg) {
+        global $CFG;
+
+        if ($CFG->debug == DEBUG_DEVELOPER) {
+            require_once($CFG->dirroot.'/local/campusconnect/log.php');
+            campusconnect_log::add($msg, false, false);
+        }
+    }
+
+    protected static function log_print_r($obj) {
+        global $CFG;
+
+        if ($CFG->debug == DEBUG_DEVELOPER) {
+            require_once($CFG->dirroot.'/local/campusconnect/log.php');
+            campusconnect_log::add_object($obj, false, false);
+        }
     }
 }

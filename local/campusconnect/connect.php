@@ -28,8 +28,6 @@ global $CFG;
 require_once($CFG->dirroot.'/local/campusconnect/ecssettings.php');
 require_once($CFG->dirroot.'/local/campusconnect/urilist.php');
 
-define('CAMPUSCONNECT_LOG_CONNECTION_DATA', true);
-
 class campusconnect_connect_exception extends moodle_exception {
     function __construct($msg) {
         parent::__construct('error', 'local_campusconnect', '', $msg);
@@ -769,15 +767,15 @@ class campusconnect_connect {
     }
 
     /**
-     * If CAMPUSCONNECT_LOG_JSON_DATA is defined, output the msg to the log file.
+     * If $CFG->campusconnect_log_connection is defined, output the msg to the log file.
      * @param $msg
      */
     protected function log($msg) {
         global $CFG;
-        if (!defined('CAMPUSCONNECT_LOG_CONNECTION_DATA')) {
+        if (empty($CFG->campusconnect_log_connection)) {
             return;
         }
         require_once($CFG->dirroot.'/local/campusconnect/log.php');
-        campusconnect_log::add($msg, false);
+        campusconnect_log::add($msg, false, false);
     }
 }

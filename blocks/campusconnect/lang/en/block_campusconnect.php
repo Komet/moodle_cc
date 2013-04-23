@@ -24,6 +24,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+$string['campusconnect:addinstance'] = 'Add new export course block';
 $string['editexport'] = 'Update export settings';
 $string['exportcourse'] = 'Export course';
 $string['exportedto'] = 'Exported to';

@@ -630,6 +630,10 @@ class campusconnect_metadata {
                         } else {
                             $val = '';
                         }
+                        if (is_array($val)) {
+                            campusconnect_log::add("Unexpected array in field $remotefield", true, true);
+                            $field = implode(',', $field);
+                        }
                         $course->$localfield = str_replace('{'.$field.'}', $val, $course->$localfield);
                     }
                 }

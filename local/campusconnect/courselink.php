@@ -524,8 +524,6 @@ class campusconnect_courselink {
      */
     protected static function get_user_data_params($user) {
         $userdata = self::get_user_data($user);
-        $userdata = array_map('urlencode', $userdata);
-
         return http_build_query($userdata, null, '&');
     }
 

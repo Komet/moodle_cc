@@ -506,15 +506,17 @@ class campusconnect_metadata {
                 }
                 continue;
             } else if ($name == 'datesAndVenues') {
-                foreach ($value[0] as $fieldname => $fieldvalue) {
-                    if ($fieldname == 'firstDate') {
-                        $details['datesAndVenues.firstDate.startDatetime'] = $fieldvalue->startDatetime;
-                        $details['datesAndVenues.firstDate.endDatetime'] = $fieldvalue->endDatetime;
-                    } elseif ($fieldname == 'lastDate') {
-                        $details['datesAndVenues.lastDate.startDatetime'] = $fieldvalue->startDatetime;
-                        $details['datesAndVenues.lastDate.endDatetime'] = $fieldvalue->endDatetime;
-                    } else {
-                        $details['datesAndVenues.'.$fieldname] = $fieldvalue;
+                if (!empty($value)) {
+                    foreach ($value[0] as $fieldname => $fieldvalue) {
+                        if ($fieldname == 'firstDate') {
+                            $details['datesAndVenues.firstDate.startDatetime'] = $fieldvalue->startDatetime;
+                            $details['datesAndVenues.firstDate.endDatetime'] = $fieldvalue->endDatetime;
+                        } elseif ($fieldname == 'lastDate') {
+                            $details['datesAndVenues.lastDate.startDatetime'] = $fieldvalue->startDatetime;
+                            $details['datesAndVenues.lastDate.endDatetime'] = $fieldvalue->endDatetime;
+                        } else {
+                            $details['datesAndVenues.'.$fieldname] = $fieldvalue;
+                        }
                     }
                 }
                 continue;

@@ -681,7 +681,7 @@ class campusconnect_connect {
             var_dump(curl_getinfo($this->curlresource));
         }
 
-        self::log($res);
+        self::log('Response: '.$res);
 
         return $res;
     }

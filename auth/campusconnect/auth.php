@@ -83,7 +83,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             if (count($split)<2) {
                 continue;
             }
-            $paramassoc[$split[0]] = urldecode(urldecode($split[1]));
+            $paramassoc[$split[0]] = urldecode($split[1]);
         }
 
         // Check the incoming URL matches a valid Moodle course URL

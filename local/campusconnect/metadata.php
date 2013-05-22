@@ -605,6 +605,9 @@ class campusconnect_metadata {
                 default:
                     // Nothing to do for these.
                 }
+                if (!is_string($details[$fieldname])) {
+                    $details[$fieldname] = trim($details[$fieldname]);
+                }
             }
         }
         return $details;

@@ -125,12 +125,20 @@ class campusconnect_courselink {
             $courselink = reset($courselink);
         }
 
+        if (!self::check_required_fields(false, $courselink, $resourceid)) {
+            return true; // Remove from the update list.
+        }
+
         $coursedata = self::map_course_settings($courselink, $settings);
 
         if ($partsettings->get_import_type() == campusconnect_participantsettings::IMPORT_LINK) {
             if (self::get_by_resourceid($resourceid, $settings->get_id())) {
                 mtrace("Cannot create a courselink to resource $resourceid - it already exists.");
                 return true; // To remove this update from the list.
+            }
+
+            if (!self::check_required_fields(true, $coursedata, $resourceid)) {
+                return true;
             }
 
             $coursedata->category = $settings->get_import_category();
@@ -204,6 +212,10 @@ class campusconnect_courselink {
             $courselink = reset($courselink);
         }
 
+        if (!self::check_required_fields(false, $courselink, $resourceid)) {
+            return true; // Remove from the update list.
+        }
+
         $coursedata = self::map_course_settings($courselink, $settings);
 
         if ($partsettings && $partsettings->get_import_type() == campusconnect_participantsettings::IMPORT_LINK) {
@@ -214,6 +226,10 @@ class campusconnect_courselink {
 
             if ($currlink->mid != $mid) {
                 throw new campusconnect_courselink_exception("Participant $mid attempted to update resource created by participant {$currlink->mid}");
+            }
+
+            if (!self::check_required_fields(true, $coursedata, $resourceid)) {
+                return true;
             }
 
             if (!$DB->record_exists('course', array('id' => $currlink->courseid))) {
@@ -547,6 +563,30 @@ class campusconnect_courselink {
         global $DB;
         $params = array('resourceid' => $resourceid, 'ecsid' => $ecsid);
         return $DB->get_record('local_campusconnect_clink', $params);
+    }
+
+    /**
+     * Check that all required fields are included in this courselink object
+     * @param bool $ismapped true if the metadata has already been mapped onto a Moodle course object
+     * @param object $courselink
+     * @param int $resourceid
+     * @return bool true if all required fields are present
+     */
+    protected static function check_required_fields($ismapped, $courselink, $resourceid) {
+        if ($ismapped) {
+            $requiredfields = array('shortname', 'fullname');
+            $aftermapping = ' (after mapping the metadata)';
+        } else {
+            $requiredfields = array('id', 'title');
+            $aftermapping = '';
+        }
+        foreach ($requiredfields as $requiredfield) {
+            if (!isset($courselink->{$requiredfield}) || !trim($courselink->{$requiredfield})) {
+                campusconnect_log::add("Imported courselink from resource {$resourceid} is missing required field '{$requiredfield}'{$aftermapping}");
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

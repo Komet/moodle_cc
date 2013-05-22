@@ -214,7 +214,8 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             self::log("ecs_login not found in destination URL");
             return;
         }
-        $username = $this->username_from_params($paramassoc['ecs_login'], $uidhash, $authenticatingecs);
+        $username = $this->username_from_params($paramassoc['ecs_institution'], $paramassoc['ecs_login'], $uidhash,
+                                                $authenticatingecs);
         $basicuserfields = array('firstname', 'lastname', 'email');
 
         self::log("Authentication successful");
@@ -318,7 +319,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         return array();
     }
 
-    /*
+    /**
      * Cron - delete users who timed out and never enrolled,
      * Inactivate users who haven't been active for some time
      * And notify relevant users about users created
@@ -458,12 +459,15 @@ class auth_plugin_campusconnect extends auth_plugin_base {
 
     //Local functions
 
-    /*
+    /**
      * Generate Moodle username from an array of query parameters and ECS id
+     * @param string $institution
+     * @param string $username
      * @param string $uidhash - an 'ecs_uid_hash' from the url params
      * @param int $ecsid - the ECS that authenticated the user
+     * @return string
      */
-    private function username_from_params($username, $uidhash, $ecsid) {
+    private function username_from_params($institution, $username, $uidhash, $ecsid) {
         global $DB;
 
         // See if we already know about this user.
@@ -472,7 +476,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         }
 
         // Generate a new username for this user.
-        $prefix = 'campusconnect_ecs'.$ecsid.'_';
+        $prefix = $institution.'_';
         $username = $prefix.$username;
 
         // Make sure the username is unique.
@@ -493,7 +497,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         return $finalusername;
     }
 
-    /*
+    /**
      * Removes all personal information from a user table, deletes the user and all logs
      * @param object $user
      */

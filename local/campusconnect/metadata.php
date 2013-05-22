@@ -590,7 +590,9 @@ class campusconnect_metadata {
                     $title = (isset($details[$basename]->title)) ? $details[$basename]->title : $details[$basename]->href;
                     $details[$fieldname] = html_writer::link($details[$basename]->href, $title);
                     break;
-                case 'lang': // TODO davo - test if this needs any conversion.
+                case 'lang':
+                    $details[$fieldname] = self::check_lang($details[$fieldname]);
+                    break;
                 case 'url':
                 case 'string':
                 default:
@@ -599,6 +601,19 @@ class campusconnect_metadata {
             }
         }
         return $details;
+    }
+
+    /**
+     * Check the lang string represents an installed language pack - return an empty string if it does not.
+     * @param string $lang the language from the course/courselink
+     * @return string either the original language identifier, or blank
+     */
+    protected static function check_lang($lang) {
+        $sm = get_string_manager();
+        if ($sm->translation_exists($lang, false)) {
+            return $lang;
+        }
+        return '';
     }
 
     /**

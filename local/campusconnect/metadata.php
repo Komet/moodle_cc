@@ -73,7 +73,7 @@ class campusconnect_metadata {
     // Default import mappings
     protected $importmappings = array(
         'fullname' => '{title}',
-        'shortname' => '{title}',
+        'shortname' => '{id}',
         'idnumber' => '',
         'summary' => null, // This is built on first load using get_string
         'startdate' => 'firstDate',
@@ -85,7 +85,7 @@ class campusconnect_metadata {
     // Default export mappings
     protected $exportmappings = array(
         'organisation' => '',
-        'id' => '',
+        'id' => '{shortname}',
         'term' => '',
         'number' => '',
         'title' => '{fullname}',
@@ -114,7 +114,7 @@ class campusconnect_metadata {
         'destinationForDisplay' => '',
         'lang' => 'lang',
         'hoursPerWeek' => '',
-        'id' => '',
+        'id' => '{shortname}',
         'number' => '',
         'term' => '',
         'credits' => '',
@@ -423,6 +423,13 @@ class campusconnect_metadata {
             if (!empty($localfield) && !in_array($localfield, self::list_local_to_remote_fields($remotefield, $this->external))) {
                 throw new coding_exception("$localfield is not a suitable field to map onto $remotefield");
             }
+        }
+
+        $required = array('id', 'title');
+        if (in_array($remotefield, $required) && empty($localfield)) {
+            $this->lasterrorfield = $remotefield;
+            $this->lasterrormsg = get_string('cannotbeempty', 'local_campusconnect', $localfield);
+            return false;
         }
 
         if ($this->external) {

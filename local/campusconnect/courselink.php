@@ -516,7 +516,7 @@ class campusconnect_courselink {
      * @return array
      */
     protected static function get_user_data($user) {
-        global $CFG;
+        global $CFG, $SITE;
 
         $siteid = substr(sha1($CFG->wwwroot), 0, 8); // Generate a unique ID from the site URL
         $uid_hash = 'moodle_'.$siteid.'_usr_'.$user->id;
@@ -524,7 +524,7 @@ class campusconnect_courselink {
                           'ecs_firstname' => $user->firstname,
                           'ecs_lastname' => $user->lastname,
                           'ecs_email' => $user->email,
-                          'ecs_institution' => '',
+                          'ecs_institution' => $SITE->shortname,
                           'ecs_uid' => $uid_hash);
         if (self::INCLUDE_LEGACY_PARAMS) {
             $userdata['ecs_uid_hash'] = $uid_hash;

@@ -276,8 +276,8 @@ class campusconnect_course {
                 $newcategories[] = $category;
             }
         }
-        self::remove_allocations($currcourses, $existingcategoryids, $unchangedcategories, $newcategories, $ecssettings->get_id() < 0);
 
+        self::remove_allocations($currcourses, $existingcategoryids, $unchangedcategories, $newcategories);
         $coursedata = self::map_course_settings($course, $ecssettings);
 
         // Check for orphaned crs records.
@@ -757,7 +757,6 @@ class campusconnect_course {
      * @param int[] $removecategoryids mapping local_campusconnect_crs.id => categoryid
      * @param campusconnect_course_category[] $unchangedcategories
      * @param campusconnect_course_category[] $newcategories
-     * @param bool $unittest set if doing unit testing
      * @throws coding_exception
      */
     protected static function remove_allocations(&$currcourses, &$removecategoryids, &$unchangedcategories, &$newcategories) {
@@ -797,7 +796,8 @@ class campusconnect_course {
                     $unchangedcategories[$currcourse->id] = $firstnewcategory;
                 } else {
                     // No newly-mapped categories, so will need to move it into an existing category.
-                    $removecrsid = array_shift(array_keys($unchangedcategories));
+                    $keys = array_keys($unchangedcategories);
+                    $removecrsid = reset($keys);
                     $updatecategory = array_shift($unchangedcategories);
 
                     if ($currcourses[$removecrsid]->internallink == 0) {
@@ -811,6 +811,8 @@ class campusconnect_course {
                     $upd->directoryid = $updatecategory->get_directoryid();
                     $upd->sortorder = $updatecategory->get_order();
                     $DB->update_record('local_campusconnect_crs', $upd);
+                    // Put it into the 'unchanged' array, so it doesn't get duplicated by the 'orphanded courses' check.
+                    $unchangedcategories[$currcourse->id] = $updatecategory;
 
                     // The existing course (which was an internal link) is no longer needed - delete it and the crs record.
                     $removecourseid = $currcourses[$removecrsid]->courseid;

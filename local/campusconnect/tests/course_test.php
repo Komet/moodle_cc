@@ -88,7 +88,7 @@ class local_campusconnect_course_test extends advanced_testcase {
         // Create the directories for the courses + map on to categories.
         $dirtree = new campusconnect_directorytree();
         $dirtree->create(1000, 'idroot', 'Dir root', $this->settings[2]->get_id(), $this->mid[1]);
-        $directories = array( 1001 => 'dir1', 1002 => 'dir2');
+        $directories = array( 1001 => 'dir1', 1002 => 'dir2', 1003 => 'dir3');
         foreach ($directories as $id => $name) {
             $dirid = 'id'.$id;
             $dir = new campusconnect_directory();
@@ -97,6 +97,11 @@ class local_campusconnect_course_test extends advanced_testcase {
         }
         $category = $this->getDataGenerator()->create_category(array('name' => 'category_tree'));
         $dirtree->map_category($category->id);
+        $dirtree->create_all_categories();
+        // Reload the directory objects after creating the categories for them.
+        foreach ($this->directory as $key => $dir) {
+            $this->directory[$key] = $dirtree->get_directory($dir->get_directory_id());
+        }
     }
 
     public function test_create_course() {
@@ -108,7 +113,7 @@ class local_campusconnect_course_test extends advanced_testcase {
             'basicData' => (object)array(
                 'organisation' => 'Synergy Learning',
                 'id' => 'abc_1234',
-                'title' => 'Test course creation (updating)',
+                'title' => 'Test course creation',
             ),
             'allocations' => array(
                 (object)array(
@@ -141,22 +146,114 @@ class local_campusconnect_course_test extends advanced_testcase {
         $course1 = array_shift($courses);
         $course2 = array_shift($courses);
 
-        // Reload directories after the have been mapped onto categories.
-        $dirtree = $this->directory[0]->get_directory_tree();
-        $dir0 = $dirtree->get_directory($this->directory[0]->get_directory_id());
-        $dir1 = $dirtree->get_directory($this->directory[1]->get_directory_id());
-
+        // Check all the course settings have been mapped as expected.
         $this->assertEquals('abc_1234', $course1->shortname);
-        $this->assertEquals('Test course creation (updating)', $course1->fullname);
-        $this->assertEquals($dir0->get_category_id(), $course1->category);
+        $this->assertEquals('Test course creation', $course1->fullname);
+        $this->assertEquals($this->directory[0]->get_category_id(), $course1->category);
         $this->assertContains('Synergy Learning', $course1->summary);
 
-        $this->assertEquals('Test course creation (updating)', $course2->fullname);
-        $this->assertEquals($dir1->get_category_id(), $course2->category);
+        $this->assertEquals('Test course creation', $course2->fullname);
+        $this->assertEquals($this->directory[1]->get_category_id(), $course2->category);
         $this->assertContains('Synergy Learning', $course2->summary);
 
         $expectedredirect = new moodle_url('/course/view.php', array('id' => $course1->id));
         $actualredirect = campusconnect_course::check_redirect($course2->id);
+        $this->assertEquals($expectedredirect->out(), $actualredirect->out());
+    }
+
+    public function test_update_course() {
+        global $DB;
+
+        // Course create request from participant 1 to participant 2
+        $resourceid = -10;
+        $course = (object)array(
+            'basicData' => (object)array(
+                'organisation' => 'Synergy Learning',
+                'id' => 'abc_1234',
+                'title' => 'Test course creation',
+            ),
+            'allocations' => array(
+                (object)array(
+                    'parentID' => $this->directory[0]->get_directory_id(),
+                    'order' => 6
+                ),
+                (object)array(
+                    'parentID' => $this->directory[1]->get_directory_id(),
+                    'order' => 9
+                )
+            )
+        );
+        $transferdetails = new campusconnect_details((object)array(
+            'url' => 'fakeurl',
+            'receivers' => array(0 => (object)array('itsyou' => 1, 'mid' => $this->mid[2])),
+            'senders' => array(0 => (object)array('mid' => $this->mid[1])),
+            'owner' => (object)array('itsyou' => 0),
+            'content_type' => campusconnect_event::RES_COURSE
+        ));
+
+        // Create a course.
+        campusconnect_course::create($resourceid, $this->settings[2], $course, $transferdetails);
+        $courses = $DB->get_records_select('course', 'id > 1', array(), 'id', 'id, fullname, shortname, category, summary');
+        $this->assertCount(2, $courses);
+        $course1 = array_shift($courses);
+        $course2 = array_shift($courses);
+        $this->assertEquals('Test course creation', $course1->fullname);
+        $this->assertEquals('Test course creation', $course2->fullname);
+        $this->assertContains('Synergy Learning', $course1->summary);
+        $this->assertContains('Synergy Learning', $course2->summary);
+
+        // Update the course details.
+        $course->basicData->title = 'Test update title';
+        $course->basicData->organisation = 'New organisation';
+        campusconnect_course::update($resourceid, $this->settings[2], $course, $transferdetails);
+        $courses = $DB->get_records_select('course', 'id > 1', array(), 'id', 'id, fullname, shortname, category, summary');
+        $this->assertCount(2, $courses);
+        $course1 = array_shift($courses);
+        $course2 = array_shift($courses);
+        $realcourse = $course1;
+        $this->assertEquals('Test update title', $course1->fullname);
+        $this->assertEquals('Test update title', $course2->fullname);
+        $this->assertContains('New organisation', $course1->summary);
+        $this->assertContains('New organisation', $course2->summary);
+        $this->assertEquals($this->directory[0]->get_category_id(), $course1->category);
+        $this->assertEquals($this->directory[1]->get_category_id(), $course2->category);
+        $expectedredirect = new moodle_url('/course/view.php', array('id' => $realcourse->id));
+        $actualredirect = campusconnect_course::check_redirect($course2->id);
+        $this->assertEquals($expectedredirect->out(), $actualredirect->out());
+
+        // Move the course to a new directory.
+        $course->allocations[0]->parentID = $this->directory[1]->get_directory_id();
+        $course->allocations[1]->parentID = $this->directory[2]->get_directory_id();
+        campusconnect_course::update($resourceid, $this->settings[2], $course, $transferdetails);
+        $courses = $DB->get_records_select('course', 'id > 1', array(), 'id', 'id, fullname, shortname, category, summary');
+        $this->assertCount(2, $courses);
+        $course1 = array_shift($courses);
+        $course2 = array_shift($courses);
+        $this->assertEquals($this->directory[1]->get_category_id(), $course1->category);
+        $this->assertEquals($this->directory[2]->get_category_id(), $course2->category);
+        $this->assertEquals($realcourse->id, $course1->id);
+        $expectedredirect = new moodle_url('/course/view.php', array('id' => $realcourse->id));
+        $actualredirect = campusconnect_course::check_redirect($course2->id);
+        $this->assertEquals($expectedredirect->out(), $actualredirect->out());
+
+        // Add one more directory mapping.
+        $course->allocations[] = (object)array(
+            'parentID' => $this->directory[0]->get_directory_id(),
+        );
+        campusconnect_course::update($resourceid, $this->settings[2], $course, $transferdetails);
+        $courses = $DB->get_records_select('course', 'id > 1', array(), 'id', 'id, fullname, shortname, category, summary');
+        $this->assertCount(3, $courses);
+        $course1 = array_shift($courses);
+        $course2 = array_shift($courses);
+        $course3 = array_shift($courses);
+        $this->assertEquals($this->directory[1]->get_category_id(), $course1->category);
+        $this->assertEquals($this->directory[2]->get_category_id(), $course2->category);
+        $this->assertEquals($this->directory[0]->get_category_id(), $course3->category);
+        $this->assertEquals($realcourse->id, $course1->id);
+        $expectedredirect = new moodle_url('/course/view.php', array('id' => $realcourse->id));
+        $actualredirect = campusconnect_course::check_redirect($course2->id);
+        $this->assertEquals($expectedredirect->out(), $actualredirect->out());
+        $actualredirect = campusconnect_course::check_redirect($course3->id);
         $this->assertEquals($expectedredirect->out(), $actualredirect->out());
     }
 

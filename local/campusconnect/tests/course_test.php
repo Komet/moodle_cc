@@ -49,6 +49,31 @@ class local_campusconnect_course_test extends advanced_testcase {
     protected $mid = array();
     /** @var campusconnect_directory[] $directory */
     protected $directory = array();
+    /** @var campusconnect_details $transferdetails */
+    protected $transferdetails = null;
+
+    protected $directorydata = array(1001 => 'dir1', 1002 => 'dir2', 1003 => 'dir3');
+    protected $coursedata = '
+    {
+        "basicData":
+        {
+            "organisation": "Synergy Learning",
+            "id": "abc_1234",
+            "title": "Test course creation"
+        },
+        "allocations":
+        [
+            {
+                "parentID": "id1001",
+                "order": 6
+            },
+            {
+                "parentID": "id1002",
+                "order": 9
+            }
+        ]
+    }
+    ';
 
     public function setUp() {
         global $DB;
@@ -88,8 +113,7 @@ class local_campusconnect_course_test extends advanced_testcase {
         // Create the directories for the courses + map on to categories.
         $dirtree = new campusconnect_directorytree();
         $dirtree->create(1000, 'idroot', 'Dir root', $this->settings[2]->get_id(), $this->mid[1]);
-        $directories = array( 1001 => 'dir1', 1002 => 'dir2', 1003 => 'dir3');
-        foreach ($directories as $id => $name) {
+        foreach ($this->directorydata as $id => $name) {
             $dirid = 'id'.$id;
             $dir = new campusconnect_directory();
             $dir->create($id, 'idroot', $dirid, 'idroot', $name, 1);
@@ -102,6 +126,15 @@ class local_campusconnect_course_test extends advanced_testcase {
         foreach ($this->directory as $key => $dir) {
             $this->directory[$key] = $dirtree->get_directory($dir->get_directory_id());
         }
+
+        // Create some fake transfer details for the requests.
+        $this->transferdetails = new campusconnect_details((object)array(
+            'url' => 'fakeurl',
+            'receivers' => array(0 => (object)array('itsyou' => 1, 'mid' => $this->mid[2])),
+            'senders' => array(0 => (object)array('mid' => $this->mid[1])),
+            'owner' => (object)array('itsyou' => 0),
+            'content_type' => campusconnect_event::RES_COURSE
+        ));
     }
 
     public function test_create_course() {
@@ -109,36 +142,13 @@ class local_campusconnect_course_test extends advanced_testcase {
 
         // Course create request from participant 1 to participant 2
         $resourceid = -10;
-        $course = (object)array(
-            'basicData' => (object)array(
-                'organisation' => 'Synergy Learning',
-                'id' => 'abc_1234',
-                'title' => 'Test course creation',
-            ),
-            'allocations' => array(
-                (object)array(
-                    'parentID' => $this->directory[0]->get_directory_id(),
-                    'order' => 6
-                ),
-                (object)array(
-                    'parentID' => $this->directory[1]->get_directory_id(),
-                    'order' => 9
-                )
-            )
-        );
-        $transferdetails = new campusconnect_details((object)array(
-            'url' => 'fakeurl',
-            'receivers' => array(0 => (object)array('itsyou' => 1, 'mid' => $this->mid[2])),
-            'senders' => array(0 => (object)array('mid' => $this->mid[1])),
-            'owner' => (object)array('itsyou' => 0),
-            'content_type' => campusconnect_event::RES_COURSE
-        ));
+        $course = json_decode($this->coursedata);
 
         // Should be no courses before we process the request.
         $courses = $DB->get_records_select('course', 'id > 1', array(), '', 'id, fullname, shortname, category, summary');
         $this->assertEmpty($courses);
 
-        campusconnect_course::create($resourceid, $this->settings[2], $course, $transferdetails);
+        campusconnect_course::create($resourceid, $this->settings[2], $course, $this->transferdetails);
 
         // Should now be 2 courses - check they are as expected.
         $courses = $DB->get_records_select('course', 'id > 1', array(), 'id', 'id, fullname, shortname, category, summary');
@@ -167,33 +177,10 @@ class local_campusconnect_course_test extends advanced_testcase {
 
         // Course create request from participant 1 to participant 2
         $resourceid = -10;
-        $course = (object)array(
-            'basicData' => (object)array(
-                'organisation' => 'Synergy Learning',
-                'id' => 'abc_1234',
-                'title' => 'Test course creation',
-            ),
-            'allocations' => array(
-                (object)array(
-                    'parentID' => $this->directory[0]->get_directory_id(),
-                    'order' => 6
-                ),
-                (object)array(
-                    'parentID' => $this->directory[1]->get_directory_id(),
-                    'order' => 9
-                )
-            )
-        );
-        $transferdetails = new campusconnect_details((object)array(
-            'url' => 'fakeurl',
-            'receivers' => array(0 => (object)array('itsyou' => 1, 'mid' => $this->mid[2])),
-            'senders' => array(0 => (object)array('mid' => $this->mid[1])),
-            'owner' => (object)array('itsyou' => 0),
-            'content_type' => campusconnect_event::RES_COURSE
-        ));
+        $course = json_decode($this->coursedata);
 
         // Create a course.
-        campusconnect_course::create($resourceid, $this->settings[2], $course, $transferdetails);
+        campusconnect_course::create($resourceid, $this->settings[2], $course, $this->transferdetails);
         $courses = $DB->get_records_select('course', 'id > 1', array(), 'id', 'id, fullname, shortname, category, summary');
         $this->assertCount(2, $courses);
         $course1 = array_shift($courses);
@@ -206,7 +193,7 @@ class local_campusconnect_course_test extends advanced_testcase {
         // Update the course details.
         $course->basicData->title = 'Test update title';
         $course->basicData->organisation = 'New organisation';
-        campusconnect_course::update($resourceid, $this->settings[2], $course, $transferdetails);
+        campusconnect_course::update($resourceid, $this->settings[2], $course, $this->transferdetails);
         $courses = $DB->get_records_select('course', 'id > 1', array(), 'id', 'id, fullname, shortname, category, summary');
         $this->assertCount(2, $courses);
         $course1 = array_shift($courses);
@@ -231,7 +218,7 @@ class local_campusconnect_course_test extends advanced_testcase {
                 'parentID' => $this->directory[2]->get_directory_id(),
             )
         );
-        campusconnect_course::update($resourceid, $this->settings[2], $course, $transferdetails);
+        campusconnect_course::update($resourceid, $this->settings[2], $course, $this->transferdetails);
         $courses = $DB->get_records_select('course', 'id > 1', array(), 'id', 'id, fullname, shortname, category, summary');
         $this->assertCount(2, $courses);
         $course1 = array_shift($courses);
@@ -247,7 +234,7 @@ class local_campusconnect_course_test extends advanced_testcase {
         $course->allocations[] = (object)array(
             'parentID' => $this->directory[0]->get_directory_id(),
         );
-        campusconnect_course::update($resourceid, $this->settings[2], $course, $transferdetails);
+        campusconnect_course::update($resourceid, $this->settings[2], $course, $this->transferdetails);
         $courses = $DB->get_records_select('course', 'id > 1', array(), 'id', 'id, fullname, shortname, category, summary');
         $this->assertCount(3, $courses);
         $course1 = array_shift($courses);
@@ -270,7 +257,7 @@ class local_campusconnect_course_test extends advanced_testcase {
                 'parentID' => $this->directory[2]->get_directory_id(),
             )
         );
-        campusconnect_course::update($resourceid, $this->settings[2], $course, $transferdetails);
+        campusconnect_course::update($resourceid, $this->settings[2], $course, $this->transferdetails);
         $courses = $DB->get_records_select('course', 'id > 1', array(), 'id', 'id, fullname, shortname, category, summary');
         $this->assertCount(1, $courses);
         $course1 = array_shift($courses);
@@ -284,32 +271,9 @@ class local_campusconnect_course_test extends advanced_testcase {
 
         // Course create request from participant 1 to participant 2
         $resourceid = -10;
-        $course = (object)array(
-            'basicData' => (object)array(
-                'organisation' => 'Synergy Learning',
-                'id' => 'abc_1234',
-                'title' => 'Test course creation',
-            ),
-            'allocations' => array(
-                (object)array(
-                    'parentID' => $this->directory[0]->get_directory_id(),
-                    'order' => 6
-                ),
-                (object)array(
-                    'parentID' => $this->directory[1]->get_directory_id(),
-                    'order' => 9
-                )
-            )
-        );
-        $transferdetails = new campusconnect_details((object)array(
-            'url' => 'fakeurl',
-            'receivers' => array(0 => (object)array('itsyou' => 1, 'mid' => $this->mid[2])),
-            'senders' => array(0 => (object)array('mid' => $this->mid[1])),
-            'owner' => (object)array('itsyou' => 0),
-            'content_type' => campusconnect_event::RES_COURSE
-        ));
+        $course = json_decode($this->coursedata);
 
-        campusconnect_course::create($resourceid, $this->settings[2], $course, $transferdetails);
+        campusconnect_course::create($resourceid, $this->settings[2], $course, $this->transferdetails);
         $courses = $DB->get_records_select('course', 'id > 1', array(), 'id', 'id, fullname, shortname, category, summary');
         $this->assertCount(2, $courses);
         $realcourse = array_shift($courses);

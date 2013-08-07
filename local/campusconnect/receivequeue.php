@@ -46,7 +46,6 @@ class campusconnect_receivequeue {
      * @var integer[] IDs of events that were unsuccessful and should be tried again next update
      */
     protected static $skipevents = array();
-    protected $unittest = false;
 
     /**
      * Code for pulling events from the ECS server and adding them to
@@ -171,14 +170,6 @@ class campusconnect_receivequeue {
     }
 
     /**
-     * Called if we are running a unit test - avoid calling 'fix_course_sortorder', as this is out of scope for
-     * the unit tests.
-     */
-    public function set_unittest() {
-        $this->unittest = true;
-    }
-
-    /**
      * Process all the events in the queue and take the appropriate actions
      * @param campusconnect_ecssettings $ecssettings optional - if provided, only process events from the specified ECS server
      */
@@ -224,7 +215,7 @@ class campusconnect_receivequeue {
         // Check if any new categories need to be created.
         campusconnect_directory::process_new_directories();
 
-        if ($fixcourses && !$this->unittest) { // Avoid fix_course_sortorder in unit tests.
+        if ($fixcourses) { // Avoid fix_course_sortorder in unit tests.
             fix_course_sortorder();
         }
         if ($enrolusers) {

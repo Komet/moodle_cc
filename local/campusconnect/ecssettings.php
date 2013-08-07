@@ -82,29 +82,8 @@ class campusconnect_ecssettings {
     /**
      * Initialise a settings object
      * @param int $ecsid optional - the ID of the ECS to load settings for
-     * @param string $unittest optional - the ecsauth name to use for unit testing
-     * @return void
      */
-    function __construct($ecsid = null, $unittest = null) {
-
-        // Create fake settings for unit testing
-        static $unittestecs = array();
-        if ($ecsid < 0) {
-            $ecsid = -$ecsid;
-            $unittest = $unittestecs[$ecsid];
-        }
-        if ($unittest) {
-            if (is_null($ecsid)) {
-                $ecsid = count($unittestecs) + 1;
-                $unittestecs[$ecsid] = $unittest;
-            }
-            $this->url = 'http://localhost:3000';
-            $this->auth = self::AUTH_NONE;
-            $this->ecsauth = $unittest;
-            $this->recordid = -$ecsid;
-            return;
-        }
-
+    function __construct($ecsid = null) {
         // Load the settings, if an ECS ID has been specified.
         if ($ecsid) {
             $this->load_settings($ecsid);

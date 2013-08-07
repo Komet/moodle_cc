@@ -27,6 +27,7 @@ defined('MOODLE_INTERNAL') || die();
 global $CFG;
 require_once($CFG->dirroot.'/local/campusconnect/notify.php');
 require_once($CFG->dirroot.'/local/campusconnect/log.php');
+require_once($CFG->dirroot.'/local/campusconnect/participantsettings.php');
 
 /**
  * Exception thrown by the campusconnect_courselink object
@@ -140,7 +141,9 @@ class campusconnect_course {
     protected static function create_new_course(campusconnect_ecssettings $ecssettings, $resourceid, $course, $mid,
                                                 $coursedata, campusconnect_parallelgroups $pgclass,
                                                 $pgroupmode, $pgcourse, $categories) {
-        global $DB;
+        global $DB, $CFG;
+
+        require_once($CFG->dirroot.'/local/campusconnect/membership.php');
 
         $internallink = 0;
 
@@ -672,6 +675,9 @@ class campusconnect_course {
      * @return object
      */
     protected static function map_course_settings($course, campusconnect_ecssettings $ecssettings) {
+        global $CFG;
+        require_once($CFG->dirroot.'/local/campusconnect/metadata.php');
+
         $metadata = new campusconnect_metadata($ecssettings, false);
         $coursedata = $metadata->map_remote_to_course($course);
         $coursedata->summaryformat = FORMAT_HTML;
@@ -711,6 +717,7 @@ class campusconnect_course {
     protected static function get_categories($course, campusconnect_ecssettings $ecssettings) {
         global $CFG;
         require_once($CFG->dirroot.'/local/campusconnect/filtering.php');
+        require_once($CFG->dirroot.'/local/campusconnect/directorytree.php');
 
         // Use course filtering rules, if enabled
         if (campusconnect_filtering::enabled()) {
@@ -753,7 +760,7 @@ class campusconnect_course {
      * @param bool $unittest set if doing unit testing
      * @throws coding_exception
      */
-    protected static function remove_allocations(&$currcourses, &$removecategoryids, &$unchangedcategories, &$newcategories, $unittest = false) {
+    protected static function remove_allocations(&$currcourses, &$removecategoryids, &$unchangedcategories, &$newcategories) {
         global $DB;
 
         if (empty($removecategoryids)) {
@@ -807,12 +814,7 @@ class campusconnect_course {
 
                     // The existing course (which was an internal link) is no longer needed - delete it and the crs record.
                     $removecourseid = $currcourses[$removecrsid]->courseid;
-                    if (!$unittest) {
-                        delete_course($removecourseid, false);
-                    } else {
-                        /** @noinspection PhpUndefinedMethodInspection */
-                        $DB->mock_delete_course($removecourseid);
-                    }
+                    delete_course($removecourseid, false);
                     $DB->delete_records('local_campusconnect_crs', array('id' => $removecrsid));
                     unset($currcourses[$removecrsid]);
                 }
@@ -837,12 +839,7 @@ class campusconnect_course {
                 $DB->set_field('course', 'category', $currentnewcat->get_categoryid(), array('id' => $currcourse->courseid));
             } else {
                 // No newly-mapped category => just remove the course completely.
-                if (!$unittest) {
-                    delete_course($currcourse->courseid, false);
-                } else {
-                    /** @noinspection PhpUndefinedMethodInspection */
-                    $DB->mock_delete_course($currcourse->courseid);
-                }
+                delete_course($currcourse->courseid, false);
                 $DB->delete_records('local_campusconnect_crs', array('id' => $rcrsid));
                 unset($currcourses[$rcrsid]);
             }

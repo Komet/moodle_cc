@@ -56,6 +56,7 @@ class local_campusconnect_connect_test extends advanced_testcase {
 
         if (defined('SKIP_CAMPUSCONNECT_CONNECT_TESTS')) {
             $this->markTestSkipped('Skipping connect tests, to save time');
+            return;
         }
 
         $this->resetAfterTest();
@@ -63,8 +64,16 @@ class local_campusconnect_connect_test extends advanced_testcase {
         // Create the connections for testing
         $names = array(1 => 'unittest1', 2 => 'unittest2', 3 => 'unittest3');
         foreach ($names as $key => $name) {
-            $settings = new campusconnect_ecssettings(null, $name);
-            $this->connect[$key] = new campusconnect_connect($settings);
+            $category = $this->getDataGenerator()->create_category(array('name' => 'import'.$key));
+            $ecs = new campusconnect_ecssettings();
+            $ecs->save_settings(array(
+                                     'url' => 'http://localhost:3000',
+                                     'auth' => campusconnect_ecssettings::AUTH_NONE,
+                                     'ecsauth' => $name,
+                                     'importcategory' => $category->id,
+                                     'importrole' => 'student',
+                                ));
+            $this->connect[$key] = new campusconnect_connect($ecs);
         }
 
         // Retrieve the mid values for each participant

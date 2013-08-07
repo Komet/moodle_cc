@@ -889,11 +889,6 @@ class campusconnect_directorytree {
     public static function get_category_for_course($directoryid) {
         global $DB;
 
-        if ($directoryid < 0) {
-            // Unit testing bypass
-            return $directoryid - 1;
-        }
-
         $sql = "SELECT dr.*
                   FROM {local_campusconnect_dirroot} dr
                   JOIN {local_campusconnect_dir} d ON d.rootid = dr.rootid

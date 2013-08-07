@@ -194,9 +194,6 @@ $string['icon_url'] = 'Icon URL';
 $string['icon_url_help'] = 'The icon URL allows the icon that shows up in the course listing for this activity to be modified. Instead of using the default
 LTI icon, an icon which conveys the type of activity may be specified.';
 $string['id'] = 'id';
-$string['imsroleadmin'] = 'Instructor,Administrator';
-$string['imsroleinstructor'] = 'Instructor';
-$string['imsrolelearner'] = 'Learner';
 $string['invalidid'] = 'LTI ID was incorrect';
 $string['launch_in_moodle'] = 'Launch tool in moodle';
 $string['launch_in_popup'] = 'Launch tool in a pop-up';
@@ -219,11 +216,12 @@ real estate to the tool, and others provide a more integrated feel with the Mood
         It is possible that browsers will prevent the new window from opening.';
 $string['launchoptions'] = 'Launch Options';
 $string['lti'] = 'LTI';
-$string['lti:addcoursetool'] = 'Grade LTI activities';
-$string['lti:grade'] = 'Grade LTI activities';
-$string['lti:manage'] = 'Edit LTI activities';
-$string['lti:requesttooladd'] = 'Submit a tool to admins for configuration';
-$string['lti:view'] = 'View LTI activities';
+$string['lti:addinstance'] = 'Add new external tool activities';
+$string['lti:addcoursetool'] = 'Add course-specific tool configurations';
+$string['lti:grade'] = 'View grades returned by the external tool';
+$string['lti:manage'] = 'Be an Instructor when the tool is launched';
+$string['lti:requesttooladd'] = 'Request a tool is configured site-wide';
+$string['lti:view'] = 'Launch external tool activities';
 $string['lti_administration'] = 'LTI Administration';
 $string['lti_errormsg'] = 'The tool returned the following error message: "{$a}"';
 $string['lti_launch_error'] = 'An error occured when launching the external tool: ';
@@ -258,20 +256,16 @@ $string['misconfiguredtools'] = 'Misconfigured tool instances were detected';
 $string['missingparameterserror'] = 'The page is misconfigured: "{$a}"';
 $string['module_class_type'] = 'Moodle module type';
 $string['modulename'] = 'External Tool';
-$string['modulename_help'] = 'External tools allow Moodle users to interact with learning resources and activities on other web sites. For instance, an
-external tool could provide access to a new activity type or learning materials from a publisher.
+$string['modulename_help'] = 'The external tool activity module enables students to interact with learning resources and activities on other web sites. For example, an external tool could provide access to a new activity type or learning materials from a publisher.
 
-To setup an external tool instance a tool provider which supports LTI (Learning Tools Interoperability) is required.
-If you find a tool provider which supports LTI, they should be able to provide instructions on how to configure the
-external tool instance. Additionally, tool types configured by a site administrator will also be available for use.
+To create an external tool activity, a tool provider which supports LTI (Learning Tools Interoperability) is required. A teacher can create an external tool activity or make use of a tool configured by the site administrator.
 
-External tools differ from URL resources in a few ways:
-* **Context aware** - External tools have access to information about the user who launched the tool, such as
-        insitution, course, name, and other information.
-* **Deep integration** - External tools support reading, updating, and deleting grades associated with the activity instance. More integration points
-        are planned for future releases.
-* **Security** - External tool configurations create a trust relationship between Moodle and the tool provider, allowing secure communication
-        between them.';
+External tool activities differ from URL resources in a few ways:
+
+* External tools are context aware i.e. they have access to information about the user who launched the tool, such as institution, course and name
+* External tools support reading, updating, and deleting grades associated with the activity instance
+* External tool configurations create a trust relationship between your site and the tool provider, allowing secure communication between them';
+$string['modulename_link'] = 'mod/lti/view';
 $string['modulenameplural'] = 'basicltis';
 $string['modulenamepluralformatted'] = 'LTI Instances';
 $string['never'] = 'Never';
@@ -365,8 +359,6 @@ is set to always launch through SSL.
 
 The Launch URL may also be set to an https address to force launching through SSL, and this field may be left blank.';
 $string['send'] = 'Send';
-$string['setdefault'] = 'Set a default value for the professor if delegating';
-$string['setupbox'] = 'LTI Tool Setup Box';
 $string['setupoptions'] = 'Setup Options';
 $string['share_email'] = 'Share launcher\'s email with the tool';
 $string['share_email_admin'] = 'Share launcher\'s email with tool';
@@ -408,48 +400,27 @@ $string['tool_config_not_found'] = 'Tool configuration not found for this URL.';
 $string['tool_settings'] = 'Tool Settings';
 $string['toolsetup'] = 'External Tool Configuration';
 $string['toolurl'] = 'Tool Base URL';
-$string['toolurl_help'] = 'The tool base URL is used to match tool launch URLs to the correct tool configuration. Prefxing the URL with http(s) is optional.
+$string['toolurl_help'] = 'The tool base URL is used to match tool launch URLs to the correct tool configuration. Prefixing the URL with http(s) is optional.
 
 Additionally, the base URL is used as the launch URL if a launch URL is not specified in the external tool instance.
 
-<table>
-    <thead>
-        <tr>
-            <td>
-                <b>Base URL</b>
-            </td>
-            <td>
-                <b>Matches</b>
-            </td>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td>
-                tool.com
-            </td>
-            <td>
-                tool.com, tool.com/quizzes, tool.com/quizzes/quiz.php?id=10, www.tool.com/quizzes
-            </td>
-        </tr>
-        <tr>
-            <td>
-                www.tool.com/quizzes
-            </td>
-            <td>
-                tool.com/quizzes, tool.com/quizzes/take.php?id=10, www.tool.com/quizzes
-            </td>
-        </tr>
-        <tr>
-            <td>
-                quiz.tool.com
-            </td>
-            <td>
-                quiz.tool.com, quiz.tool.com/take.php?id=10
-            </td>
-        </tr>
-    </tbody>
-</table>
+For example, a base URL of *tool.com* would match the following:
+
+* tool.com
+* tool.com/quizzes
+* tool.com/quizzes/quiz.php?id=10
+* www.tool.com/quizzes
+
+A base URL of *www.tool.com/quizzes* would match the following:
+
+* www.tool.com/quizzes
+* tool.com/quizzes
+* tool.com/quizzes/take.php?id=10
+
+A base URL of *quiz.tool.com* would match the following:
+
+* quiz.tool.com
+* quiz.tool.com/take.php?id=10
 
 If two different tool configurations are for the same domain, the most specific match will be used.';
 $string['typename'] = 'Tool Name';

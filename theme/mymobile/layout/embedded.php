@@ -17,8 +17,7 @@
 /**
  * Embedded layout for the mymobile theme
  *
- * @package    theme
- * @subpackage mymobile
+ * @package    theme_mymobile
  * @copyright  John Stabinger
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -35,10 +34,11 @@ if ($showswatch == "light") {
     $datatheme = 'a';
     $databodytheme = 'c';
 }
+$bodyclasses = array();
 $mypagetype = $PAGE->pagetype;
 
 echo $OUTPUT->doctype() ?>
-<html <?php echo $OUTPUT->htmlattributes() ?>>
+<html id="mymobile" <?php echo $OUTPUT->htmlattributes() ?>>
 <head>
     <title><?php echo $PAGE->title ?></title>
     <link rel="shortcut icon" href="<?php echo $OUTPUT->pix_url('favicon', 'theme')?>" />
@@ -54,7 +54,6 @@ echo $OUTPUT->doctype() ?>
     <div data-role="page" id="chatpage" data-fullscreen="true" data-title="<?php p($SITE->shortname) ?>">
         <?php echo $OUTPUT->main_content(); ?>
         <input type="button" value="back" data-role="none" id="chatback" onClick="history.back()">
-    </div>
     <?php } else { ?>
     <div id="content2" data-role="page" data-title="<?php p($SITE->shortname) ?>" data-theme="<?php echo $datatheme;?>">
         <div data-role="header" data-theme="<?php echo $datatheme;?>">
@@ -63,12 +62,12 @@ echo $OUTPUT->doctype() ?>
                 <a class="ui-btn-right" data-ajax="false" data-icon="home" href="<?php p($CFG->wwwroot) ?>" data-iconpos="notext"><?php p(get_string('home')); ?></a>
             <?php } ?>
         </div>
-        <div data-role="content" data-theme="<?php echo $databodytheme;?>">
+        <div data-role="content" class="mymobilecontent" data-theme="<?php echo $databodytheme;?>">
             <?php echo $OUTPUT->main_content(); ?>
         </div>
-    </div>
     <?php } ?>
-    <!-- START OF FOOTER -->
-    <?php echo $OUTPUT->standard_end_of_body_html() ?>
+        <!-- START OF FOOTER -->
+        <?php echo $OUTPUT->standard_end_of_body_html() ?>
+    </div>
 </body>
 </html>

@@ -30,3 +30,11 @@ CVS
 *.tgz
 *.tar
 test.php
+phpunit.xml
+# Composer support - only composer.json is to be in git, the rest is installed in each checkout.
+composer.phar
+composer.lock
+/vendor/
+/behat.yml
+*/yui/build/*/*-coverage.js
+/lib/yuilib/*/build/*/*-coverage.js

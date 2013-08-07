@@ -17,8 +17,9 @@
 /**
  * Produces a graph of log accesses for a user
  *
- * @package    report
- * @subpackage log
+ * Generates an image representing the log data in a graphical manner for a user.
+ *
+ * @package    report_log
  * @copyright  1999 onwards Martin Dougiamas (http://dougiamas.com)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -129,6 +130,7 @@ if ($type === "usercourse.png") {
 
    $graph = new graph(750, 400);
 
+   $a = new stdClass();
    $a->coursename = format_string($course->shortname, true, array('context' => $coursecontext));
    $a->username = fullname($user, true);
    $graph->parameter['title'] = get_string("hitsoncourse", "", $a);
@@ -190,6 +192,7 @@ if ($type === "usercourse.png") {
 
    $graph = new graph(750, 400);
 
+   $a = new stdClass();
    $a->coursename = format_string($course->shortname, true, array('context' => $coursecontext));
    $a->username = fullname($user, true);
    $graph->parameter['title'] = get_string("hitsoncoursetoday", "", $a);

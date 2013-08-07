@@ -50,6 +50,12 @@ function user_create_user($user) {
 
     // save the password in a temp value for later
     if (isset($user->password)) {
+
+        //check password toward the password policy
+        if (!check_password_policy($user->password, $errmsg)) {
+            throw new moodle_exception($errmsg);
+        }
+
         $userpassword = $user->password;
         unset($user->password);
     }
@@ -62,15 +68,20 @@ function user_create_user($user) {
 
     // trigger user_created event on the full database user row
     $newuser = $DB->get_record('user', array('id' => $newuserid));
-    events_trigger('user_created', $newuser);
 
     // create USER context for this user
-    get_context_instance(CONTEXT_USER, $newuserid);
+    context_user::instance($newuserid);
 
     // update user password if necessary
     if (isset($userpassword)) {
-        update_internal_user_password($newuser, $userpassword);
+        $authplugin = get_auth_plugin($newuser->auth);
+        $authplugin->user_update_password($newuser, $userpassword);
     }
+
+    events_trigger('user_created', $newuser);
+
+    add_to_log(SITEID, 'user', get_string('create'), '/view.php?id='.$newuser->id,
+        fullname($newuser));
 
     return $newuserid;
 
@@ -102,6 +113,12 @@ function user_update_user($user) {
 
     // unset password here, for updating later
     if (isset($user->password)) {
+
+        //check password toward the password policy
+        if (!check_password_policy($user->password, $errmsg)) {
+            throw new moodle_exception($errmsg);
+        }
+
         $passwd = $user->password;
         unset($user->password);
     }
@@ -111,12 +128,19 @@ function user_update_user($user) {
 
     // trigger user_updated event on the full database user row
     $updateduser = $DB->get_record('user', array('id' => $user->id));
-    events_trigger('user_updated', $updateduser);
 
     // if password was set, then update its hash
     if (isset($passwd)) {
-        update_internal_user_password($updateduser, $passwd);
+        $authplugin = get_auth_plugin($updateduser->auth);
+        if ($authplugin->can_change_password()) {
+            $authplugin->user_update_password($updateduser, $passwd);
+        }
     }
+
+    events_trigger('user_updated', $updateduser);
+
+    add_to_log(SITEID, 'user', get_string('update'), '/view.php?id='.$updateduser->id,
+        fullname($updateduser));
 
 }
 
@@ -142,29 +166,43 @@ function user_get_users_by_id($userids) {
     return $DB->get_records_list('user', 'id', $userids);
 }
 
-
 /**
+ * Returns the list of default 'displayable' fields
  *
- * Give user record from mdl_user, build an array conntains
- * all user details
- * @param stdClass $user user record from mdl_user
- * @param stdClass $context context object
- * @param stdClass $course moodle course
- * @param array $userfields required fields
- * @return array
+ * Contains database field names but also names used to generate information, such as enrolledcourses
+ *
+ * @return array of user fields
  */
-function user_get_user_details($user, $course = null, array $userfields = array()) {
-    global $USER, $DB, $CFG;
-    require_once($CFG->dirroot . "/user/profile/lib.php"); //custom field library
-    require_once($CFG->dirroot . "/lib/filelib.php");      // file handling on description and friends
-
-    $defaultfields = array( 'id', 'username', 'fullname', 'firstname', 'lastname', 'email',
+function user_get_default_fields() {
+    return array( 'id', 'username', 'fullname', 'firstname', 'lastname', 'email',
         'address', 'phone1', 'phone2', 'icq', 'skype', 'yahoo', 'aim', 'msn', 'department',
         'institution', 'interests', 'firstaccess', 'lastaccess', 'auth', 'confirmed',
         'idnumber', 'lang', 'theme', 'timezone', 'mailformat', 'description', 'descriptionformat',
         'city', 'url', 'country', 'profileimageurlsmall', 'profileimageurl', 'customfields',
         'groups', 'roles', 'preferences', 'enrolledcourses'
     );
+}
+
+/**
+ *
+ * Give user record from mdl_user, build an array conntains
+ * all user details
+ *
+ * Warning: description file urls are 'webservice/pluginfile.php' is use.
+ *          it can be changed with $CFG->moodlewstextformatlinkstoimagesfile
+ *
+ * @param stdClass $user user record from mdl_user
+ * @param stdClass $context context object
+ * @param stdClass $course moodle course
+ * @param array $userfields required fields
+ * @return array|null
+ */
+function user_get_user_details($user, $course = null, array $userfields = array()) {
+    global $USER, $DB, $CFG;
+    require_once($CFG->dirroot . "/user/profile/lib.php"); //custom field library
+    require_once($CFG->dirroot . "/lib/filelib.php");      // file handling on description and friends
+
+    $defaultfields = user_get_default_fields();
 
     if (empty($userfields)) {
         $userfields = $defaultfields;
@@ -187,11 +225,11 @@ function user_get_user_details($user, $course = null, array $userfields = array(
     }
 
     if (!empty($course)) {
-        $context = get_context_instance(CONTEXT_COURSE, $course->id);
-        $usercontext = get_context_instance(CONTEXT_USER, $user->id);
+        $context = context_course::instance($course->id);
+        $usercontext = context_user::instance($user->id);
         $canviewdetailscap = (has_capability('moodle/user:viewdetails', $context) || has_capability('moodle/user:viewdetails', $usercontext));
     } else {
-        $context = get_context_instance(CONTEXT_USER, $user->id);
+        $context = context_user::instance($user->id);
         $usercontext = $context;
         $canviewdetailscap = has_capability('moodle/user:viewdetails', $usercontext);
     }
@@ -199,12 +237,14 @@ function user_get_user_details($user, $course = null, array $userfields = array(
     $currentuser = ($user->id == $USER->id);
     $isadmin = is_siteadmin($USER);
 
+    $showuseridentityfields = get_extra_user_fields($context);
+
     if (!empty($course)) {
         $canviewhiddenuserfields = has_capability('moodle/course:viewhiddenuserfields', $context);
     } else {
         $canviewhiddenuserfields = has_capability('moodle/user:viewhiddendetails', $context);
     }
-    $canviewfullnames        = has_capability('moodle/site:viewfullnames', $context);
+    $canviewfullnames = has_capability('moodle/site:viewfullnames', $context);
     if (!empty($course)) {
         $canviewuseremail = has_capability('moodle/course:useremail', $context);
     } else {
@@ -281,26 +321,26 @@ function user_get_user_details($user, $course = null, array $userfields = array(
         if ($user->address && in_array('address', $userfields)) {
             $userdetails['address'] = $user->address;
         }
-        if ($user->phone1 && in_array('phone1', $userfields)) {
-            $userdetails['phone1'] = $user->phone1;
-        }
-        if ($user->phone2 && in_array('phone2', $userfields)) {
-            $userdetails['phone2'] = $user->phone2;
-        }
     } else {
         $hiddenfields = array_flip(explode(',', $CFG->hiddenuserfields));
     }
 
-    if (isset($user->description) && (!isset($hiddenfields['description']) or $isadmin)) {
-        if (!$cannotviewdescription) {
+    if ($user->phone1 && in_array('phone1', $userfields) &&
+            (in_array('phone1', $showuseridentityfields) or $canviewhiddenuserfields)) {
+        $userdetails['phone1'] = $user->phone1;
+    }
+    if ($user->phone2 && in_array('phone2', $userfields) &&
+            (in_array('phone2', $showuseridentityfields) or $canviewhiddenuserfields)) {
+        $userdetails['phone2'] = $user->phone2;
+    }
 
-            if (in_array('description', $userfields)) {
-                $user->description = file_rewrite_pluginfile_urls($user->description, 'pluginfile.php', $usercontext->id, 'user', 'profile', null);
-                $userdetails['description'] = $user->description;
-            }
-            if (in_array('descriptionformat', $userfields)) {
-                $userdetails['descriptionformat'] = $user->descriptionformat;
-            }
+    if (isset($user->description) &&
+        ((!isset($hiddenfields['description']) && !$cannotviewdescription) or $isadmin)) {
+        if (in_array('description', $userfields)) {
+            // Always return the descriptionformat if description is requested.
+            list($userdetails['description'], $userdetails['descriptionformat']) =
+                    external_format_text($user->description, $user->descriptionformat,
+                            $usercontext->id, 'user', 'profile', null);
         }
     }
 
@@ -353,11 +393,13 @@ function user_get_user_details($user, $course = null, array $userfields = array(
         }
     }
 
-    if (in_array('email', $userfields) && ($currentuser
+    if (in_array('email', $userfields) && ($isadmin // The admin is allowed the users email
+      or $currentuser // Of course the current user is as well
       or $canviewuseremail  // this is a capability in course context, it will be false in usercontext
+      or in_array('email', $showuseridentityfields)
       or $user->maildisplay == 1
       or ($user->maildisplay == 2 and enrol_sharing_course($user, $USER)))) {
-        $userdetails['email'] = $user->email;;
+        $userdetails['email'] = $user->email;
     }
 
     if (in_array('interests', $userfields) && !empty($CFG->usetags)) {
@@ -367,11 +409,18 @@ function user_get_user_details($user, $course = null, array $userfields = array(
         }
     }
 
-    //Departement/Institution are not displayed on any profile, however you can get them from editing profile.
-    if ($isadmin or $currentuser) {
+    //Departement/Institution/Idnumber are not displayed on any profile, however you can get them from editing profile.
+    if ($isadmin or $currentuser or in_array('idnumber', $showuseridentityfields)) {
+        if (in_array('idnumber', $userfields) && $user->idnumber) {
+            $userdetails['idnumber'] = $user->idnumber;
+        }
+    }
+    if ($isadmin or $currentuser or in_array('institution', $showuseridentityfields)) {
         if (in_array('institution', $userfields) && $user->institution) {
             $userdetails['institution'] = $user->institution;
         }
+    }
+    if ($isadmin or $currentuser or in_array('department', $showuseridentityfields)) {
         if (in_array('department', $userfields) && isset($user->department)) { //isset because it's ok to have department 0
             $userdetails['department'] = $user->department;
         }
@@ -393,11 +442,15 @@ function user_get_user_details($user, $course = null, array $userfields = array(
 
     // If groups are in use and enforced throughout the course, then make sure we can meet in at least one course level group
     if (in_array('groups', $userfields) && !empty($course) && $canaccessallgroups) {
-        $usergroups = groups_get_all_groups($course->id, $user->id, $course->defaultgroupingid, 'g.id, g.name,g.description');
+        $usergroups = groups_get_all_groups($course->id, $user->id, $course->defaultgroupingid,
+                'g.id, g.name,g.description,g.descriptionformat');
         $userdetails['groups'] = array();
         foreach ($usergroups as $group) {
-            $group->description = file_rewrite_pluginfile_urls($group->description, 'pluginfile.php', $context->id, 'group', 'description', $group->id);
-            $userdetails['groups'][] = array('id'=>$group->id, 'name'=>$group->name, 'description'=>$group->description);
+            list($group->description, $group->descriptionformat) =
+                external_format_text($group->description, $group->descriptionformat,
+                        $context->id, 'group', 'description', $group->id);
+            $userdetails['groups'][] = array('id'=>$group->id, 'name'=>$group->name,
+                'description'=>$group->description, 'descriptionformat'=>$group->descriptionformat);
         }
     }
     //list of courses where the user is enrolled
@@ -406,10 +459,10 @@ function user_get_user_details($user, $course = null, array $userfields = array(
         if ($mycourses = enrol_get_users_courses($user->id, true)) {
             foreach ($mycourses as $mycourse) {
                 if ($mycourse->category) {
-                    $coursecontext = get_context_instance(CONTEXT_COURSE, $mycourse->id);
+                    $coursecontext = context_course::instance($mycourse->id);
                     $enrolledcourse = array();
                     $enrolledcourse['id'] = $mycourse->id;
-                    $enrolledcourse['fullname'] = format_string($mycourse->fullname, true, array('context' => get_context_instance(CONTEXT_COURSE, $mycourse->id)));
+                    $enrolledcourse['fullname'] = format_string($mycourse->fullname, true, array('context' => $coursecontext));
                     $enrolledcourse['shortname'] = format_string($mycourse->shortname, true, array('context' => $coursecontext));
                     $enrolledcourses[] = $enrolledcourse;
                 }
@@ -429,6 +482,59 @@ function user_get_user_details($user, $course = null, array $userfields = array(
     }
 
     return $userdetails;
+}
+
+/**
+ * Tries to obtain user details, either recurring directly to the user's system profile
+ * or through one of the user's course enrollments (course profile).
+ *
+ * @param object $user The user.
+ * @return array if unsuccessful or the allowed user details.
+ */
+function user_get_user_details_courses($user) {
+    global $USER;
+    $userdetails = null;
+
+    //  Get the courses that the user is enrolled in (only active).
+    $courses = enrol_get_users_courses($user->id, true);
+
+    $systemprofile = false;
+    if (can_view_user_details_cap($user) || ($user->id == $USER->id) || has_coursecontact_role($user->id)) {
+        $systemprofile = true;
+    }
+
+    // Try using system profile.
+    if ($systemprofile) {
+        $userdetails = user_get_user_details($user, null);
+    } else {
+        // Try through course profile.
+        foreach ($courses as $course) {
+            if ($can_view_user_details_cap($user, $course) || ($user->id == $USER->id) || has_coursecontact_role($user->id)) {
+                $userdetails = user_get_user_details($user, $course);
+            }
+        }
+    }
+
+    return $userdetails;
+}
+
+/**
+ * Check if $USER have the necessary capabilities to obtain user details.
+ *
+ * @param object $user
+ * @param object $course if null then only consider system profile otherwise also consider the course's profile.
+ * @return bool true if $USER can view user details.
+ */
+function can_view_user_details_cap($user, $course = null) {
+    // Check $USER has the capability to view the user details at user context.
+    $usercontext = get_context_instance(CONTEXT_USER, $user->id);
+    $result = has_capability('moodle/user:viewdetails', $usercontext);
+    // Otherwise can $USER see them at course context.
+    if (!$result && !empty($course)) {
+        $context = get_context_instance(CONTEXT_COURSE, $course->id);
+        $result = has_capability('moodle/user:viewdetails', $context);
+    }
+    return $result;
 }
 
 /**

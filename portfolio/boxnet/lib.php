@@ -37,8 +37,9 @@ class portfolio_plugin_boxnet extends portfolio_plugin_push_base {
                 )
             );
             if (array_key_exists('status', $return) && $return['status'] == 'upload_ok'
-                && array_key_exists('id', $return) && count($return['id']) == 1) {
-                $this->rename_file($return['id'][array_pop(array_keys($return['id']))], $file->get_filename());
+                    && array_key_exists('id', $return) && count($return['id']) == 1) {
+                $returnid = array_keys($return['id']);
+                $this->rename_file($return['id'][array_pop($returnid)], $file->get_filename());
                 // if this fails, the file was sent but not renamed - this triggers a warning but is not fatal.
             }
         }
@@ -93,24 +94,26 @@ class portfolio_plugin_boxnet extends portfolio_plugin_push_base {
         $folders = $this->get_folder_list();
         $mform->addElement('checkbox', 'plugin_sharefile', get_string('sharefile', 'portfolio_boxnet'));
         $mform->addElement('text', 'plugin_newfolder', get_string('newfolder', 'portfolio_boxnet'));
+        $mform->setType('plugin_newfolder', PARAM_RAW);
         $mform->addElement('checkbox', 'plugin_sharefolder', get_string('sharefolder', 'portfolio_boxnet'));
         $folders[0] = '----';
         ksort($folders);
         $mform->addElement('select', 'plugin_folder', get_string('existingfolder', 'portfolio_boxnet'), $folders);
     }
 
-    public function export_config_validation($data) {
+    public function export_config_validation(array $data) {
         $allfolders = $this->get_folder_list();
         if (in_array($data['plugin_newfolder'], $allfolders)) {
             return array('plugin_newfolder' => get_string('folderclash', 'portfolio_boxnet'));
         }
     }
 
-    public function admin_config_form(&$mform) {
+    public static function admin_config_form(&$mform) {
         global $CFG;
 
         $mform->addElement('text', 'apikey', get_string('apikey', 'portfolio_boxnet'));
         $mform->addRule('apikey', get_string('required'), 'required', null, 'client');
+        $mform->setType('apikey', PARAM_RAW_TRIMMED);
         $a = new stdClass();
         $a->servicesurl = 'http://www.box.net/developers/services';
         $a->callbackurl = $CFG->wwwroot . '/portfolio/add.php?postcontrol=1&type=boxnet';

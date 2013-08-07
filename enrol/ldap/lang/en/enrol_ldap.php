@@ -1,5 +1,4 @@
 <?php
-
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -16,10 +15,9 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Strings for component 'enrol_ldap', language 'en', branch 'MOODLE_20_STABLE'
+ * Strings for component 'enrol_ldap', language 'en'.
  *
- * @package    enrol
- * @subpackage ldap
+ * @package    enrol_ldap
  * @copyright  1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @copyright  2010 Iñaki Arenaza <iarenaza@eps.mondragon.edu>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -93,6 +91,8 @@ $string['pluginname'] = 'LDAP enrolments';
 $string['pluginname_desc'] = '<p>You can use an LDAP server to control your enrolments. It is assumed your LDAP tree contains groups that map to the courses, and that each of those groups/courses will have membership entries to map to students.</p><p>It is assumed that courses are defined as groups in LDAP, with each group having multiple membership fields (<em>member</em> or <em>memberUid</em>) that contain a uniqueidentification of the user.</p><p>To use LDAP enrolment, your users <strong>must</strong> to have a valid  idnumber field. The LDAP groups must have that idnumber in the member fields for a user to be enrolled in the course. This will usually work well if you are already using LDAP Authentication.</p><p>Enrolments will be updated when the user logs in. You can also run a script to keep enrolments in synch. Look in <em>enrol/ldap/cli/sync.php</em>.</p><p>This plugin can also be set to automatically create new courses when new groups appear in LDAP.</p>';
 $string['pluginnotenabled'] = 'Plugin not enabled!';
 $string['role_mapping'] = '<p>For each role that you want to assign from LDAP, you need to specify the list of contexts where the role courses\'s groups are located. Separate different contexts with \';\'.</p><p>You also need to specify the attribute your LDAP server uses to hold the members of a group. Usually \'member\' or \'memberUid\'</p>';
+$string['role_mapping_attribute'] = 'LDAP member attribute for {$a}';
+$string['role_mapping_context'] = 'LDAP contexts for {$a}';
 $string['role_mapping_key'] = 'Map roles from LDAP ';
 $string['roles'] = 'Role mapping';
 $string['server_settings'] = 'LDAP server settings';

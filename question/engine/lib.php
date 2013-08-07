@@ -71,10 +71,11 @@ abstract class question_engine {
     /**
      * Load a {@link question_usage_by_activity} from the database, based on its id.
      * @param int $qubaid the id of the usage to load.
+     * @param moodle_database $db a database connectoin. Defaults to global $DB.
      * @return question_usage_by_activity loaded from the database.
      */
-    public static function load_questions_usage_by_activity($qubaid) {
-        $dm = new question_engine_data_mapper();
+    public static function load_questions_usage_by_activity($qubaid, moodle_database $db = null) {
+        $dm = new question_engine_data_mapper($db);
         return $dm->load_questions_usage_by_activity($qubaid);
     }
 
@@ -83,9 +84,10 @@ abstract class question_engine {
      * if the usage was newly created by {@link make_questions_usage_by_activity()}
      * or loaded from the database using {@link load_questions_usage_by_activity()}
      * @param question_usage_by_activity the usage to save.
+     * @param moodle_database $db a database connectoin. Defaults to global $DB.
      */
-    public static function save_questions_usage_by_activity(question_usage_by_activity $quba) {
-        $dm = new question_engine_data_mapper();
+    public static function save_questions_usage_by_activity(question_usage_by_activity $quba, moodle_database $db = null) {
+        $dm = new question_engine_data_mapper($db);
         $observer = $quba->get_observer();
         if ($observer instanceof question_engine_unit_of_work) {
             $observer->save($dm);
@@ -757,16 +759,16 @@ abstract class question_utils {
     public static function arrays_same_at_key_integer(
             array $array1, array $array2, $key) {
         if (array_key_exists($key, $array1)) {
-            $value1 = $array1[$key];
+            $value1 = (int) $array1[$key];
         } else {
             $value1 = 0;
         }
         if (array_key_exists($key, $array2)) {
-            $value2 = $array2[$key];
+            $value2 = (int) $array2[$key];
         } else {
             $value2 = 0;
         }
-        return ((integer) $value1) === ((integer) $value2);
+        return $value1 === $value2;
     }
 
     private static $units     = array('', 'i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix');
@@ -788,6 +790,33 @@ abstract class question_utils {
 
         return self::$thousands[$number / 1000 % 10] . self::$hundreds[$number / 100 % 10] .
                 self::$tens[$number / 10 % 10] . self::$units[$number % 10];
+    }
+
+    /**
+     * Typically, $mark will have come from optional_param($name, null, PARAM_RAW_TRIMMED).
+     * This method copes with:
+     *  - keeping null or '' input unchanged.
+     *  - nubmers that were typed as either 1.00 or 1,00 form.
+     *
+     * @param string|null $mark raw use input of a mark.
+     * @return float|string|null cleaned mark as a float if possible. Otherwise '' or null.
+     */
+    public static function clean_param_mark($mark) {
+        if ($mark === '' || is_null($mark)) {
+            return $mark;
+        }
+
+        return clean_param(str_replace(',', '.', $mark), PARAM_FLOAT);
+    }
+
+    /**
+     * Get a sumitted variable (from the GET or POST data) that is a mark.
+     * @param string $parname the submitted variable name.
+     * @return float|string|null cleaned mark as a float if possible. Otherwise '' or null.
+     */
+    public static function optional_param_mark($parname) {
+        return self::clean_param_mark(
+                optional_param($parname, null, PARAM_RAW_TRIMMED));
     }
 }
 

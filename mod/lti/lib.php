@@ -50,6 +50,15 @@
 defined('MOODLE_INTERNAL') || die;
 
 /**
+ * Returns all other caps used in module.
+ *
+ * @return array
+ */
+function lti_get_extra_capabilities() {
+    return array('moodle/site:accessallgroups');
+}
+
+/**
  * List of features supported in URL module
  * @param string $feature FEATURE_xx constant for requested feature
  * @return mixed True if module supports feature, false if not, null if doesn't know
@@ -169,7 +178,7 @@ function lti_delete_instance($id) {
  * For this module we just need to support external urls as
  * activity icons
  *
- * @param cm_info $coursemodule
+ * @param stdClass $coursemodule
  * @return cached_cm_info info
  */
 function lti_get_coursemodule_info($coursemodule) {
@@ -177,7 +186,7 @@ function lti_get_coursemodule_info($coursemodule) {
     require_once($CFG->dirroot.'/mod/lti/locallib.php');
 
     if (!$lti = $DB->get_record('lti', array('id' => $coursemodule->instance),
-            'icon, secureicon, intro, introformat, name')) {
+            'icon, secureicon, intro, introformat, name, toolurl, launchcontainer')) {
         return null;
     }
 
@@ -194,6 +203,19 @@ function lti_get_coursemodule_info($coursemodule) {
     if ($coursemodule->showdescription) {
         // Convert intro to html. Do not filter cached version, filters run at display time.
         $info->content = format_module_intro('lti', $lti, $coursemodule->id, false);
+    }
+
+    // Does the link open in a new window?
+    $tool = lti_get_tool_by_url_match($lti->toolurl);
+    if ($tool) {
+        $toolconfig = lti_get_type_config($tool->id);
+    } else {
+        $toolconfig = array();
+    }
+    $launchcontainer = lti_get_launch_container($lti, $toolconfig);
+    if ($launchcontainer == LTI_LAUNCH_CONTAINER_WINDOW) {
+        $launchurl = new moodle_url('/mod/lti/launch.php', array('id' => $coursemodule->id));
+        $info->onclick = "window.open('" . $launchurl->out(false) . "', 'lti'); return false;";
     }
 
     $info->name = $lti->name;
@@ -268,21 +290,6 @@ function lti_cron () {
  **/
 function lti_grades($basicltiid) {
     return null;
-}
-
-/**
- * Must return an array of user records (all data) who are participants
- * for a given instance of basiclti. Must include every user involved
- * in the instance, independient of his role (student, teacher, admin...)
- * See other modules as example.
- *
- * @param int $basicltiid ID of an instance of this module
- * @return mixed boolean/array of students
- *
- * @TODO: implement this moodle function
- **/
-function lti_get_participants($basicltiid) {
-    return false;
 }
 
 /**
@@ -361,6 +368,7 @@ function lti_get_lti_types() {
 /**
  * Create grade item for given basiclti
  *
+ * @category grade
  * @param object $basiclti object with extra cmidnumber
  * @param mixed optional array/object of grade(s); 'reset' means reset grades in gradebook
  * @return int 0 if ok, error code otherwise
@@ -395,6 +403,7 @@ function lti_grade_item_update($basiclti, $grades=null) {
 /**
  * Delete grade item for given basiclti
  *
+ * @category grade
  * @param object $basiclti object
  * @return object basiclti
  */
@@ -408,7 +417,7 @@ function lti_grade_item_delete($basiclti) {
 function lti_extend_settings_navigation($settings, $parentnode) {
     global $PAGE;
 
-    if (has_capability('mod/lti:grade', get_context_instance(CONTEXT_MODULE, $PAGE->cm->id))) {
+    if (has_capability('mod/lti:grade', context_module::instance($PAGE->cm->id))) {
         $keys = $parentnode->get_children_key_list();
 
         $node = navigation_node::create('Submissions',

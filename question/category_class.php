@@ -73,7 +73,7 @@ class question_category_list extends moodle_list {
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class question_category_list_item extends list_item {
-    public function set_icon_html($first, $last, &$lastitem){
+    public function set_icon_html($first, $last, $lastitem){
         global $CFG;
         $category = $this->item;
         $url = new moodle_url('/question/category.php', ($this->parentlist->pageurl->params() + array('edit'=>$category->id)));
@@ -99,17 +99,26 @@ class question_category_list_item extends list_item {
 
         $editqestions = get_string('editquestions', 'question');
 
-        /// Each section adds html to be displayed as part of this list item
-        $questionbankurl = new moodle_url("/question/edit.php", ($this->parentlist->pageurl->params() + array('category'=>"$category->id,$category->contextid")));
-        $catediturl = $this->parentlist->pageurl->out(true, array('edit' => $this->id));
-        $item = "<b><a title=\"{$str->edit}\" href=\"$catediturl\">".$category->name ."</a></b> <a title=\"$editqestions\" href=\"$questionbankurl\">".'('.$category->questioncount.')</a>';
-
-        $item .= '&nbsp;'. $category->info;
+        // Each section adds html to be displayed as part of this list item.
+        $questionbankurl = new moodle_url('/question/edit.php', $this->parentlist->pageurl->params());
+        $questionbankurl->param('cat', $category->id . ',' . $category->contextid);
+        $catediturl = new moodle_url($this->parentlist->pageurl, array('edit' => $this->id));
+        $item = '';
+        $item .= html_writer::tag('b', html_writer::link($catediturl,
+                format_string($category->name, true, array('context' => $this->parentlist->context)),
+                array('title' => $str->edit))) . ' ';
+        $item .= html_writer::link($questionbankurl, '(' . $category->questioncount . ')',
+                array('title' => $editqestions)) . ' ';
+        $item .= format_text($category->info, $category->infoformat,
+                array('context' => $this->parentlist->context, 'noclean' => true));
 
         // don't allow delete if this is the last category in this context.
         if (count($this->parentlist->records) != 1) {
-            $item .=  '<a title="' . $str->delete . '" href="'.$this->parentlist->pageurl->out(true, array('delete'=>$this->id, 'sesskey'=>sesskey())).'">
-                    <img src="' . $OUTPUT->pix_url('t/delete') . '" class="iconsmall" alt="' .$str->delete. '" /></a>';
+            $deleteurl = new moodle_url($this->parentlist->pageurl, array('delete' => $this->id, 'sesskey' => sesskey()));
+            $item .= html_writer::link($deleteurl,
+                    html_writer::empty_tag('img', array('src' => $OUTPUT->pix_url('t/delete'),
+                            'class' => 'iconsmall', 'alt' => $str->delete)),
+                    array('title' => $str->delete));
         }
 
         return $item;
@@ -155,6 +164,7 @@ class question_category_object {
 
         $this->tab = str_repeat('&nbsp;', $this->tabsize);
 
+        $this->str = new stdClass();
         $this->str->course         = get_string('course');
         $this->str->category       = get_string('category', 'question');
         $this->str->categoryinfo   = get_string('categoryinfo', 'question');
@@ -245,7 +255,7 @@ class question_category_object {
             $listhtml = $list->to_html(0, array('str'=>$this->str));
             if ($listhtml){
                 echo $OUTPUT->box_start('boxwidthwide boxaligncenter generalbox questioncategories contextlevel' . $list->context->contextlevel);
-                echo $OUTPUT->heading(get_string('questioncatsfor', 'question', print_context_name(get_context_instance_by_id($context))), 3);
+                echo $OUTPUT->heading(get_string('questioncatsfor', 'question', print_context_name(context::instance_by_id($context))), 3);
                 echo $listhtml;
                 echo $OUTPUT->box_end();
             }
@@ -373,7 +383,7 @@ class question_category_object {
         }
         list($parentid, $contextid) = explode(',', $newparent);
         //moodle_form makes sure select element output is legal no need for further cleaning
-        require_capability('moodle/question:managecategory', get_context_instance_by_id($contextid));
+        require_capability('moodle/question:managecategory', context::instance_by_id($contextid));
 
         if ($parentid) {
             if(!($DB->get_field('question_categories', 'contextid', array('id' => $parentid)) == $contextid)) {
@@ -417,17 +427,17 @@ class question_category_object {
         }
 
         // Check permissions.
-        $fromcontext = get_context_instance_by_id($oldcat->contextid);
+        $fromcontext = context::instance_by_id($oldcat->contextid);
         require_capability('moodle/question:managecategory', $fromcontext);
 
         // If moving to another context, check permissions some more.
         if ($oldcat->contextid != $tocontextid) {
-            $tocontext = get_context_instance_by_id($tocontextid);
+            $tocontext = context::instance_by_id($tocontextid);
             require_capability('moodle/question:managecategory', $tocontext);
         }
 
         // Update the category record.
-        $cat = null;
+        $cat = new stdClass();
         $cat->id = $updateid;
         $cat->name = $newname;
         $cat->info = $newinfo;
@@ -452,6 +462,8 @@ class question_category_object {
             question_move_category_to_context($cat->id, $oldcat->contextid, $tocontextid);
         }
 
+        // Cat param depends on the context id, so update it.
+        $this->pageurl->param('cat', $updateid . ',' . $tocontextid);
         redirect($this->pageurl);
     }
 }

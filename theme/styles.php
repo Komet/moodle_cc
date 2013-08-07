@@ -1,5 +1,4 @@
 <?php
-
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -18,7 +17,7 @@
 /**
  * This file is responsible for serving the one huge CSS of each theme.
  *
- * @package   moodlecore
+ * @package   core
  * @copyright 2009 Petr Skoda (skodak)  {@link http://skodak.org}
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -31,10 +30,40 @@ define('NO_DEBUG_DISPLAY', true);
 // we need just the values from config.php and minlib.php
 define('ABORT_AFTER_CONFIG', true);
 require('../config.php'); // this stops immediately at the beginning of lib/setup.php
+require_once($CFG->dirroot.'/lib/csslib.php');
 
-$themename = min_optional_param('theme', 'standard', 'SAFEDIR');
-$type      = min_optional_param('type', 'all', 'SAFEDIR');
-$rev       = min_optional_param('rev', 0, 'INT');
+if ($slashargument = min_get_slash_argument()) {
+    $slashargument = ltrim($slashargument, '/');
+    if (substr_count($slashargument, '/') < 2) {
+        css_send_css_not_found();
+    }
+
+    if (strpos($slashargument, '_s/') === 0) {
+        // Can't use SVG
+        $slashargument = substr($slashargument, 3);
+        $usesvg = false;
+    } else {
+        $usesvg = true;
+    }
+
+    $chunk = null;
+    if (preg_match('#/(chunk(\d+)(/|$))#', $slashargument, $matches)) {
+        $chunk = (int)$matches[2];
+        $slashargument = str_replace($matches[1], '', $slashargument);
+    }
+
+    list($themename, $rev, $type) = explode('/', $slashargument, 3);
+    $themename = min_clean_param($themename, 'SAFEDIR');
+    $rev       = min_clean_param($rev, 'INT');
+    $type      = min_clean_param($type, 'SAFEDIR');
+
+} else {
+    $themename = min_optional_param('theme', 'standard', 'SAFEDIR');
+    $rev       = min_optional_param('rev', 0, 'INT');
+    $type      = min_optional_param('type', 'all', 'SAFEDIR');
+    $chunk     = min_optional_param('chunk', null, 'INT');
+    $usesvg    = (bool)min_optional_param('svg', '1', 'INT');
+}
 
 if (!in_array($type, array('all', 'ie', 'editor', 'plugins', 'parents', 'theme'))) {
     header('HTTP/1.0 404 not found');
@@ -51,23 +80,31 @@ if (file_exists("$CFG->dirroot/theme/$themename/config.php")) {
 }
 
 if ($type === 'ie') {
-    send_ie_css($themename, $rev);
+    css_send_ie_css($themename, $rev, $etag, !empty($slashargument));
 }
 
-$candidatesheet = "$CFG->cachedir/theme/$themename/css/$type.css";
+$candidatedir = "$CFG->cachedir/theme/$themename/css";
+$etag = "$themename/$rev/$type";
+$candidatename = $type;
+if (!$usesvg) {
+    // Add to the sheet name, one day we'll be able to just drop this.
+    $candidatedir .= '/nosvg';
+    $etag .= '/nosvg';
+}
+if ($chunk !== null) {
+    $etag .= '/chunk'.$chunk;
+    $candidatename .= '.'.$chunk;
+}
+$candidatesheet = "$candidatedir/$candidatename.css";
+$etag = sha1($etag);
 
 if (file_exists($candidatesheet)) {
     if (!empty($_SERVER['HTTP_IF_NONE_MATCH']) || !empty($_SERVER['HTTP_IF_MODIFIED_SINCE'])) {
         // we do not actually need to verify the etag value because our files
         // never change in cache because we increment the rev parameter
-        $lifetime = 60*60*24*30; // 30 days
-        header('HTTP/1.1 304 Not Modified');
-        header('Expires: '. gmdate('D, d M Y H:i:s', time() + $lifetime) .' GMT');
-        header('Cache-Control: max-age='.$lifetime);
-        header('Content-Type: text/css; charset=utf-8');
-        die;
+        css_send_unmodified(filemtime($candidatesheet), $etag);
     }
-    send_cached_css($candidatesheet, $rev);
+    css_send_cached_css($candidatesheet, $etag);
 }
 
 //=================================================================================
@@ -78,19 +115,45 @@ define('NO_MOODLE_COOKIES', true); // Session not used here
 define('NO_UPGRADE_CHECK', true);  // Ignore upgrade check
 
 require("$CFG->dirroot/lib/setup.php");
-// setup include path
-set_include_path($CFG->libdir . '/minify/lib' . PATH_SEPARATOR . get_include_path());
-require_once('Minify.php');
 
 $theme = theme_config::load($themename);
+$theme->force_svg_use($usesvg);
+
+$rev = theme_get_revision();
+
+$etag = "$themename/$rev/$type";
+if (!$usesvg) {
+    // Add to the etag, one day we'll be able to just delete svg nonsense this.
+    $etag .= '/nosvg';
+}
+$etag = sha1($etag);
 
 if ($type === 'editor') {
-    $files = $theme->editor_css_files();
-    store_css($theme, $candidatesheet, $files);
+    $cssfiles = $theme->editor_css_files();
+    css_store_css($theme, $candidatesheet, $cssfiles);
 } else {
+    // IE requests plugins/parents/theme instead of all at once.
+    $basedir = "$CFG->cachedir/theme/$themename/css";
+    if (!$usesvg) {
+        $basedir .= '/nosvg';
+    }
     $css = $theme->css_files();
     $allfiles = array();
+    $relroot = preg_replace('|^http.?://[^/]+|', '', $CFG->wwwroot);
     foreach ($css as $key=>$value) {
+        if (!empty($slashargument)) {
+            if ($usesvg) {
+                $chunkurl = "{$relroot}/theme/styles.php/{$themename}/{$rev}/{$key}";
+            } else {
+                $chunkurl = "{$relroot}/theme/styles.php/_s/{$themename}/{$rev}/{$key}";
+            }
+        } else {
+            if ($usesvg) {
+                $chunkurl = "{$relroot}/theme/styles.php?theme={$themename}&rev={$rev}&type={$key}";
+            } else {
+                $chunkurl = "{$relroot}/theme/styles.php?theme={$themename}&rev={$rev}&type={$key}&svg=0";
+            }
+        }
         $cssfiles = array();
         foreach($value as $val) {
             if (is_array($val)) {
@@ -101,94 +164,18 @@ if ($type === 'editor') {
                 $cssfiles[] = $val;
             }
         }
-        $cssfile = "$CFG->cachedir/theme/$themename/css/$key.css";
-        store_css($theme, $cssfile, $cssfiles);
+        $cssfile = "$basedir/$key.css";
+        css_store_css($theme, $cssfile, $cssfiles, true, $chunkurl);
         $allfiles = array_merge($allfiles, $cssfiles);
     }
-    $cssfile = "$CFG->cachedir/theme/$themename/css/all.css";
-    store_css($theme, $cssfile, $allfiles);
-}
-send_cached_css($candidatesheet, $rev);
-
-//=================================================================================
-//=== utility functions ==
-// we are not using filelib because we need to fine tune all header
-// parameters to get the best performance.
-
-function store_css(theme_config $theme, $csspath, $cssfiles) {
-    $css = $theme->post_process(minify($cssfiles));
-    // note: cache reset might have purged our cache dir structure,
-    //       make sure we do not use stale file stat cache in the next check_dir_exists()
-    clearstatcache();
-    check_dir_exists(dirname($csspath));
-    $fp = fopen($csspath, 'w');
-    fwrite($fp, $css);
-    fclose($fp);
+    $cssfile = "$basedir/all.css";
+    css_store_css($theme, $cssfile, $allfiles);
 }
 
-function send_ie_css($themename, $rev) {
-    $lifetime = 60*60*24*30; // 30 days
-
-    $css = <<<EOF
-/** Unfortunately IE6/7 does not support more than 4096 selectors in one CSS file, which means we have to use some ugly hacks :-( **/
-@import url(styles.php?theme=$themename&rev=$rev&type=plugins);
-@import url(styles.php?theme=$themename&rev=$rev&type=parents);
-@import url(styles.php?theme=$themename&rev=$rev&type=theme);
-
-EOF;
-
-    header('Etag: '.md5($rev));
-    header('Content-Disposition: inline; filename="styles.php"');
-    header('Last-Modified: '. gmdate('D, d M Y H:i:s', time()) .' GMT');
-    header('Expires: '. gmdate('D, d M Y H:i:s', time() + $lifetime) .' GMT');
-    header('Pragma: ');
-    header('Cache-Control: max-age='.$lifetime);
-    header('Accept-Ranges: none');
-    header('Content-Type: text/css; charset=utf-8');
-    header('Content-Length: '.strlen($css));
-
-    echo $css;
-    die;
+// verify nothing failed in cache file creation
+clearstatcache();
+if (!file_exists($candidatesheet)) {
+    css_send_css_not_found();
 }
 
-function send_cached_css($csspath, $rev) {
-    $lifetime = 60*60*24*30; // 30 days
-
-    header('Content-Disposition: inline; filename="styles.php"');
-    header('Last-Modified: '. gmdate('D, d M Y H:i:s', filemtime($csspath)) .' GMT');
-    header('Expires: '. gmdate('D, d M Y H:i:s', time() + $lifetime) .' GMT');
-    header('Pragma: ');
-    header('Cache-Control: max-age='.$lifetime);
-    header('Accept-Ranges: none');
-    header('Content-Type: text/css; charset=utf-8');
-    if (!min_enable_zlib_compression()) {
-        header('Content-Length: '.filesize($csspath));
-    }
-
-    readfile($csspath);
-    die;
-}
-
-function minify($files) {
-    if (0 === stripos(PHP_OS, 'win')) {
-        Minify::setDocRoot(); // IIS may need help
-    }
-    // disable all caching, we do it in moodle
-    Minify::setCache(null, false);
-
-    $options = array(
-        'bubbleCssImports' => false,
-        // Don't gzip content we just want text for storage
-        'encodeOutput' => false,
-        // Maximum age to cache, not used but required
-        'maxAge' => (60*60*24*20),
-        // The files to minify
-        'files' => $files,
-        // Turn orr URI rewriting
-        'rewriteCssUris' => false,
-        // This returns the CSS rather than echoing it for display
-        'quiet' => true
-    );
-    $result = Minify::serve('Files', $options);
-    return $result['content'];
-}
+css_send_cached_css($candidatesheet, $etag);

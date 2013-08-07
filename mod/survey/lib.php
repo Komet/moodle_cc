@@ -267,39 +267,6 @@ function survey_print_recent_activity($course, $viewfullnames, $timestart) {
     return true;
 }
 
-/**
- * Returns the users with data in one survey
- * (users with records in survey_analysis and survey_answers, students)
- *
- * @todo: deprecated - to be deleted in 2.2
- *
- * @param int $surveyid
- * @return array
- */
-function survey_get_participants($surveyid) {
-    global $DB;
-
-    //Get students from survey_analysis
-    $st_analysis = $DB->get_records_sql("SELECT DISTINCT u.id, u.id
-                                           FROM {user} u, {survey_analysis} a
-                                          WHERE a.survey = ? AND
-                                                u.id = a.userid", array($surveyid));
-    //Get students from survey_answers
-    $st_answers = $DB->get_records_sql("SELECT DISTINCT u.id, u.id
-                                          FROM {user} u, {survey_answers} a
-                                         WHERE a.survey = ? AND
-                                               u.id = a.userid", array($surveyid));
-
-    //Add st_answers to st_analysis
-    if ($st_answers) {
-        foreach ($st_answers as $st_answer) {
-            $st_analysis[$st_answer->id] = $st_answer;
-        }
-    }
-    //Return st_analysis array (it contains an array of unique users)
-    return ($st_analysis);
-}
-
 // SQL FUNCTIONS ////////////////////////////////////////////////////////
 
 /**
@@ -698,13 +665,8 @@ function survey_question_rowclass($qnum) {
 function survey_print_graph($url) {
     global $CFG, $SURVEY_GHEIGHT, $SURVEY_GWIDTH;
 
-    if (empty($CFG->gdversion)) {
-        echo "(".get_string("gdneed").")";
-
-    } else {
-        echo "<img class='resultgraph' height=\"$SURVEY_GHEIGHT\" width=\"$SURVEY_GWIDTH\"".
-             " src=\"$CFG->wwwroot/mod/survey/graph.php?$url\" alt=\"".get_string("surveygraph", "survey")."\" />";
-    }
+    echo "<img class='resultgraph' height=\"$SURVEY_GHEIGHT\" width=\"$SURVEY_GWIDTH\"".
+         " src=\"$CFG->wwwroot/mod/survey/graph.php?$url\" alt=\"".get_string("surveygraph", "survey")."\" />";
 }
 
 /**

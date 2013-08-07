@@ -1,7 +1,4 @@
 <?php
-
-defined('MOODLE_INTERNAL') || die();
-
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -26,11 +23,12 @@ defined('MOODLE_INTERNAL') || die();
  * For full information about creating Moodle themes, see:
  *  http://docs.moodle.org/dev/Themes_2.0
  *
- * @package   moodlecore
+ * @package   theme_formal_white
  * @copyright Mediatouch 2000 (http://mediatouch.it/)
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+defined('MOODLE_INTERNAL') || die();
 
 $THEME->name = 'formal_white';
 ////////////////////////////////////////////////////
@@ -39,7 +37,7 @@ $THEME->name = 'formal_white';
 ////////////////////////////////////////////////////
 
 
-$THEME->parents = array('base','canvas');
+$THEME->parents = array('canvas','base');
 /////////////////////////////////////////////////////
 // Which existing theme(s) in the /theme/ directory
 // do you want this theme to extend. A theme can
@@ -53,7 +51,6 @@ $THEME->parents = array('base','canvas');
 
 $THEME->parents_exclude_sheets = array(
     'canvas'=>array(
-        'core',
         'pagelayout',
         'tabs',
         'tables',
@@ -68,7 +65,7 @@ $THEME->parents_exclude_sheets = array(
 $THEME->sheets = array('frame'     ,'menu', 'course',
                        'pagelayout','core', 'calendar',
                        'tabs'      ,'quiz', 'forum',
-                       'formal_white');
+                       'block'     ,'formal_white');
 ////////////////////////////////////////////////////
 // Name of the stylesheet(s) you've including in
 // this theme's /styles/ directory.
@@ -92,33 +89,33 @@ $THEME->layouts = array(
     'base' => array(
         'file' => 'general.php',
         'regions' => array('side-pre', 'side-post'),
-        'defaultregion' => 'side-post',
+        'defaultregion' => 'side-pre',
     ),
     'standard' => array(
         'file' => 'general.php',
         'regions' => array('side-pre', 'side-post'),
-        'defaultregion' => 'side-post',
+        'defaultregion' => 'side-pre',
     ),
     'course' => array(
         'file' => 'general.php',
         'regions' => array('side-pre', 'side-post'),
-        'defaultregion' => 'side-post',
+        'defaultregion' => 'side-pre',
         'options' => array('langmenu'=>true),
     ),
     'coursecategory' => array(
         'file' => 'general.php',
         'regions' => array('side-pre', 'side-post'),
-        'defaultregion' => 'side-post',
+        'defaultregion' => 'side-pre',
     ),
     'incourse' => array(
         'file' => 'general.php',
         'regions' => array('side-pre', 'side-post'),
-        'defaultregion' => 'side-post',
+        'defaultregion' => 'side-pre',
     ),
     'frontpage' => array(
         'file' => 'frontpage.php',
         'regions' => array('side-pre', 'side-post'),
-        'defaultregion' => 'side-post',
+        'defaultregion' => 'side-pre',
         'options' => array('langmenu'=>true),
     ),
     'admin' => array(
@@ -129,13 +126,13 @@ $THEME->layouts = array(
     'mydashboard' => array(
         'file' => 'general.php',
         'regions' => array('side-pre', 'side-post'),
-        'defaultregion' => 'side-post',
+        'defaultregion' => 'side-pre',
         'options' => array('langmenu'=>true),
     ),
     'mypublic' => array(
         'file' => 'general.php',
         'regions' => array('side-pre', 'side-post'),
-        'defaultregion' => 'side-post',
+        'defaultregion' => 'side-pre',
     ),
     'login' => array(
         'file' => 'general.php',
@@ -146,19 +143,19 @@ $THEME->layouts = array(
     'popup' => array(
         'file' => 'general.php',
         'regions' => array(),
-        'options' => array('nofooter'=>true, 'noblocks'=>true, 'nonavbar'=>true),
+        'options' => array('nofooter'=>true, 'noblocks'=>true, 'nonavbar'=>true, 'nocourseheaderfooter'=>true),
     ),
     // No blocks and minimal footer - used for legacy frame layouts only!
     'frametop' => array(
         'file' => 'general.php',
         'regions' => array(),
-        'options' => array('nofooter'=>true),
+        'options' => array('nofooter'=>true, 'nocoursefooter'=>true),
     ),
     // Embeded pages, like iframe embeded in moodleform (chat)
     'embedded' => array(
         'file' => 'embedded.php',
         'regions' => array(),
-        'options' => array('nofooter'=>true, 'nonavbar'=>true, 'nocustommenu'=>true),
+        'options' => array('nofooter'=>true, 'nonavbar'=>true, 'nocustommenu'=>true, 'nocourseheaderfooter'=>true),
     ),
     // Used during upgrade and install, and for the 'This site is undergoing maintenance' message.
     // This must not have any blocks, and it is good idea if it does not have links to
@@ -166,16 +163,16 @@ $THEME->layouts = array(
     'maintenance' => array(
         'file' => 'general.php',
         'regions' => array(),
-        'options' => array('nofooter'=>true, 'nonavbar'=>true),
+        'options' => array('nofooter'=>true, 'nonavbar'=>true, 'nocourseheaderfooter'=>true),
     ),
     // Should display the content and basic headers only.
     'print' => array(
         'file' => 'general.php',
         'regions' => array(),
-        'options' => array('nofooter'=>true, 'nonavbar'=>false, 'noblocks'=>true),
+        'options' => array('nofooter'=>true, 'nonavbar'=>false, 'noblocks'=>true, 'nocourseheaderfooter'=>true),
     ),
     'report' => array(
-        'file' => 'general.php',
+        'file' => 'report.php',
         'regions' => array('side-pre'),
         'defaultregion' => 'side-pre',
     ),

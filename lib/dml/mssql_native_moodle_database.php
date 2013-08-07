@@ -1,5 +1,4 @@
 <?php
-
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -15,24 +14,26 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-
 /**
  * Native mssql class representing moodle database interface.
  *
- * @package    core
- * @subpackage dml
+ * @package    core_dml
  * @copyright  2009 onwards Eloy Lafuente (stronk7) {@link http://stronk7.com}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-require_once($CFG->libdir.'/dml/moodle_database.php');
-require_once($CFG->libdir.'/dml/mssql_native_moodle_recordset.php');
-require_once($CFG->libdir.'/dml/mssql_native_moodle_temptables.php');
+require_once(__DIR__.'/moodle_database.php');
+require_once(__DIR__.'/mssql_native_moodle_recordset.php');
+require_once(__DIR__.'/mssql_native_moodle_temptables.php');
 
 /**
  * Native mssql class representing moodle database interface.
+ *
+ * @package    core_dml
+ * @copyright  2009 onwards Eloy Lafuente (stronk7) {@link http://stronk7.com}
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class mssql_native_moodle_database extends moodle_database {
 
@@ -115,10 +116,10 @@ class mssql_native_moodle_database extends moodle_database {
     /**
      * Connect to db
      * Must be called before other methods.
-     * @param string $dbhost
-     * @param string $dbuser
-     * @param string $dbpass
-     * @param string $dbname
+     * @param string $dbhost The database host.
+     * @param string $dbuser The database username.
+     * @param string $dbpass The database username's password.
+     * @param string $dbname The name of the database being connected to.
      * @param mixed $prefix string means moodle db prefix, false used for external databases where prefix not used
      * @param array $dboptions driver specific options
      * @return bool true
@@ -257,7 +258,7 @@ class mssql_native_moodle_database extends moodle_database {
 
     /**
      * Returns database server info array
-     * @return array
+     * @return array Array containing 'description' and 'version' info
      */
     public function get_server_info() {
         static $info;
@@ -280,12 +281,6 @@ class mssql_native_moodle_database extends moodle_database {
             $this->free_result($result);
         }
         return $info;
-    }
-
-    protected function is_min_version($version) {
-        $server = $this->get_server_info();
-        $server = $server['version'];
-        return version_compare($server, $version, '>=');
     }
 
     /**
@@ -311,7 +306,7 @@ class mssql_native_moodle_database extends moodle_database {
 
     /**
      * Returns supported query parameter types
-     * @return int bitmask
+     * @return int bitmask of accepted SQL_PARAMS_*
      */
     protected function allowed_param_types() {
         return SQL_PARAMS_QM; // Not really, but emulated, see emulate_bound_params()
@@ -327,6 +322,7 @@ class mssql_native_moodle_database extends moodle_database {
 
     /**
      * Return tables in database WITHOUT current prefix
+     * @param bool $usecache if true, returns list of cached tables.
      * @return array of table names in lowercase and without prefix
      */
     public function get_tables($usecache=true) {
@@ -335,7 +331,7 @@ class mssql_native_moodle_database extends moodle_database {
         }
         $this->tables = array();
         $sql = "SELECT table_name
-                  FROM information_schema.tables
+                  FROM INFORMATION_SCHEMA.TABLES
                  WHERE table_name LIKE '$this->prefix%'
                    AND table_type = 'BASE TABLE'";
         $this->query_start($sql, null, SQL_QUERY_AUX);
@@ -345,10 +341,12 @@ class mssql_native_moodle_database extends moodle_database {
         if ($result) {
             while ($row = mssql_fetch_row($result)) {
                 $tablename = reset($row);
-                if (strpos($tablename, $this->prefix) !== 0) {
-                    continue;
+                if ($this->prefix !== '') {
+                    if (strpos($tablename, $this->prefix) !== 0) {
+                        continue;
+                    }
+                    $tablename = substr($tablename, strlen($this->prefix));
                 }
-                $tablename = substr($tablename, strlen($this->prefix));
                 $this->tables[$tablename] = $tablename;
             }
             $this->free_result($result);
@@ -360,8 +358,9 @@ class mssql_native_moodle_database extends moodle_database {
     }
 
     /**
-     * Return table indexes - everything lowercased
-     * @return array of arrays
+     * Return table indexes - everything lowercased.
+     * @param string $table The table we want to get indexes from.
+     * @return array An associative array of indexes containing 'unique' flag and 'columns' being indexed
      */
     public function get_indexes($table) {
         $indexes = array();
@@ -411,11 +410,16 @@ class mssql_native_moodle_database extends moodle_database {
      * @return array array of database_column_info objects indexed with column names
      */
     public function get_columns($table, $usecache=true) {
-        if ($usecache and isset($this->columns[$table])) {
-            return $this->columns[$table];
+
+        if ($usecache) {
+            $properties = array('dbfamily' => $this->get_dbfamily(), 'settings' => $this->get_settings_hash());
+            $cache = cache::make('core', 'databasemeta', $properties);
+            if ($data = $cache->get($table)) {
+                return $data;
+            }
         }
 
-        $this->columns[$table] = array();
+        $structure = array();
 
         if (!$this->temptables->is_temptable($table)) { // normal table, get metadata from own schema
             $sql = "SELECT column_name AS name,
@@ -427,7 +431,7 @@ class mssql_native_moodle_database extends moodle_database {
                            columnproperty(object_id(quotename(table_schema) + '.' +
                                quotename(table_name)), column_name, 'IsIdentity') AS auto_increment,
                            column_default AS default_value
-                      FROM information_schema.columns
+                      FROM INFORMATION_SCHEMA.COLUMNS
                      WHERE table_name = '{" . $table . "}'
                   ORDER BY ordinal_position";
         } else { // temp table, get metadata from tempdb schema
@@ -440,7 +444,7 @@ class mssql_native_moodle_database extends moodle_database {
                            columnproperty(object_id(quotename(table_schema) + '.' +
                                quotename(table_name)), column_name, 'IsIdentity') AS auto_increment,
                            column_default AS default_value
-                      FROM tempdb.information_schema.columns
+                      FROM tempdb.INFORMATION_SCHEMA.COLUMNS
                       JOIN tempdb..sysobjects ON name = table_name
                      WHERE id = object_id('tempdb..{" . $table . "}')
                   ORDER BY ordinal_position";
@@ -495,22 +499,28 @@ class mssql_native_moodle_database extends moodle_database {
             // Process binary
             $info->binary = $info->meta_type == 'B' ? true : false;
 
-            $this->columns[$table][$info->name] = new database_column_info($info);
+            $structure[$info->name] = new database_column_info($info);
         }
         $this->free_result($result);
 
-        return $this->columns[$table];
+        if ($usecache) {
+            $result = $cache->set($table, $structure);
+        }
+
+        return $structure;
     }
 
     /**
-     * Normalise values based in RDBMS dependencies (booleans, LOBs...)
+     * Normalise values based on varying RDBMS's dependencies (booleans, LOBs...)
      *
      * @param database_column_info $column column metadata corresponding with the value we are going to normalise
      * @param mixed $value value we are going to normalise
      * @return mixed the normalised value
      */
     protected function normalise_value($column, $value) {
-        if (is_bool($value)) { /// Always, convert boolean to int
+        $this->detect_objects($value);
+
+        if (is_bool($value)) { // Always, convert boolean to int
             $value = (int)$value;
         } // And continue processing because text columns with numeric info need special handling below
 
@@ -594,7 +604,7 @@ class mssql_native_moodle_database extends moodle_database {
      * Do NOT use in code, to be used by database_manager only!
      * @param string $sql query
      * @return bool true
-     * @throws dml_exception if error
+     * @throws dml_exception A DML specific exception is thrown for any errors.
      */
     public function change_database_structure($sql) {
         $this->reset_caches();
@@ -614,9 +624,9 @@ class mssql_native_moodle_database extends moodle_database {
         if (empty($params)) {
             return $sql;
         }
-        /// ok, we have verified sql statement with ? and correct number of params
-        $parts = explode('?', $sql);
-        $return = array_shift($parts);
+        // ok, we have verified sql statement with ? and correct number of params
+        $parts = array_reverse(explode('?', $sql));
+        $return = array_pop($parts);
         foreach ($params as $param) {
             if (is_bool($param)) {
                 $return .= (int)$param;
@@ -641,7 +651,7 @@ class mssql_native_moodle_database extends moodle_database {
                 $return .= "N'$param'";
             }
 
-            $return .= array_shift($parts);
+            $return .= array_pop($parts);
         }
         return $return;
     }
@@ -652,7 +662,7 @@ class mssql_native_moodle_database extends moodle_database {
      * @param string $sql query
      * @param array $params query parameters
      * @return bool true
-     * @throws dml_exception if error
+     * @throws dml_exception A DML specific exception is thrown for any errors.
      */
     public function execute($sql, array $params=null) {
 
@@ -678,14 +688,15 @@ class mssql_native_moodle_database extends moodle_database {
      * code where it's possible there might be large datasets being returned.  For known
      * small datasets use get_records_sql - it leads to simpler code.
      *
-     * The return type is as for @see function get_recordset.
+     * The return type is like:
+     * @see function get_recordset.
      *
      * @param string $sql the SQL select query to execute.
      * @param array $params array of sql parameters
      * @param int $limitfrom return a subset of records, starting at this point (optional, required if $limitnum is set).
      * @param int $limitnum return a subset comprising this many records (optional, required if $limitfrom is set).
      * @return moodle_recordset instance
-     * @throws dml_exception if error
+     * @throws dml_exception A DML specific exception is thrown for any errors.
      */
     public function get_recordset_sql($sql, array $params=null, $limitfrom=0, $limitnum=0) {
         $limitfrom = (int)$limitfrom;
@@ -711,7 +722,11 @@ class mssql_native_moodle_database extends moodle_database {
         $this->query_end($result);
 
         if ($limitfrom) { // Skip $limitfrom records
-            mssql_data_seek($result, $limitfrom);
+            if (!@mssql_data_seek($result, $limitfrom)) {
+                // Nothing, most probably seek past the end.
+                mssql_free_result($result);
+                $result = null;
+            }
         }
 
         return $this->create_recordset($result);
@@ -724,7 +739,8 @@ class mssql_native_moodle_database extends moodle_database {
     /**
      * Get a number of records as an array of objects using a SQL statement.
      *
-     * Return value as for @see function get_records.
+     * Return value is like:
+     * @see function get_records.
      *
      * @param string $sql the SQL select query to execute. The first column of this SELECT statement
      *   must be a unique value (usually the 'id' field), as it will be used as the key of the
@@ -733,7 +749,7 @@ class mssql_native_moodle_database extends moodle_database {
      * @param int $limitfrom return a subset of records, starting at this point (optional, required if $limitnum is set).
      * @param int $limitnum return a subset comprising this many records (optional, required if $limitfrom is set).
      * @return array of objects, or empty array if no records were found
-     * @throws dml_exception if error
+     * @throws dml_exception A DML specific exception is thrown for any errors.
      */
     public function get_records_sql($sql, array $params=null, $limitfrom=0, $limitnum=0) {
 
@@ -760,7 +776,7 @@ class mssql_native_moodle_database extends moodle_database {
      * @param string $sql The SQL query
      * @param array $params array of sql parameters
      * @return array of values
-     * @throws dml_exception if error
+     * @throws dml_exception A DML specific exception is thrown for any errors.
      */
     public function get_fieldset_sql($sql, array $params=null) {
 
@@ -784,7 +800,7 @@ class mssql_native_moodle_database extends moodle_database {
      * @param bool $bulk true means repeated inserts expected
      * @param bool $customsequence true if 'id' included in $params, disables $returnid
      * @return bool|int true or new id
-     * @throws dml_exception if error
+     * @throws dml_exception A DML specific exception is thrown for any errors.
      */
     public function insert_record_raw($table, $params, $returnid=true, $bulk=false, $customsequence=false) {
         if (!is_array($params)) {
@@ -792,6 +808,7 @@ class mssql_native_moodle_database extends moodle_database {
         }
 
         $returning = "";
+        $isidentity = false;
 
         if ($customsequence) {
             if (!isset($params['id'])) {
@@ -799,18 +816,26 @@ class mssql_native_moodle_database extends moodle_database {
             }
             $returnid = false;
 
-            // Disable IDENTITY column before inserting record with id
-            $sql = 'SET IDENTITY_INSERT {' . $table . '} ON'; // Yes, it' ON!!
-            list($sql, $xparams, $xtype) = $this->fix_sql_params($sql, null);
-            $this->query_start($sql, null, SQL_QUERY_AUX);
-            $result = mssql_query($sql, $this->mssql);
-            $this->query_end($result);
-            $this->free_result($result);
+            $columns = $this->get_columns($table);
+            if (isset($columns['id']) and $columns['id']->auto_increment) {
+                $isidentity = true;
+            }
+
+            // Disable IDENTITY column before inserting record with id, only if the
+            // column is identity, from meta information.
+            if ($isidentity) {
+                $sql = 'SET IDENTITY_INSERT {' . $table . '} ON'; // Yes, it' ON!!
+                list($sql, $xparams, $xtype) = $this->fix_sql_params($sql, null);
+                $this->query_start($sql, null, SQL_QUERY_AUX);
+                $result = mssql_query($sql, $this->mssql);
+                $this->query_end($result);
+                $this->free_result($result);
+            }
 
         } else {
             unset($params['id']);
             if ($returnid) {
-                $returning = "; SELECT SCOPE_IDENTITY()";
+                $returning = "OUTPUT inserted.id";
             }
         }
 
@@ -822,29 +847,43 @@ class mssql_native_moodle_database extends moodle_database {
         $qms    = array_fill(0, count($params), '?');
         $qms    = implode(',', $qms);
 
-        $sql = "INSERT INTO {" . $table . "} ($fields) VALUES($qms) $returning";
+        $sql = "INSERT INTO {" . $table . "} ($fields) $returning VALUES ($qms)";
 
         list($sql, $params, $type) = $this->fix_sql_params($sql, $params);
         $rawsql = $this->emulate_bound_params($sql, $params);
 
         $this->query_start($sql, $params, SQL_QUERY_INSERT);
         $result = mssql_query($rawsql, $this->mssql);
-        $this->query_end($result);
+        // Expected results are:
+        //     - true: insert ok and there isn't returned information.
+        //     - false: insert failed and there isn't returned information.
+        //     - resource: insert executed, need to look for returned (output)
+        //           values to know if the insert was ok or no. Posible values
+        //           are false = failed, integer = insert ok, id returned.
+        $end = false;
+        if (is_bool($result)) {
+            $end = $result;
+        } else if (is_resource($result)) {
+            $end = mssql_result($result, 0, 0); // Fetch 1st column from 1st row.
+        }
+        $this->query_end($end); // End the query with the calculated $end.
 
         if ($returning !== "") {
-            $row = mssql_fetch_assoc($result);
-            $params['id'] = reset($row);
+            $params['id'] = $end;
         }
         $this->free_result($result);
 
         if ($customsequence) {
-            // Enable IDENTITY column after inserting record with id
-            $sql = 'SET IDENTITY_INSERT {' . $table . '} OFF'; // Yes, it' OFF!!
-            list($sql, $xparams, $xtype) = $this->fix_sql_params($sql, null);
-            $this->query_start($sql, null, SQL_QUERY_AUX);
-            $result = mssql_query($sql, $this->mssql);
-            $this->query_end($result);
-            $this->free_result($result);
+            // Enable IDENTITY column after inserting record with id, only if the
+            // column is identity, from meta information.
+            if ($isidentity) {
+                $sql = 'SET IDENTITY_INSERT {' . $table . '} OFF'; // Yes, it' OFF!!
+                list($sql, $xparams, $xtype) = $this->fix_sql_params($sql, null);
+                $this->query_start($sql, null, SQL_QUERY_AUX);
+                $result = mssql_query($sql, $this->mssql);
+                $this->query_end($result);
+                $this->free_result($result);
+            }
         }
 
         if (!$returnid) {
@@ -864,7 +903,7 @@ class mssql_native_moodle_database extends moodle_database {
      * @param object $data A data object with values for one or more fields in the record
      * @param bool $returnid Should the id of the newly created record entry be returned? If this option is not requested then true/false is returned.
      * @return bool|int true or new id
-     * @throws dml_exception if error
+     * @throws dml_exception A DML specific exception is thrown for any errors.
      */
     public function insert_record($table, $dataobject, $returnid=true, $bulk=false) {
         $dataobject = (array)$dataobject;
@@ -893,7 +932,7 @@ class mssql_native_moodle_database extends moodle_database {
      * @param string $table name of database table to be inserted into
      * @param object $dataobject A data object with values for one or more fields in the record
      * @return bool true
-     * @throws dml_exception if error
+     * @throws dml_exception A DML specific exception is thrown for any errors.
      */
     public function import_record($table, $dataobject) {
         $dataobject = (array)$dataobject;
@@ -920,7 +959,7 @@ class mssql_native_moodle_database extends moodle_database {
      * @param mixed $params data record as object or array
      * @param bool true means repeated updates expected
      * @return bool true
-     * @throws dml_exception if error
+     * @throws dml_exception A DML specific exception is thrown for any errors.
      */
     public function update_record_raw($table, $params, $bulk=false) {
         $params = (array)$params;
@@ -967,7 +1006,7 @@ class mssql_native_moodle_database extends moodle_database {
      * @param object $dataobject An object with contents equal to fieldname=>fieldvalue. Must have an entry for 'id' to map to the table specified.
      * @param bool true means repeated updates expected
      * @return bool true
-     * @throws dml_exception if error
+     * @throws dml_exception A DML specific exception is thrown for any errors.
      */
     public function update_record($table, $dataobject, $bulk=false) {
         $dataobject = (array)$dataobject;
@@ -995,7 +1034,7 @@ class mssql_native_moodle_database extends moodle_database {
      * @param string $select A fragment of SQL to be used in a where clause in the SQL call.
      * @param array $params array of sql parameters
      * @return bool true
-     * @throws dml_exception if error
+     * @throws dml_exception A DML specific exception is thrown for any errors.
      */
     public function set_field_select($table, $newfield, $newvalue, $select, array $params=null) {
 
@@ -1009,7 +1048,7 @@ class mssql_native_moodle_database extends moodle_database {
         // convert params to ? types
         list($select, $params, $type) = $this->fix_sql_params($select, $params);
 
-    /// Get column metadata
+        // Get column metadata
         $columns = $this->get_columns($table);
         $column = $columns[$newfield];
 
@@ -1042,7 +1081,7 @@ class mssql_native_moodle_database extends moodle_database {
      * @param string $select A fragment of SQL to be used in a where clause in the SQL call (used to define the selection criteria).
      * @param array $params array of sql parameters
      * @return bool true
-     * @throws dml_exception if error
+     * @throws dml_exception A DML specific exception is thrown for any errors.
      */
     public function delete_records_select($table, $select, array $params=null) {
 
@@ -1063,8 +1102,6 @@ class mssql_native_moodle_database extends moodle_database {
 
         return true;
     }
-
-/// SQL helper functions
 
     public function sql_cast_char2int($fieldname, $text=false) {
         if (!$text) {
@@ -1128,7 +1165,7 @@ class mssql_native_moodle_database extends moodle_database {
      */
     public function sql_like($fieldname, $param, $casesensitive = true, $accentsensitive = true, $notlike = false, $escapechar = '\\') {
         if (strpos($param, '%') !== false) {
-            debugging('Potential SQL injection detected, sql_ilike() expects bound parameters (? or :named)');
+            debugging('Potential SQL injection detected, sql_like() expects bound parameters (? or :named)');
         }
 
         $collation = $this->get_collation();
@@ -1152,7 +1189,7 @@ class mssql_native_moodle_database extends moodle_database {
     public function sql_concat() {
         $arr = func_get_args();
         foreach ($arr as $key => $ele) {
-            $arr[$key] = ' CAST(' . $ele . ' AS VARCHAR(255)) ';
+            $arr[$key] = ' CAST(' . $ele . ' AS NVARCHAR(255)) ';
         }
         $s = implode(' + ', $arr);
         if ($s === '') {
@@ -1221,8 +1258,6 @@ s only returning name of SQL substring function, it now requires all parameters.
         }
     }
 
-/// session locking
-
     public function session_lock_supported() {
         return true;
     }
@@ -1274,6 +1309,10 @@ s only returning name of SQL substring function, it now requires all parameters.
         if (!$this->session_lock_supported()) {
             return;
         }
+        if (!$this->used_for_db_sessions) {
+            return;
+        }
+
         parent::release_session_lock($rowid);
 
         $fullname = $this->dbname.'-'.$this->prefix.'-session-'.$rowid;
@@ -1284,8 +1323,6 @@ s only returning name of SQL substring function, it now requires all parameters.
 
         $this->free_result($result);
     }
-
-/// transactions
 
     /**
      * Driver specific start of real database transaction,

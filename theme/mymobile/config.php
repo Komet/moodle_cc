@@ -17,8 +17,7 @@
 /**
  * Config file for mymobile theme
  *
- * @package    theme
- * @subpackage mymobile
+ * @package    theme_mymobile
  * @copyright  John Stabinger
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -34,7 +33,8 @@ $THEME->parents = array(
 
 // Set the stylesheets that we want to include for this theme
 $THEME->sheets = array(
-    'jmobilerc2',
+    'jmobile11',
+    'jmobile11_rtl',
     'core',
     'media'
 );
@@ -104,34 +104,34 @@ $THEME->layouts = array(
     'popup' => array(
         'file' => 'embedded.php',
         'regions' => array(),
-        'options' => array('nofooter'=>true, 'noblocks'=>true, 'nonavbar'=>true),
+        'options' => array('nofooter'=>true, 'noblocks'=>true, 'nonavbar'=>true, 'nocourseheaderfooter'=>true),
     ),
     'frametop' => array(
         'file' => 'general.php',
         'regions' => array(),
-        'options' => array('nofooter'=>true),
+        'options' => array('nofooter'=>true, 'nocoursefooter'=>true),
     ),
     'maintenance' => array(
         'file' => 'general.php',
         'regions' => array(),
-        'options' => array('nofooter'=>true, 'nonavbar'=>true),
+        'options' => array('nofooter'=>true, 'nonavbar'=>true, 'nocourseheaderfooter'=>true),
     ),
     'embedded' => array(
         'file' => 'embedded.php',
         'regions' => array(),
-        'options' => array('nofooter'=>true, 'nonavbar'=>true),
+        'options' => array('nofooter'=>true, 'nonavbar'=>true, 'nocourseheaderfooter'=>true),
     ),
     // Should display the content and basic headers only.
     'print' => array(
         'file' => 'general.php',
         'regions' => array(),
-        'options' => array('nofooter'=>true, 'nonavbar'=>false, 'noblocks'=>true),
+        'options' => array('nofooter'=>true, 'nonavbar'=>false, 'noblocks'=>true, 'nocourseheaderfooter'=>true),
     ),
      // The pagelayout used when a redirection is occuring.
     'redirect' => array(
         'file' => 'embedded.php',
         'regions' => array(),
-        'options' => array('nofooter'=>true, 'nonavbar'=>true, 'nocustommenu'=>true),
+        'options' => array('nofooter'=>true, 'nonavbar'=>true, 'nocustommenu'=>true, 'nocourseheaderfooter'=>true),
     ),
      // The pagelayout used for reports
     'report' => array(
@@ -153,14 +153,9 @@ if ($thisdevice == "default" || $thisdevice == "tablet" || optional_param('mymob
     }
 }
 
-// Add the required JavaScript to the page
-$THEME->javascripts = array(
-    'jquery-1.6.4.min',
-    'custom',
-    'jquery.mobile-1.0rc2',
-    'scrollview',
-    'easing'
-);
-
 // Sets a custom render factory to use with the theme, used when working with custom renderers.
 $THEME->rendererfactory = 'theme_overridden_renderer_factory';
+$THEME->csspostprocess = 'mymobile_user_settings';
+
+// Disables CSS Optimiser for MyMobile theme.
+$THEME->supportscssoptimisation = false;

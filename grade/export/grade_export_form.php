@@ -36,6 +36,17 @@ class grade_export_form extends moodleform {
 
         $mform->addElement('advcheckbox', 'export_feedback', get_string('exportfeedback', 'grades'));
         $mform->setDefault('export_feedback', 0);
+        $coursecontext = context_course::instance($COURSE->id);
+        if (has_capability('moodle/course:viewsuspendedusers', $coursecontext)) {
+            $mform->addElement('advcheckbox', 'export_onlyactive', get_string('exportonlyactive', 'grades'));
+            $mform->setType('export_onlyactive', PARAM_BOOL);
+            $mform->setDefault('export_onlyactive', 1);
+            $mform->addHelpButton('export_onlyactive', 'exportonlyactive', 'grades');
+        } else {
+            $mform->addElement('hidden', 'export_onlyactive', 1);
+            $mform->setType('export_onlyactive', PARAM_BOOL);
+            $mform->setConstant('export_onlyactive', 1);
+        }
 
         $options = array('10'=>10, '20'=>20, '100'=>100, '1000'=>1000, '100000'=>100000);
         $mform->addElement('select', 'previewrows', get_string('previewrows', 'grades'), $options);
@@ -73,8 +84,10 @@ class grade_export_form extends moodleform {
 
         if (!empty($features['includeseparator'])) {
             $radio = array();
-            $radio[] = &MoodleQuickForm::createElement('radio', 'separator', null, get_string('septab', 'grades'), 'tab');
-            $radio[] = &MoodleQuickForm::createElement('radio', 'separator', null, get_string('sepcomma', 'grades'), 'comma');
+            $radio[] = $mform->createElement('radio', 'separator', null, get_string('septab', 'grades'), 'tab');
+            $radio[] = $mform->createElement('radio', 'separator', null, get_string('sepcomma', 'grades'), 'comma');
+            $radio[] = $mform->createElement('radio', 'separator', null, get_string('sepcolon', 'grades'), 'colon');
+            $radio[] = $mform->createElement('radio', 'separator', null, get_string('sepsemicolon', 'grades'), 'semicolon');
             $mform->addGroup($radio, 'separator', get_string('separator', 'grades'), ' ', false);
             $mform->setDefault('separator', 'comma');
         }
@@ -115,7 +128,7 @@ class grade_export_form extends moodleform {
 
         if ($grade_items = $gseq->items) {
             $needs_multiselect = false;
-            $canviewhidden = has_capability('moodle/grade:viewhidden', get_context_instance(CONTEXT_COURSE, $COURSE->id));
+            $canviewhidden = has_capability('moodle/grade:viewhidden', context_course::instance($COURSE->id));
 
             foreach ($grade_items as $grade_item) {
                 // Is the grade_item hidden? If so, can the user see hidden grade_items?

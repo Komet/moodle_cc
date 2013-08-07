@@ -165,7 +165,7 @@ abstract class backup_controller_dbops extends backup_dbops {
 
         $targettablename = 'backup_ids_temp';
         $table = new xmldb_table($targettablename);
-        $dbman->drop_temp_table($table); // And drop it
+        $dbman->drop_table($table); // And drop it
     }
 
     /**
@@ -410,6 +410,27 @@ abstract class backup_controller_dbops extends backup_dbops {
     }
 
     /**
+     * Given the backupid, detect if the backup contains references to external contents
+     *
+     * @copyright 2012 Dongsheng Cai {@link http://dongsheng.org}
+     * @return int
+     */
+    public static function backup_includes_file_references($backupid) {
+        global $CFG, $DB;
+
+        $sql = "SELECT count(r.repositoryid)
+                  FROM {files} f
+                  LEFT JOIN {files_reference} r
+                       ON r.id = f.referencefileid
+                  JOIN {backup_ids_temp} bi
+                       ON f.id = bi.itemid
+                 WHERE bi.backupid = ?
+                       AND bi.itemname = 'filefinal'";
+        $count = $DB->count_records_sql($sql, array($backupid));
+        return (int)(bool)$count;
+    }
+
+    /**
      * Given the courseid, return some course related information we want to transport
      *
      * @param int $course the id of the course this backup belongs to
@@ -462,6 +483,7 @@ abstract class backup_controller_dbops extends backup_dbops {
             'backup_general_blocks'             => 'blocks',
             'backup_general_filters'            => 'filters',
             'backup_general_comments'           => 'comments',
+            'backup_general_badges'             => 'badges',
             'backup_general_userscompletion'    => 'userscompletion',
             'backup_general_logs'               => 'logs',
             'backup_general_histories'          => 'grade_histories'

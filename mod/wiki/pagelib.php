@@ -97,7 +97,7 @@ abstract class page_wiki {
     function __construct($wiki, $subwiki, $cm) {
         global $PAGE, $CFG;
         $this->subwiki = $subwiki;
-        $this->modcontext = get_context_instance(CONTEXT_MODULE, $PAGE->cm->id);
+        $this->modcontext = context_module::instance($PAGE->cm->id);
 
         // initialise wiki renderer
         $this->wikioutput = $PAGE->get_renderer('mod_wiki');
@@ -172,12 +172,7 @@ abstract class page_wiki {
             if (!$manage and !($edit and groups_is_member($currentgroup))) {
                 unset($this->tabs['edit']);
             }
-        } else {
-            if (!has_capability('mod/wiki:editpage', $PAGE->context)) {
-                unset($this->tabs['edit']);
-            }
         }
-
 
         if (empty($options)) {
             $this->tabs_options = array('activetab' => substr(get_class($this), 10));
@@ -326,8 +321,7 @@ class page_wiki_view extends page_wiki {
                 }
             }
         } else {
-            // @TODO: Tranlate it
-            echo "You can not view this page";
+            echo get_string('cannotviewpage', 'wiki');
         }
     }
 
@@ -388,7 +382,6 @@ class page_wiki_edit extends page_wiki {
         parent::__construct($wiki, $subwiki, $cm);
         self::$attachmentoptions = array('subdirs' => false, 'maxfiles' => - 1, 'maxbytes' => $CFG->maxbytes, 'accepted_types' => '*');
         $PAGE->requires->js_init_call('M.mod_wiki.renew_lock', null, true);
-        $PAGE->requires->yui2_lib('connection');
     }
 
     protected function print_pagetitle() {
@@ -420,8 +413,7 @@ class page_wiki_edit extends page_wiki {
         if (wiki_user_can_edit($this->subwiki)) {
             $this->print_edit();
         } else {
-            // @TODO: Translate it
-            echo "You can not edit this page";
+            echo get_string('cannoteditpage', 'wiki');
         }
     }
 
@@ -638,7 +630,7 @@ class page_wiki_comments extends page_wiki {
 
             $user = wiki_get_user_info($comment->userid);
 
-            $fullname = fullname($user, has_capability('moodle/site:viewfullnames', get_context_instance(CONTEXT_COURSE, $course->id)));
+            $fullname = fullname($user, has_capability('moodle/site:viewfullnames', context_course::instance($course->id)));
             $by = new stdclass();
             $by->name = '<a href="' . $CFG->wwwroot . '/user/view.php?id=' . $user->id . '&amp;course=' . $course->id . '">' . $fullname . '</a>';
             $by->date = userdate($comment->timecreated);
@@ -664,7 +656,7 @@ class page_wiki_comments extends page_wiki {
                     $parsedcontent = wiki_parse_content('nwiki', $comment->content, $options);
                 }
 
-                $cell4->text = format_text(html_entity_decode($parsedcontent['parsed_text']), FORMAT_HTML);
+                $cell4->text = format_text(html_entity_decode($parsedcontent['parsed_text'], ENT_QUOTES, 'UTF-8'), FORMAT_HTML);
             } else {
                 $cell4->text = format_text($comment->content, FORMAT_HTML);
             }
@@ -685,7 +677,9 @@ class page_wiki_comments extends page_wiki {
             }
 
             if ($actionicons) {
-                $cell6 = new html_table_cell($OUTPUT->action_icon($urledit, new pix_icon('t/edit', get_string('edit'))) . $OUTPUT->action_icon($urldelet, new pix_icon('t/delete', get_string('delete'))));
+                $cell6 = new html_table_cell($OUTPUT->action_icon($urledit, new pix_icon('t/edit', get_string('edit'),
+                        '', array('class' => 'iconsmall'))) . $OUTPUT->action_icon($urldelet, new pix_icon('t/delete',
+                        get_string('delete'), '', array('class' => 'iconsmall'))));
                 $row3 = new html_table_row();
                 $row3->cells[] = $cell5;
                 $row3->cells[] = $cell6;
@@ -771,7 +765,7 @@ class page_wiki_editcomment extends page_wiki {
         }
     }
 
-    protected function setup_tabs() {
+    protected function setup_tabs($options = array()) {
         parent::setup_tabs(array('linkedwhenactive' => 'comments', 'activetab' => 'comments'));
     }
 
@@ -943,12 +937,17 @@ class page_wiki_create extends page_wiki {
         $data = $this->mform->get_data();
         if (isset($data->groupinfo)) {
             $groupid = $data->groupinfo;
+        } else if (!empty($this->gid)) {
+            $groupid = $this->gid;
         } else {
             $groupid = '0';
         }
-        if (!$this->subwiki = wiki_get_subwiki_by_group($this->wid, $groupid)) {
-            $swid = wiki_add_subwiki($PAGE->activityrecord->id, $groupid, $this->uid);
-            $this->subwiki = wiki_get_subwiki($swid);
+        if (empty($this->subwiki)) {
+            // If subwiki is not set then try find one and set else create one.
+            if (!$this->subwiki = wiki_get_subwiki_by_group($this->wid, $groupid, $this->uid)) {
+                $swid = wiki_add_subwiki($PAGE->activityrecord->id, $groupid, $this->uid);
+                $this->subwiki = wiki_get_subwiki($swid);
+            }
         }
         if ($data) {
             $this->set_title($data->pagetitle);
@@ -1006,7 +1005,7 @@ class page_wiki_preview extends page_wiki_edit {
         $PAGE->set_url($CFG->wwwroot . '/mod/wiki/edit.php', $params);
     }
 
-    protected function setup_tabs() {
+    protected function setup_tabs($options = array()) {
         parent::setup_tabs(array('linkedwhenactive' => 'view', 'activetab' => 'view'));
     }
 
@@ -1112,11 +1111,11 @@ class page_wiki_diff extends page_wiki {
         global $PAGE, $CFG;
 
         parent::create_navbar();
-        $PAGE->navbar->add(get_string('history', 'wiki'), $CFG->wwwroot . '/mod/wiki/history.php?pageid' . $this->page->id);
+        $PAGE->navbar->add(get_string('history', 'wiki'), $CFG->wwwroot . '/mod/wiki/history.php?pageid=' . $this->page->id);
         $PAGE->navbar->add(get_string('diff', 'wiki'));
     }
 
-    protected function setup_tabs() {
+    protected function setup_tabs($options = array()) {
         parent::setup_tabs(array('linkedwhenactive' => 'history', 'activetab' => 'history'));
     }
 
@@ -1311,17 +1310,7 @@ class page_wiki_history extends page_wiki {
                 $table->attributes['class'] = 'generaltable mdl-align';
                 $table->rowclasses = $rowclass;
 
-                /*$table = new StdClass();
-                 $table->head = array(helpbutton('diff', 'diff', 'wiki', true, false, '', true, ''),
-                 get_string('version'),
-                 get_string('user'),
-                 get_string('modified'),
-                 '');
-                 $table->data = $contents;
-                 $table->class = 'mdl-align';
-                 $table->rowclass = $rowclass;*/
-
-                ///Print the form
+                // Print the form.
                 echo html_writer::start_tag('form', array('action'=>new moodle_url('/mod/wiki/diff.php'), 'method'=>'get', 'id'=>'diff'));
                 echo html_writer::tag('div', html_writer::empty_tag('input', array('type'=>'hidden', 'name'=>'pageid', 'value'=>$pageid)));
                 echo html_writer::table($table);
@@ -1874,7 +1863,7 @@ class page_wiki_restoreversion extends page_wiki {
         $PAGE->navbar->add(get_string('restoreversion', 'wiki'));
     }
 
-    protected function setup_tabs() {
+    protected function setup_tabs($options = array()) {
         parent::setup_tabs(array('linkedwhenactive' => 'history', 'activetab' => 'history'));
     }
 
@@ -1942,7 +1931,7 @@ class page_wiki_deletecomment extends page_wiki {
         $PAGE->navbar->add(get_string('deletecommentcheck', 'wiki'));
     }
 
-    protected function setup_tabs() {
+    protected function setup_tabs($options = array()) {
         parent::setup_tabs(array('linkedwhenactive' => 'comments', 'activetab' => 'comments'));
     }
 
@@ -1992,7 +1981,7 @@ class page_wiki_save extends page_wiki_edit {
     function print_content() {
         global $PAGE;
 
-        $context = get_context_instance(CONTEXT_MODULE, $PAGE->cm->id);
+        $context = context_module::instance($PAGE->cm->id);
         require_capability('mod/wiki:editpage', $context, NULL, true, 'noeditpermission', 'wiki');
 
         $this->print_save();
@@ -2067,7 +2056,7 @@ class page_wiki_save extends page_wiki_edit {
 
             //deleting old locks
             wiki_delete_locks($this->page->id, $USER->id, $this->section);
-            $url = new moodle_url('view.php', array('pageid' => $this->page->id, 'group' => $this->subwiki->groupid));
+            $url = new moodle_url('/mod/wiki/view.php', array('pageid' => $this->page->id, 'group' => $this->subwiki->groupid));
             redirect($url);
         } else {
             print_error('savingerror', 'wiki');
@@ -2109,11 +2098,11 @@ class page_wiki_viewversion extends page_wiki {
         global $PAGE, $CFG;
 
         parent::create_navbar();
-        $PAGE->navbar->add(get_string('history', 'wiki'), $CFG->wwwroot . '/mod/wiki/history.php?pageid' . $this->page->id);
+        $PAGE->navbar->add(get_string('history', 'wiki'), $CFG->wwwroot . '/mod/wiki/history.php?pageid=' . $this->page->id);
         $PAGE->navbar->add(get_string('versionnum', 'wiki', $this->version->version));
     }
 
-    protected function setup_tabs() {
+    protected function setup_tabs($options = array()) {
         parent::setup_tabs(array('linkedwhenactive' => 'history', 'activetab' => 'history', 'inactivetabs' => array('edit')));
     }
 
@@ -2180,11 +2169,17 @@ class page_wiki_confirmrestore extends page_wiki_save {
 
 class page_wiki_prettyview extends page_wiki {
 
-    function print_header() {
-        global $CFG, $PAGE, $OUTPUT;
+    function __construct($wiki, $subwiki, $cm) {
+        global $PAGE;
         $PAGE->set_pagelayout('embedded');
-        echo $OUTPUT->header();
+        parent::__construct($wiki, $subwiki, $cm);
+    }
 
+    function print_header() {
+        global $OUTPUT;
+        $this->set_url();
+
+        echo $OUTPUT->header();
         echo '<h1 id="wiki_printable_title">' . format_string($this->title) . '</h1>';
     }
 
@@ -2480,7 +2475,7 @@ class page_wiki_admin extends page_wiki {
     protected function print_delete_content($showorphan = true) {
         $contents = array();
         $table = new html_table();
-        $table->head = array('','Page name');
+        $table->head = array('', get_string('pagename','wiki'));
         $table->attributes['class'] = 'generaltable mdl-align';
         $swid = $this->subwiki->id;
         if ($showorphan) {

@@ -72,8 +72,8 @@ class core_backup_renderer extends plugin_renderer_base {
      * @return string
      */
     public function backup_details($details, $nextstageurl) {
-        $yestick = $this->output->pix_icon('i/tick_green_big', get_string('yes'));
-        $notick = $this->output->pix_icon('i/cross_red_big', get_string('no'));
+        $yestick = $this->output->pix_icon('i/valid', get_string('yes'));
+        $notick = $this->output->pix_icon('i/valid', get_string('no'));
 
         $html  = html_writer::start_tag('div', array('class'=>'backup-restore'));
 
@@ -92,6 +92,16 @@ class core_backup_renderer extends plugin_renderer_base {
         $html .= $this->backup_detail_pair(get_string('originalwwwroot', 'backup'),
                 html_writer::tag('span', $details->original_wwwroot, array('class'=>'originalwwwroot')).
                 html_writer::tag('span', '['.$details->original_site_identifier_hash.']', array('class'=>'sitehash sub-detail')));
+        if (!empty($details->include_file_references_to_external_content)) {
+            $message = '';
+            if (backup_general_helper::backup_is_samesite($details)) {
+                $message = $yestick . ' ' . get_string('filereferencessamesite', 'backup');
+            } else {
+                $message = $notick . ' ' . get_string('filereferencesnotsamesite', 'backup');
+            }
+            $html .= $this->backup_detail_pair(get_string('includefilereferences', 'backup'), $message);
+        }
+
         $html .= html_writer::end_tag('div');
 
         $html .= html_writer::start_tag('div', array('class'=>'backup-section settings-section'));
@@ -137,9 +147,9 @@ class core_backup_renderer extends plugin_renderer_base {
                         $table->data = array();
                     }
                     $name = get_string('pluginname', $activity->modulename);
-                    $icon = new pix_icon('icon', $name, $activity->modulename);
+                    $icon = new pix_icon('icon', $name, $activity->modulename, array('class' => 'iconlarge icon-pre'));
                     $table->data[] = array(
-                        $this->output->render($icon).'&nbsp;'.$name,
+                        $this->output->render($icon).$name,
                         $activity->title,
                         ($activity->settings[$activitykey.'_userinfo'])?$yestick:$notick,
                     );
@@ -525,8 +535,8 @@ class core_backup_renderer extends plugin_renderer_base {
                 }
                 $row->cells = array(
                     html_writer::empty_tag('input', array('type'=>'radio', 'name'=>'targetid', 'value'=>$course->id)),
-                    format_string($course->shortname, true, array('context' => get_context_instance(CONTEXT_COURSE, $course->id))),
-                    format_string($course->fullname, true, array('context' => get_context_instance(CONTEXT_COURSE, $course->id)))
+                    format_string($course->shortname, true, array('context' => context_course::instance($course->id))),
+                    format_string($course->fullname, true, array('context' => context_course::instance($course->id)))
                 );
                 $table->data[] = $row;
             }
@@ -580,8 +590,14 @@ class core_backup_renderer extends plugin_renderer_base {
             return $output;
         }
 
-        $output .= html_writer::tag('div', get_string('totalcoursesearchresults', 'backup', $component->get_count()), array('class'=>'ics-totalresults'));
+        $countstr = '';
+        if ($component->has_more_results()) {
+            $countstr = get_string('morecoursesearchresults', 'backup', $component->get_count());
+        } else {
+            $countstr = get_string('totalcoursesearchresults', 'backup', $component->get_count());
+        }
 
+        $output .= html_writer::tag('div', $countstr, array('class'=>'ics-totalresults'));
         $output .= html_writer::start_tag('div', array('class' => 'ics-results'));
 
         $table = new html_table();
@@ -595,9 +611,17 @@ class core_backup_renderer extends plugin_renderer_base {
             }
             $row->cells = array(
                 html_writer::empty_tag('input', array('type'=>'radio', 'name'=>'importid', 'value'=>$course->id)),
-                format_string($course->shortname, true, array('context' => get_context_instance(CONTEXT_COURSE, $course->id))),
-                format_string($course->fullname, true, array('context' => get_context_instance(CONTEXT_COURSE, $course->id)))
+                format_string($course->shortname, true, array('context' => context_course::instance($course->id))),
+                format_string($course->fullname, true, array('context' => context_course::instance($course->id)))
             );
+            $table->data[] = $row;
+        }
+        if ($component->has_more_results()) {
+            $cell = new html_table_cell(get_string('moreresults', 'backup'));
+            $cell->colspan = 3;
+            $cell->attributes['class'] = 'notifyproblem';
+            $row = new html_table_row(array($cell));
+            $row->attributes['class'] = 'rcs-course';
             $table->data[] = $row;
         }
         $output .= html_writer::table($table);
@@ -637,7 +661,7 @@ class core_backup_renderer extends plugin_renderer_base {
                 }
                 $row->cells = array(
                     html_writer::empty_tag('input', array('type'=>'radio', 'name'=>'targetid', 'value'=>$category->id)),
-                    format_string($category->name, true, array('context' => get_context_instance(CONTEXT_COURSECAT, $category->id))),
+                    format_string($category->name, true, array('context' => context_coursecat::instance($category->id))),
                     format_text($category->description, $category->descriptionformat, array('overflowdiv'=>true))
                 );
                 $table->data[] = $row;

@@ -84,7 +84,7 @@
     require_once($CFG->dirroot . '/comment/lib.php');
     comment::init();
 
-    $context = get_context_instance(CONTEXT_MODULE, $cm->id);
+    $context = context_module::instance($cm->id);
     require_capability('mod/data:viewentry', $context);
 
 /// If we have an empty Database then redirect because this page is useless without data
@@ -230,8 +230,7 @@
         $search = '';
     }
 
-    $textlib = textlib_get_instance();
-    if ($textlib->strlen($search) < 2) {
+    if (textlib::strlen($search) < 2) {
         $search = '';
     }
     $SESSION->dataprefs[$data->id]['search'] = $search;   // Make it sticky
@@ -276,12 +275,12 @@
         $USER->editing = $edit;
     }
 
-    $courseshortname = format_string($course->shortname, true, array('context' => get_context_instance(CONTEXT_COURSE, $course->id)));
+    $courseshortname = format_string($course->shortname, true, array('context' => context_course::instance($course->id)));
 
 /// RSS and CSS and JS meta
     $meta = '';
     if (!empty($CFG->enablerssfeeds) && !empty($CFG->data_enablerssfeeds) && $data->rssarticles > 0) {
-        $rsstitle = $courseshortname . ': %fullname%';
+        $rsstitle = $courseshortname . ': ' . format_string($data->name);
         rss_add_http_header($context, 'mod_data', $data, $rsstitle);
     }
     if ($data->csstemplate) {
@@ -301,11 +300,16 @@
     $title = $courseshortname.': ' . format_string($data->name);
 
     if ($PAGE->user_allowed_editing()) {
-        $buttons = '<table><tr><td><form method="get" action="view.php"><div>'.
-            '<input type="hidden" name="id" value="'.$cm->id.'" />'.
-            '<input type="hidden" name="edit" value="'.($PAGE->user_is_editing()?'off':'on').'" />'.
-            '<input type="submit" value="'.get_string($PAGE->user_is_editing()?'blockseditoff':'blocksediton').'" /></div></form></td></tr></table>';
-        $PAGE->set_button($buttons);
+        // Change URL parameter and block display string value depending on whether editing is enabled or not
+        if ($PAGE->user_is_editing()) {
+            $urlediting = 'off';
+            $strediting = get_string('blockseditoff');
+        } else {
+            $urlediting = 'on';
+            $strediting = get_string('blocksediton');
+        }
+        $url = new moodle_url($CFG->wwwroot.'/mod/data/view.php', array('id' => $cm->id, 'edit' => $urlediting));
+        $PAGE->set_button($OUTPUT->single_button($url, $strediting));
     }
 
     if ($mode == 'asearch') {
@@ -322,6 +326,13 @@
     groups_print_activity_menu($cm, $returnurl);
     $currentgroup = groups_get_activity_group($cm);
     $groupmode = groups_get_activity_groupmode($cm);
+    // If a student is not part of a group and seperate groups is enabled, we don't
+    // want them seeing all records.
+    if ($currentgroup == 0 && $groupmode == 1 && !has_capability('mod/data:manageentries', $context)) {
+        $canviewallrecords = false;
+    } else {
+        $canviewallrecords = true;
+    }
 
     // detect entries not approved yet and show hint instead of not found error
     if ($record and $data->approval and !$record->approved and $record->userid != $USER->id and !has_capability('mod/data:manageentries', $context)) {
@@ -450,11 +461,15 @@ if ($showactivity) {
             $requiredentries_allowed = false;
         }
 
+        // Initialise the first group of params for advanced searches.
+        $initialparams   = array();
+
     /// setup group and approve restrictions
         if (!$approvecap && $data->approval) {
             if (isloggedin()) {
                 $approveselect = ' AND (r.approved=1 OR r.userid=:myid1) ';
                 $params['myid1'] = $USER->id;
+                $initialparams['myid1'] = $params['myid1'];
             } else {
                 $approveselect = ' AND r.approved=1 ';
             }
@@ -465,8 +480,15 @@ if ($showactivity) {
         if ($currentgroup) {
             $groupselect = " AND (r.groupid = :currentgroup OR r.groupid = 0)";
             $params['currentgroup'] = $currentgroup;
+            $initialparams['currentgroup'] = $params['currentgroup'];
         } else {
-            $groupselect = ' ';
+            if ($canviewallrecords) {
+                $groupselect = ' ';
+            } else {
+                // If separate groups are enabled and the user isn't in a group or
+                // a teacher, manager, admin etc, then just show them entries for 'All participants'.
+                $groupselect = " AND r.groupid = 0";
+            }
         }
 
         // Init some variables to be used by advanced search
@@ -474,6 +496,8 @@ if ($showactivity) {
         $advwhere        = '';
         $advtables       = '';
         $advparams       = array();
+        // This is used for the initial reduction of advanced search results with required entries.
+        $entrysql        = '';
 
     /// Find the field we are sorting on
         if ($sort <= 0 or !$sortfield = data_get_field_from_id($sort, $data)) {
@@ -499,11 +523,10 @@ if ($showactivity) {
 
             $what = ' DISTINCT r.id, r.approved, r.timecreated, r.timemodified, r.userid, u.firstname, u.lastname';
             $count = ' COUNT(DISTINCT c.recordid) ';
-            $tables = '{data_content} c,{data_records} r, {data_content} cs, {user} u ';
+            $tables = '{data_content} c,{data_records} r, {user} u ';
             $where =  'WHERE c.recordid = r.id
                          AND r.dataid = :dataid
-                         AND r.userid = u.id
-                         AND cs.recordid = r.id ';
+                         AND r.userid = u.id ';
             $params['dataid'] = $data->id;
             $sortorder = ' ORDER BY '.$ordering.', r.id ASC ';
             $searchselect = '';
@@ -511,7 +534,9 @@ if ($showactivity) {
             // If requiredentries is not reached, only show current user's entries
             if (!$requiredentries_allowed) {
                 $where .= ' AND u.id = :myid2 ';
+                $entrysql = ' AND r.userid = :myid3 ';
                 $params['myid2'] = $USER->id;
+                $initialparams['myid3'] = $params['myid2'];
             }
 
             if (!empty($advanced)) {                                                  //If advanced box is checked.
@@ -529,7 +554,7 @@ if ($showactivity) {
                     $advparams = array_merge($advparams, $val->params);
                 }
             } else if ($search) {
-                $searchselect = " AND (".$DB->sql_like('cs.content', ':search1', false)." OR ".$DB->sql_like('u.firstname', ':search2', false)." OR ".$DB->sql_like('u.lastname', ':search3', false)." ) ";
+                $searchselect = " AND (".$DB->sql_like('c.content', ':search1', false)." OR ".$DB->sql_like('u.firstname', ':search2', false)." OR ".$DB->sql_like('u.lastname', ':search3', false)." ) ";
                 $params['search1'] = "%$search%";
                 $params['search2'] = "%$search%";
                 $params['search3'] = "%$search%";
@@ -544,12 +569,13 @@ if ($showactivity) {
 
             $what = ' DISTINCT r.id, r.approved, r.timecreated, r.timemodified, r.userid, u.firstname, u.lastname, ' . $sortcontentfull . ' AS sortorder ';
             $count = ' COUNT(DISTINCT c.recordid) ';
-            $tables = '{data_content} c, {data_records} r, {data_content} cs, {user} u ';
+            $tables = '{data_content} c, {data_records} r, {user} u ';
             $where =  'WHERE c.recordid = r.id
-                         AND c.fieldid = :sort
                          AND r.dataid = :dataid
-                         AND r.userid = u.id
-                         AND cs.recordid = r.id ';
+                         AND r.userid = u.id ';
+            if (!$advanced) {
+                $where .=  'AND c.fieldid = :sort';
+            }
             $params['dataid'] = $data->id;
             $params['sort'] = $sort;
             $sortorder = ' ORDER BY sortorder '.$order.' , r.id ASC ';
@@ -557,10 +583,11 @@ if ($showactivity) {
 
             // If requiredentries is not reached, only show current user's entries
             if (!$requiredentries_allowed) {
-                $where .= ' AND u.id = ' . $USER->id;
+                $where .= ' AND u.id = :myid2';
+                $entrysql = ' AND r.userid = :myid3';
                 $params['myid2'] = $USER->id;
+                $initialparams['myid3'] = $params['myid2'];
             }
-
             $i = 0;
             if (!empty($advanced)) {                                                  //If advanced box is checked.
                 foreach($search_array as $key => $val) {                              //what does $search_array hold?
@@ -576,7 +603,7 @@ if ($showactivity) {
                     $advparams = array_merge($advparams, $val->params);
                 }
             } else if ($search) {
-                $searchselect = " AND (".$DB->sql_like('cs.content', ':search1', false)." OR ".$DB->sql_like('u.firstname', ':search2', false)." OR ".$DB->sql_like('u.lastname', ':search3', false)." ) ";
+                $searchselect = " AND (".$DB->sql_like('c.content', ':search1', false)." OR ".$DB->sql_like('u.firstname', ':search2', false)." OR ".$DB->sql_like('u.lastname', ':search3', false)." ) ";
                 $params['search1'] = "%$search%";
                 $params['search2'] = "%$search%";
                 $params['search3'] = "%$search%";
@@ -590,10 +617,13 @@ if ($showactivity) {
         $fromsql    = "FROM $tables $advtables $where $advwhere $groupselect $approveselect $searchselect $advsearchselect";
         $allparams  = array_merge($params, $advparams);
 
-        $recordids = data_get_all_recordids($data->id);
+        // Provide initial sql statements and parameters to reduce the number of total records.
+        $initialselect = $groupselect . $approveselect . $entrysql;
+
+        $recordids = data_get_all_recordids($data->id, $initialselect, $initialparams);
         $newrecordids = data_get_advance_search_ids($recordids, $search_array, $data->id);
         $totalcount = count($newrecordids);
-        $selectdata = $groupselect . $approveselect;
+        $selectdata = $where . $groupselect . $approveselect;
 
         if (!empty($advanced)) {
             $advancedsearchsql = data_get_advanced_search_sql($sort, $data, $newrecordids, $selectdata, $sortorder);
@@ -613,8 +643,12 @@ if ($showactivity) {
         if ($record) {     // We need to just show one, so where is it in context?
             $nowperpage = 1;
             $mode = 'single';
-            $page = (int)array_search($record->id, $recordids);
-
+            $page = 0;
+            // TODO MDL-33797 - Reduce this or consider redesigning the paging system.
+            if ($allrecordids = $DB->get_fieldset_sql($sqlselect, $allparams)) {
+                $page = (int)array_search($record->id, $allrecordids);
+                unset($allrecordids);
+            }
         } else if ($mode == 'single') {  // We rely on ambient $page settings
             $nowperpage = 1;
 
@@ -728,10 +762,10 @@ if ($showactivity) {
         $records = array();
     }
 
-    if ($mode == '' && !empty($CFG->enableportfolios)) {
+    if ($mode == '' && !empty($CFG->enableportfolios) && !empty($records)) {
         require_once($CFG->libdir . '/portfoliolib.php');
         $button = new portfolio_add_button();
-        $button->set_callback_options('data_portfolio_caller', array('id' => $cm->id), '/mod/data/locallib.php');
+        $button->set_callback_options('data_portfolio_caller', array('id' => $cm->id), 'mod_data');
         if (data_portfolio_caller::has_files($data)) {
             $button->set_formats(array(PORTFOLIO_FORMAT_RICHHTML, PORTFOLIO_FORMAT_LEAP2A)); // no plain html for us
         }

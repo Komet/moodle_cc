@@ -17,8 +17,7 @@
 /**
  * Local stuff for meta course enrolment plugin.
  *
- * @package    enrol
- * @subpackage meta
+ * @package    enrol_meta
  * @copyright  2010 Petr Skoda {@link http://skodak.org}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -436,6 +435,7 @@ function enrol_meta_sync($courseid = NULL, $verbose = false) {
               FROM {user_enrolments} pue
               JOIN {enrol} pe ON (pe.id = pue.enrolid AND pe.enrol <> 'meta' AND pe.enrol $enabled)
               JOIN {enrol} e ON (e.customint1 = pe.courseid AND e.enrol = 'meta' $onecourse)
+              JOIN {user} u ON (u.id = pue.userid AND u.deleted = 0)
          LEFT JOIN {user_enrolments} ue ON (ue.enrolid = e.id AND ue.userid = pue.userid)
              WHERE ue.id IS NULL";
 
@@ -477,11 +477,10 @@ function enrol_meta_sync($courseid = NULL, $verbose = false) {
     $sql = "SELECT ue.*
               FROM {user_enrolments} ue
               JOIN {enrol} e ON (e.id = ue.enrolid AND e.enrol = 'meta' $onecourse)
-         LEFT JOIN (SELECT xpue.userid, xpe.courseid
-                      FROM {user_enrolments} xpue
+         LEFT JOIN ({user_enrolments} xpue
                       JOIN {enrol} xpe ON (xpe.id = xpue.enrolid AND xpe.enrol <> 'meta' AND xpe.enrol $enabled)
-                   ) pue ON (pue.courseid = e.customint1 AND pue.userid = ue.userid)
-             WHERE pue.userid IS NULL";
+                   ) ON (xpe.courseid = e.customint1 AND xpue.userid = ue.userid)
+             WHERE xpue.userid IS NULL";
     $rs = $DB->get_recordset_sql($sql, $params);
     foreach($rs as $ue) {
         if (!isset($instances[$ue->enrolid])) {
@@ -570,7 +569,7 @@ function enrol_meta_sync($courseid = NULL, $verbose = false) {
         }
         $enabled[$k] = 'enrol_'.$v;
     }
-    $enabled[] = $DB->sql_empty(); // manual assignments are replicated too
+    $enabled[] = ''; // manual assignments are replicated too
 
     $onecourse = $courseid ? "AND e.courseid = :courseid" : "";
     list($enabled, $params) = $DB->get_in_or_equal($enabled, SQL_PARAMS_NAMED, 'e');

@@ -17,12 +17,10 @@
 /**
  * Strings for component 'quiz_statistics', language 'en', branch 'MOODLE_20_STABLE'
  *
- * @package    quiz
- * @subpackage statistics
- * @copyright  1999 onwards Martin Dougiamas  {@link http://moodle.com}
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @package   quiz_statistics
+ * @copyright 1999 onwards Martin Dougiamas  {@link http://moodle.com}
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-
 
 $string['actualresponse'] = 'Actual response';
 $string['allattempts'] = 'all attempts';
@@ -42,7 +40,7 @@ $string['coursename'] = 'Course name';
 $string['detailedanalysis'] = 'More detailed analysis of the responses to this question';
 $string['discrimination_index'] = 'Discrimination index';
 $string['discriminative_efficiency'] = 'Discriminative efficiency';
-$string['downloadeverything'] = 'Download full report as';
+$string['downloadeverything'] = 'Download full report as {$a->formatsmenu} {$a->downloadbutton}';
 $string['duration'] = 'Open for';
 $string['effective_weight'] = 'Effective weight';
 $string['errordeleting'] = 'Error deleting old {$a} records.';
@@ -71,6 +69,7 @@ Our equation for effective question weight cannot be calculated in this case. Th
 If you edit a quiz and give these question(s) with negative covariance a max grade of zero then the effective question weight of these questions will be zero and the real effective question weight of other questions will be as calculated now.';
 $string['nostudentsingroup'] = 'There are no students in this group yet';
 $string['optiongrade'] = 'Partial credit';
+$string['partofquestion'] = 'Part of question';
 $string['pluginname'] = 'Statistics';
 $string['position'] = 'Position';
 $string['positions'] = 'Position(s)';

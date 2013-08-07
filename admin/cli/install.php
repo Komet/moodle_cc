@@ -127,11 +127,14 @@ if (function_exists('date_default_timezone_set') and function_exists('date_defau
 /** Used by library scripts to check they are being called by Moodle */
 define('MOODLE_INTERNAL', true);
 
+// Disables all caching.
+define('CACHE_DISABLE_ALL', true);
+
 // Check that PHP is of a sufficient version
-if (version_compare(phpversion(), "5.3.2") < 0) {
+if (version_compare(phpversion(), "5.3.3") < 0) {
     $phpversion = phpversion();
     // do NOT localise - lang strings would not work here and we CAN NOT move it after installib
-    fwrite(STDERR, "Moodle 2.1 or later requires at least PHP 5.3.2 (currently using version $phpversion).\n");
+    fwrite(STDERR, "Moodle 2.5 or later requires at least PHP 5.3.3 (currently using version $phpversion).\n");
     fwrite(STDERR, "Please upgrade your server software or install older Moodle version.\n");
     exit(1);
 }
@@ -146,6 +149,7 @@ $CFG->httpswwwroot         = $CFG->wwwroot;
 $CFG->docroot              = 'http://docs.moodle.org';
 $CFG->running_installer    = true;
 $CFG->early_install_lang   = true;
+$CFG->ostype               = (stristr(PHP_OS, 'win') && !stristr(PHP_OS, 'darwin')) ? 'WINDOWS' : 'UNIX';
 
 $parts = explode('/', str_replace('\\', '/', dirname(dirname(__FILE__))));
 $CFG->admin                = array_pop($parts);
@@ -164,6 +168,7 @@ require_once($CFG->libdir.'/moodlelib.php');
 require_once($CFG->libdir.'/deprecatedlib.php');
 require_once($CFG->libdir.'/adminlib.php');
 require_once($CFG->libdir.'/componentlib.class.php');
+require_once($CFG->dirroot.'/cache/lib.php');
 
 require($CFG->dirroot.'/version.php');
 $CFG->target_release = $release;
@@ -240,18 +245,8 @@ echo get_string('cliinstallheader', 'install', $CFG->target_release)."\n";
 if ($interactive) {
     cli_separator();
     $languages = get_string_manager()->get_list_of_translations();
-    // format the langs nicely - 3 per line
-    $c = 0;
-    $langlist = '';
-    foreach ($languages as $key=>$lang) {
-        $c++;
-        $length = iconv_strlen($lang, 'UTF-8');
-        $padded = $lang.str_repeat(' ', 38-$length);
-        $langlist .= $padded;
-        if ($c % 3 == 0) {
-            $langlist .= "\n";
-        }
-    }
+    // Do not put the langs into columns because it is not compatible with RTL.
+    $langlist = implode("\n", $languages);
     $default = $CFG->lang;
     cli_heading(get_string('availablelangs', 'install'));
     echo $langlist."\n";
@@ -425,7 +420,8 @@ if (isset($maturity)) {
                 exit(1);
             }
         } else {
-            cli_error(get_string('maturitycorewarning', 'admin'));
+            cli_problem(get_string('maturitycorewarning', 'admin', $maturitylevel));
+            cli_error(get_string('maturityallowunstable', 'admin'));
         }
     }
 }
@@ -677,7 +673,9 @@ if (!$envstatus) {
 
 // Test plugin dependencies.
 require_once($CFG->libdir . '/pluginlib.php');
-if (!plugin_manager::instance()->all_plugins_ok($version)) {
+$failed = array();
+if (!plugin_manager::instance()->all_plugins_ok($version, $failed)) {
+    cli_problem(get_string('pluginscheckfailed', 'admin', array('pluginslist' => implode(', ', array_unique($failed)))));
     cli_error(get_string('pluginschecktodo', 'admin'));
 }
 

@@ -97,12 +97,12 @@ if ($editurl = $userauth->edit_profile_url()) {
 }
 
 if ($course->id == SITEID) {
-    $coursecontext = get_context_instance(CONTEXT_SYSTEM);   // SYSTEM context
+    $coursecontext = context_system::instance();   // SYSTEM context
 } else {
-    $coursecontext = get_context_instance(CONTEXT_COURSE, $course->id);   // Course context
+    $coursecontext = context_course::instance($course->id);   // Course context
 }
-$systemcontext   = get_context_instance(CONTEXT_SYSTEM);
-$personalcontext = get_context_instance(CONTEXT_USER, $user->id);
+$systemcontext   = context_system::instance();
+$personalcontext = context_user::instance($user->id);
 
 // check access control
 if ($user->id == $USER->id) {
@@ -153,7 +153,20 @@ $editoroptions = array(
 );
 
 $user = file_prepare_standard_editor($user, 'description', $editoroptions, $personalcontext, 'user', 'profile', 0);
-$userform = new user_edit_form(null, array('editoroptions'=>$editoroptions));
+// Prepare filemanager draft area.
+$draftitemid = 0;
+$filemanagercontext = $editoroptions['context'];
+$filemanageroptions = array('maxbytes'       => $CFG->maxbytes,
+                             'subdirs'        => 0,
+                             'maxfiles'       => 1,
+                             'accepted_types' => 'web_image');
+file_prepare_draft_area($draftitemid, $filemanagercontext->id, 'user', 'newicon', 0, $filemanageroptions);
+$user->imagefile = $draftitemid;
+//create form
+$userform = new user_edit_form(null, array(
+    'editoroptions' => $editoroptions,
+    'filemanageroptions' => $filemanageroptions,
+    'userid' => $user->id));
 if (empty($user->country)) {
     // MDL-16308 - we must unset the value here so $CFG->country can be used as default one
     unset($user->country);
@@ -169,7 +182,8 @@ if ($usernew = $userform->get_data()) {
     $email_changed_html = '';
 
     if ($CFG->emailchangeconfirmation) {
-        // Handle change of email carefully for non-trusted users
+        // Users with 'moodle/user:update' can change their email address immediately
+        // Other users require a confirmation email
         if (isset($usernew->email) and $user->email != $usernew->email && !has_capability('moodle/user:update', $systemcontext)) {
             $a = new stdClass();
             $a->newemail = $usernew->preference_newemail = $usernew->email;
@@ -210,8 +224,8 @@ if ($usernew = $userform->get_data()) {
     }
 
     //update user picture
-    if (!empty($CFG->gdversion) and empty($CFG->disableuserimages)) {
-        useredit_update_picture($usernew, $userform);
+    if (empty($CFG->disableuserimages)) {
+        useredit_update_picture($usernew, $userform, $filemanageroptions);
     }
 
     // update mail bounces
@@ -223,21 +237,22 @@ if ($usernew = $userform->get_data()) {
     // save custom profile fields data
     profile_save_data($usernew);
 
-    // If email was changed, send confirmation email now
+    // If email was changed and confirmation is required, send confirmation email now
     if ($email_changed && $CFG->emailchangeconfirmation) {
         $temp_user = fullclone($user);
         $temp_user->email = $usernew->preference_newemail;
 
         $a = new stdClass();
         $a->url = $CFG->wwwroot . '/user/emailupdate.php?key=' . $usernew->preference_newemailkey . '&id=' . $user->id;
-        $a->site = format_string($SITE->fullname, true, array('context' => get_context_instance(CONTEXT_COURSE, SITEID)));
+        $a->site = format_string($SITE->fullname, true, array('context' => context_course::instance(SITEID)));
         $a->fullname = fullname($user, true);
 
         $emailupdatemessage = get_string('emailupdatemessage', 'auth', $a);
         $emailupdatetitle = get_string('emailupdatetitle', 'auth', $a);
 
         //email confirmation directly rather than using messaging so they will definitely get an email
-        if (!$mail_results = email_to_user($temp_user, get_admin(), $emailupdatetitle, $emailupdatemessage)) {
+        $supportuser = generate_email_supportuser();
+        if (!$mail_results = email_to_user($temp_user, $supportuser, $emailupdatetitle, $emailupdatemessage)) {
             die("could not send email!");
         }
     }
@@ -278,6 +293,7 @@ $PAGE->set_title("$course->shortname: $streditmyprofile");
 $PAGE->set_heading($course->fullname);
 
 echo $OUTPUT->header();
+echo $OUTPUT->heading($userfullname);
 
 if ($email_changed) {
     echo $email_changed_html;

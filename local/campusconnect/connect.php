@@ -27,6 +27,7 @@ defined('MOODLE_INTERNAL') || die();
 global $CFG;
 require_once($CFG->dirroot.'/local/campusconnect/ecssettings.php');
 require_once($CFG->dirroot.'/local/campusconnect/urilist.php');
+require_once($CFG->dirroot.'/local/campusconnect/details.php');
 
 class campusconnect_connect_exception extends moodle_exception {
     function __construct($msg) {

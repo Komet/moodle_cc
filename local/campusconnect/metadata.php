@@ -37,7 +37,7 @@ class campusconnect_metadata {
         'startdate' => 'date', 'lang' => 'lang',
         'timecreated' => 'date', 'timemodified' => 'date');
 
-    protected static $remotefieldsext = array(
+    protected static $remotefieldcourselink = array(
         'destinationForDisplay' => 'string',
         'lang' => 'lang', 'hoursPerWeek' => 'string',
         'id' => 'string', 'number' => 'string',
@@ -54,24 +54,33 @@ class campusconnect_metadata {
         'lecturers' => 'personlist');
 
     protected static $remotefields = array(
-        'organisation' => 'string', 'id' => 'string',
-        'term' => 'string', 'number' => 'string',
-        'title' => 'string', 'courseType' => 'string',
-        'hoursPerWeek' => 'string', 'maxParticipants' => 'string',
-        'parallelGroupScenario' => 'string', 'lecturers_firstName' => 'personlist',
-        'lecturers_lastName' => 'personlist', 'lecturers' => 'personlist',
+        'lectureID' => 'string', 'title' => 'string',
+        'organisation' => 'string', 'number' => 'string',
+        'term' => 'string', 'termid' => 'string',
+        'lectureType' => 'string', 'hoursPerWeek' => 'integer',
+        'groupScenario' => 'integer',
         'degreeProgrammes_code' => 'degreelist', 'degreeProgrammes_title' => 'degreelist',
         'degreeProgrammes' => 'degreelist', 'comment1' => 'string',
         'comment2' => 'string', 'comment3' => 'string',
         'recommendedReading' => 'string', 'prerequisites' => 'string',
-        'courseAssessmentMethod' => 'string', 'courseTopics' => 'string',
+        'lectureAssessmentType' => 'string', 'lectureTopics' => 'string',
         'linkToCurriculum' => 'string', 'targetAudience' => 'string',
-        'links' => 'linklist', 'linkToCourse' => 'link',
+        'links' => 'linklist', 'linkToLecture' => 'link',
         'modules' => 'moduleslist');
-    // Note - leaving out fields 'allocations', 'organisationalUnit', 'parallelGroups', as there is no obvious place to map these to in Moodle.
+    // Note - leaving out fields 'allocations', 'organisationalUnit', 'groups', as there is no obvious place to map these to in Moodle.
 
     // Default import mappings
     protected $importmappings = array(
+        'fullname' => '{title}',
+        'shortname' => '{lectureID}',
+        'idnumber' => '',
+        'summary' => null, // This is built on first load using get_string
+        'timecreated' => '',
+        'timemodified' => ''
+    );
+
+    // Default import mappings
+    protected $importmappingscourselink = array(
         'fullname' => '{title}',
         'shortname' => '{id}',
         'idnumber' => '',
@@ -110,7 +119,7 @@ class campusconnect_metadata {
     );
 
     // Default external export mappings
-    protected $exportmappingsext = array(
+    protected $exportmappingscourselink = array(
         'destinationForDisplay' => '',
         'lang' => 'lang',
         'hoursPerWeek' => '',
@@ -137,18 +146,18 @@ class campusconnect_metadata {
 
     protected $lasterrormsg = null;
     protected $lasterrorfield = null;
-    protected $external = true;
+    protected $courselink = true;
     protected $ecsid = null;
 
     /**
      * Returns a list of all the remote fields (any of which can be
      * inserted into text fields as '{fieldname}')
-     * @param bool $external - true for external course mappings, false for internal
+     * @param bool $courselink - true for external course mappings, false for internal
      * @return array of string - the available fields
      */
-    public static function list_remote_fields($external = true) {
-        if ($external) {
-            return array_keys(self::$remotefieldsext);
+    public static function list_remote_fields($courselink = true) {
+        if ($courselink) {
+            return array_keys(self::$remotefieldcourselink);
         } else {
             return array_keys(self::$remotefields);
         }
@@ -179,11 +188,11 @@ class campusconnect_metadata {
      * Text fields should allow the user to construct the value via a combination
      * of free text and course fields (surrounded by '{' and '}' characters)
      * @param string $fieldname - the course field to check
-     * @param bool $external - true for external course mappings, false for internal
+     * @param bool $courselink - true for external course mappings, false for internal
      * @return bool true if it is a text field
      */
-    public static function is_remote_text_field($fieldname, $external = true) {
-        $remotefields = $external ? self::$remotefieldsext : self::$remotefields;
+    public static function is_remote_text_field($fieldname, $courselink = true) {
+        $remotefields = $courselink ? self::$remotefieldcourselink : self::$remotefields;
         if (!array_key_exists($fieldname, $remotefields)) {
             throw new coding_exception("$fieldname is not an available remote field");
         }
@@ -193,15 +202,15 @@ class campusconnect_metadata {
     /**
      * List suitable remote fields for mapping onto the given course field
      * @param string $localfieldname the local field to look for mappings for
-     * @param bool $external - true for external course mappings, false for internal
+     * @param bool $courselink - true for external course mappings, false for internal
      * @return array of fields that could match this
      */
-    public static function list_remote_to_local_fields($localfieldname, $external = true) {
+    public static function list_remote_to_local_fields($localfieldname, $courselink = true) {
         if (!array_key_exists($localfieldname, self::$coursefields)) {
             throw new coding_exception("$localfieldname is not an available Moodle course field");
         }
         $type = self::$coursefields[$localfieldname];
-        $remotefields = $external ? self::$remotefieldsext : self::$remotefields;
+        $remotefields = $courselink ? self::$remotefieldcourselink : self::$remotefields;
         $ret = array();
         foreach ($remotefields as $rname => $rtype) {
             if ($rtype == $type) {
@@ -214,13 +223,13 @@ class campusconnect_metadata {
     /**
      * List suitable course fields for mapping onto the given remote field
      * @param string $remotefieldname the remote field to look for mappings for
-     * @param bool $external - true for external course mappings, false for internal
+     * @param bool $courselink - true for external course mappings, false for internal
      * @return array of fields that could match this
      */
-    public static function list_local_to_remote_fields($remotefieldname, $external = true) {
-        $remotefields = $external ? self::$remotefieldsext : self::$remotefields;
+    public static function list_local_to_remote_fields($remotefieldname, $courselink = true) {
+        $remotefields = $courselink ? self::$remotefieldcourselink : self::$remotefields;
         if (!array_key_exists($remotefieldname, $remotefields)) {
-            if ($external) {
+            if ($courselink) {
                 throw new coding_exception("$remotefieldname is not an available remote external course field");
             } else {
                 throw new coding_exception("$remotefieldname is not an available remote course field");
@@ -238,11 +247,11 @@ class campusconnect_metadata {
 
     /**
      * Generate a default summary layout (could be used to reset back to the default)
-     * @param bool $external optional (default true)
+     * @param bool $courselink optional (default true)
      * @return string the default summary
      */
-    public static function generate_default_summary($external = true) {
-        if ($external) {
+    public static function generate_default_summary($courselink = true) {
+        if ($courselink) {
             $mapping = array('destinationForDisplay' => get_string('field_organisation', 'local_campusconnect'),
                              'lang' => get_string('field_language', 'local_campusconnect'),
                              'term' => get_string('field_term', 'local_campusconnect'),
@@ -274,26 +283,23 @@ class campusconnect_metadata {
 
     /**
      * @param campusconnect_ecssettings $ecssettings the ECS this is the mapping for
-     * @param bool $external - true if this is the mappings for 'external courses'
+     * @param bool $courselink - true if this is the mappings for 'external courses'
      */
-    public function __construct(campusconnect_ecssettings $ecssettings, $external = true) {
+    public function __construct(campusconnect_ecssettings $ecssettings, $courselink = true) {
         global $DB;
 
-        $this->external = $external;
+        $this->courselink = $courselink;
         $this->ecsid = $ecssettings->get_id();
 
-        if (!$this->external) {
-            // Clear the defaults for these, as no suitable fields for 'internal course' mapping.
-            $this->importmappings['startdate'] = '';
-            $this->importmappings['lang'] = '';
-        } else {
-            $this->exportmappings = $this->exportmappingsext;
+        if ($this->courselink) {
+            $this->exportmappings = $this->exportmappingscourselink;
+            $this->importmappings = $this->importmappingscourselink;
         }
 
-        $remotefields = $this->external ? self::$remotefieldsext : self::$remotefields;
+        $remotefields = $this->courselink ? self::$remotefieldcourselink : self::$remotefields;
         $mappings = $DB->get_records('local_campusconnect_mappings', array('ecsid' => $this->ecsid));
         foreach ($mappings as $mapping) {
-            if ($external) {
+            if ($courselink) {
                 if ($mapping->type == self::TYPE_IMPORT_COURSE ||
                     $mapping->type == self::TYPE_EXPORT_COURSE) {
                     continue;
@@ -321,7 +327,7 @@ class campusconnect_metadata {
         }
 
         if (is_null($this->importmappings['summary'])) {
-            $this->importmappings['summary'] = self::generate_default_summary($external);
+            $this->importmappings['summary'] = self::generate_default_summary($courselink);
         }
     }
 
@@ -330,7 +336,7 @@ class campusconnect_metadata {
      * @return bool true if the mapping is for external courses
      */
     public function is_external() {
-        return $this->external;
+        return $this->courselink;
     }
 
     /**
@@ -365,7 +371,7 @@ class campusconnect_metadata {
      * @return bool false if an error occurred (see get_last_error for details)
      */
     public function set_import_mapping($localfield, $remotefield) {
-        $remotefields = $this->external ? self::$remotefieldsext : self::$remotefields;
+        $remotefields = $this->courselink ? self::$remotefieldcourselink : self::$remotefields;
         if (self::is_text_field($localfield)) {
             if (preg_match_all('/\{([^}]+)\}/', $remotefield, $includedfields)) {
                 foreach ($includedfields[1] as $field) {
@@ -378,7 +384,7 @@ class campusconnect_metadata {
             }
 
         } else {
-            if (!empty($remotefield) && !in_array($remotefield, self::list_remote_to_local_fields($localfield, $this->external))) {
+            if (!empty($remotefield) && !in_array($remotefield, self::list_remote_to_local_fields($localfield, $this->courselink))) {
                 throw new coding_exception("$remotefield is not a suitable field to map onto $localfield");
             }
         }
@@ -390,7 +396,7 @@ class campusconnect_metadata {
             return false;
         }
 
-        if ($this->external) {
+        if ($this->courselink) {
             $type = self::TYPE_IMPORT_EXTERNAL_COURSE;
         } else {
             $type = self::TYPE_IMPORT_COURSE;
@@ -408,7 +414,7 @@ class campusconnect_metadata {
      * @return bool false if an error occurred (see get_last_error for details)
      */
     public function set_export_mapping($remotefield, $localfield) {
-        if (self::is_remote_text_field($remotefield, $this->external)) {
+        if (self::is_remote_text_field($remotefield, $this->courselink)) {
             if (preg_match_all('/\{([^}]+)\}/', $localfield, $includedfields)) {
                 foreach ($includedfields[1] as $field) {
                     if (!array_key_exists($field, self::$coursefields)) {
@@ -420,7 +426,7 @@ class campusconnect_metadata {
             }
 
         } else {
-            if (!empty($localfield) && !in_array($localfield, self::list_local_to_remote_fields($remotefield, $this->external))) {
+            if (!empty($localfield) && !in_array($localfield, self::list_local_to_remote_fields($remotefield, $this->courselink))) {
                 throw new coding_exception("$localfield is not a suitable field to map onto $remotefield");
             }
         }
@@ -432,7 +438,7 @@ class campusconnect_metadata {
             return false;
         }
 
-        if ($this->external) {
+        if ($this->courselink) {
             $type = self::TYPE_EXPORT_EXTERNAL_COURSE;
         } else {
             $type = self::TYPE_EXPORT_COURSE;
@@ -507,12 +513,7 @@ class campusconnect_metadata {
     public function flatten_remote_data($remotedetails, $flattenarrays = false) {
         $details = array();
         foreach ($remotedetails as $name => $value) {
-            if ($name == 'basicData') {
-                foreach ($value as $fieldname => $fieldvalue) {
-                    $details[$fieldname] = $fieldvalue;
-                }
-                continue;
-            } else if ($name == 'datesAndVenues') {
+            if ($name == 'datesAndVenues') {
                 if (!empty($value)) {
                     foreach ($value[0] as $fieldname => $fieldvalue) {
                         if ($fieldname == 'firstDate') {
@@ -532,7 +533,7 @@ class campusconnect_metadata {
         }
 
         // Convert dates, lists, etc. into suitable format for Moodle.
-        $remotefields = $this->external ? self::$remotefieldsext : self::$remotefields;
+        $remotefields = $this->courselink ? self::$remotefieldcourselink : self::$remotefields;
         foreach ($remotefields as $fieldname => $fieldtype) {
             $fieldnameparts = explode('_', $fieldname);
             $basename = $fieldnameparts[0];
@@ -634,7 +635,7 @@ class campusconnect_metadata {
     public function map_remote_to_course($remotedetails) {
         // Copy all details out of structured object into flat array.
         $details = $this->flatten_remote_data($remotedetails);
-        $remotefields = $this->external ? self::$remotefieldsext : self::$remotefields;
+        $remotefields = $this->courselink ? self::$remotefieldcourselink : self::$remotefields;
         // Copy details into course object, as specified by $this->importmappings.
         $course = new stdClass();
         foreach ($this->importmappings as $localfield => $remotefield) {
@@ -671,7 +672,7 @@ class campusconnect_metadata {
         }
 
         // Fix up the status field
-        if ($this->external) {
+        if ($this->courselink) {
             if (isset($remotedetails->status) && $remotedetails->status == 'offline') {
                 $course->visible = 0;
             } else {
@@ -717,7 +718,7 @@ class campusconnect_metadata {
             if (empty($localfield)) {
                 continue;
             }
-            if (self::is_remote_text_field($remotefield, $this->external)) {
+            if (self::is_remote_text_field($remotefield, $this->courselink)) {
                 $details[$remotefield] = $localfield;
                 if (preg_match_all('/\{([^}]+)\}/', $details[$remotefield], $includedfields)) {
                     foreach ($includedfields[1] as $field) {
@@ -738,10 +739,9 @@ class campusconnect_metadata {
        }
 
         // Copy the details into the final structure.
-        $basicdata = array('organisation', 'id', 'term', 'number', 'title', 'courseType', 'hoursPerWeek', 'maxParticipants', 'parallelGroupScenario');
         $remotedetails = new stdClass();
         foreach ($details as $field => $value) {
-            if ($this->external) {
+            if ($this->courselink) {
                 $fieldparts = explode('.', $field);
                 if ($fieldparts[0] == 'datesAndVenues') {
                     if (!isset($remotedetails->datesAndVenues)) {
@@ -760,20 +760,12 @@ class campusconnect_metadata {
                     }
                     continue;
                 }
-            } else {
-                if (in_array($field, $basicdata)) {
-                    if (!isset($remotedetails->basicData)) {
-                        $remotedetails->basicData = new stdClass();
-                    }
-                    $remotedetails->basicData->$field = $value;
-                    continue;
-                }
             }
             $remotedetails->$field = $value;
         }
 
         // Fix up the status field
-        if ($this->external) {
+        if ($this->courselink) {
             if ($course->visible) {
                 $remotedetails->status = 'online';
             } else {

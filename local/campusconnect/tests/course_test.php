@@ -55,23 +55,12 @@ class local_campusconnect_course_test extends advanced_testcase {
     protected $directorydata = array(1001 => 'dir1', 1002 => 'dir2', 1003 => 'dir3');
     protected $coursedata = '
     {
-        "basicData":
-        {
-            "organisation": "Synergy Learning",
-            "id": "abc_1234",
-            "term": "012013",
-            "title": "Test course creation",
-            "courseType": "online",
-            "hoursPerWeek": 2,
-            "maxParticipants": 30
-        },
-        "lecturers":
-        [
-            {
-                "firstName": "Fred",
-                "lastName": "Bloggs"
-            }
-        ],
+        "lectureID": "abc_1234",
+        "title": "Test course creation",
+        "organisation": "Synergy Learning",
+        "term": "012013",
+        "lectureType": "online",
+        "hoursPerWeek": 2,
         "degreeProgrammes":
         [
             {
@@ -98,7 +87,7 @@ class local_campusconnect_course_test extends advanced_testcase {
         ],
         "comment1": "This just a test",
         "recommendedReading": "Lord of the Rings",
-        "organisationalUnit":
+        "organisationalUnits":
         [
             {
                 "id": "org01",
@@ -110,10 +99,13 @@ class local_campusconnect_course_test extends advanced_testcase {
             }
         ],
         "prerequisites": "ability to breathe",
-        "courseAssessmentMethod": "guessing",
-        "courseTopics": "things + other stuff",
+        "lectureAssessmentType": "guessing",
+        "lectureTopics": "things + other stuff",
         "linkToCurriculumt": "none",
-        "targetAudience": "everyone",
+        "targetAudiences":
+        [
+            "everyone"
+        ],
         "links":
         [
             {
@@ -252,8 +244,8 @@ class local_campusconnect_course_test extends advanced_testcase {
         $this->assertContains('Synergy Learning', $course2->summary);
 
         // Update the course details.
-        $course->basicData->title = 'Test update title';
-        $course->basicData->organisation = 'New organisation';
+        $course->title = 'Test update title';
+        $course->organisation = 'New organisation';
         campusconnect_course::update($resourceid, $this->settings[2], $course, $this->transferdetails);
         $courses = $DB->get_records_select('course', 'id > 1', array(), 'id', 'id, fullname, shortname, category, summary');
         $this->assertCount(2, $courses);

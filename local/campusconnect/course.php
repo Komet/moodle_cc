@@ -176,7 +176,7 @@ class campusconnect_course {
             $ins = new stdClass();
             $ins->courseid = $newcourse->id;
             $ins->resourceid = $resourceid;
-            $ins->cmsid = isset($course->basicData->id) ? $course->basicData->id : '';
+            $ins->cmsid = $course->lectureID;
             $ins->ecsid = $ecssettings->get_id();
             $ins->mid = $mid;
             $ins->internallink = $internallink;
@@ -356,10 +356,10 @@ class campusconnect_course {
                 }
 
                 // The cms course id has changed (not sure if this should ever happen, but handle it anyway)
-                if (isset($course->basicData->id) && $course->basicData->id != $currcourse->cmsid) {
+                if ($course->lectureID != $currcourse->cmsid) {
                     $upd = new stdClass();
                     $upd->id = $currcourse->id;
-                    $upd->cmsid = $course->basicData->id;
+                    $upd->cmsid = $course->lectureID;
                     $DB->update_record('local_campusconnect_crs', $upd);
                 }
 
@@ -407,7 +407,7 @@ class campusconnect_course {
                 $ins = new stdClass();
                 $ins->courseid = $newcourse->id;
                 $ins->resourceid = $resourceid;
-                $ins->cmsid = isset($course->basicData->id) ? $course->basicData->id : '';
+                $ins->cmsid = $course->lectureID;
                 $ins->ecsid = $ecsid;
                 $ins->mid = $mid;
                 $ins->internallink = $internallink;
@@ -1242,8 +1242,8 @@ class campusconnect_parallelgroups {
      *          Each group object contains: $id, $title, $comment, $lecturer (the first lecturer listed)
      */
     public static function get_parallel_groups($course) {
-        if (!empty($course->basicData->parallelGroupScenario)) {
-            $scenario = $course->basicData->parallelGroupScenario;
+        if (!empty($course->groupScenario)) {
+            $scenario = $course->groupScenario;
         } else {
             return array(array(), self::PGROUP_NONE);
         }
@@ -1292,12 +1292,12 @@ class campusconnect_parallelgroups {
      * @return stdClass[] - groupid => group details (with 'lecturers' flattened to the name of the first lecturer)
      */
     protected static function get_parallel_group_internal($course) {
-        if (!isset($course->parallelGroups)) {
+        if (!isset($course->groups)) {
             return array();
         }
 
         $groups = array();
-        foreach ($course->parallelGroups as $group) {
+        foreach ($course->groups as $group) {
             $details = new stdClass();
             $details->id = $group->id;
             $details->title = !empty($group->title) ? $group->title : '';

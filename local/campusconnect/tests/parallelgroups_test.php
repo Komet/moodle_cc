@@ -55,24 +55,13 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
     protected $directorydata = array(1001 => 'dir1', 1002 => 'dir2', 1003 => 'dir3');
     protected $coursedata = '
     {
-        "basicData":
-        {
-            "organisation": "Synergy Learning",
-            "id": "abc_1234",
-            "term": "012013",
-            "title": "Test course creation",
-            "courseType": "online",
-            "hoursPerWeek": 2,
-            "maxParticipants": 30,
-            "parallelGroupScenario": 0
-        },
-        "lecturers":
-        [
-            {
-                "firstName": "Fred",
-                "lastName": "Bloggs"
-            }
-        ],
+        "lectureID": "abc_1234",
+        "title": "Test course creation",
+        "organisation": "Synergy Learning",
+        "term": "012013",
+        "lectureType": "online",
+        "hoursPerWeek": 2,
+        "groupScenario": 0,
         "degreeProgrammes":
         [
             {
@@ -99,7 +88,7 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
         ],
         "comment1": "This just a test",
         "recommendedReading": "Lord of the Rings",
-        "organisationalUnit":
+        "organisationalUnits":
         [
             {
                 "id": "org01",
@@ -111,10 +100,13 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
             }
         ],
         "prerequisites": "ability to breathe",
-        "courseAssessmentMethod": "guessing",
-        "courseTopics": "things + other stuff",
+        "lectureAssessmentType": "guessing",
+        "lectureTopics": "things + other stuff",
         "linkToCurriculumt": "none",
-        "targetAudience": "everyone",
+        "targetAudiences":
+        [
+            "everyone"
+        ],
         "links":
         [
             {
@@ -122,14 +114,12 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
                 "title": "Wikipedia"
             }
         ],
-        "parallelGroups":
+        "groups":
         [
             {
-                "title": "Group1",
                 "id": "grp1",
+                "title": "Group1",
                 "comment": "This is a group",
-                "firstDate": "1/2/2013",
-                "lastDate": "2/2/2013",
                 "maxParticipants": 20,
                 "lecturers":
                 [
@@ -144,8 +134,8 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
                 ]
             },
             {
-                "title": "Group2",
                 "id": "grp2",
+                "title": "Group2",
                 "lecturers":
                 [
                     {
@@ -283,7 +273,7 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
         // Course create request from participant 1 to participant 2
         $resourceid = -10;
         $course = json_decode($this->coursedata);
-        $course->basicData->parallelGroupScenario = campusconnect_parallelgroups::PGROUP_ONE_COURSE;
+        $course->groupScenario = campusconnect_parallelgroups::PGROUP_ONE_COURSE;
 
         // Should be no courses before we process the request.
         $courses = $DB->get_records_select('course', 'id > 1', array(), '', 'id, fullname, shortname, category, summary');
@@ -345,7 +335,7 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
         // Course create request from participant 1 to participant 2
         $resourceid = -10;
         $course = json_decode($this->coursedata);
-        $course->basicData->parallelGroupScenario = campusconnect_parallelgroups::PGROUP_SEPARATE_GROUPS;
+        $course->groupScenario = campusconnect_parallelgroups::PGROUP_SEPARATE_GROUPS;
 
         // Should be no courses before we process the request.
         $courses = $DB->get_records_select('course', 'id > 1', array(), '', 'id, fullname, shortname, category, summary');
@@ -415,7 +405,7 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
         // Course create request from participant 1 to participant 2
         $resourceid = -10;
         $course = json_decode($this->coursedata);
-        $course->basicData->parallelGroupScenario = campusconnect_parallelgroups::PGROUP_SEPARATE_COURSES;
+        $course->groupScenario = campusconnect_parallelgroups::PGROUP_SEPARATE_COURSES;
 
         // Should be no courses before we process the request.
         $courses = $DB->get_records_select('course', 'id > 1', array(), '', 'id, fullname, shortname, category, summary');
@@ -510,7 +500,7 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
         // Course create request from participant 1 to participant 2
         $resourceid = -10;
         $course = json_decode($this->coursedata);
-        $course->basicData->parallelGroupScenario = campusconnect_parallelgroups::PGROUP_SEPARATE_LECTURERS;
+        $course->groupScenario = campusconnect_parallelgroups::PGROUP_SEPARATE_LECTURERS;
 
         // Should be no courses before we process the request.
         $courses = $DB->get_records_select('course', 'id > 1', array(), '', 'id, fullname, shortname, category, summary');
@@ -594,14 +584,14 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
         // Course create request from participant 1 to participant 2
         $resourceid = -10;
         $course = json_decode($this->coursedata);
-        $course->basicData->parallelGroupScenario = campusconnect_parallelgroups::PGROUP_SEPARATE_COURSES;
+        $course->groupScenario = campusconnect_parallelgroups::PGROUP_SEPARATE_COURSES;
 
         // Should be no courses before we process the request.
         $courses = $DB->get_records_select('course', 'id > 1', array(), '', 'id, fullname, shortname, category, summary');
         $this->assertEmpty($courses);
 
         campusconnect_course::create($resourceid, $this->settings[2], $course, $this->transferdetails);
-        $course->basicData->parallelGroupScenario = campusconnect_parallelgroups::PGROUP_SEPARATE_GROUPS;
+        $course->groupScenario = campusconnect_parallelgroups::PGROUP_SEPARATE_GROUPS;
         campusconnect_course::update($resourceid, $this->settings[2], $course, $this->transferdetails);
 
         // Should now be 2 courses - check they are as expected.
@@ -666,14 +656,14 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
         // Course create request from participant 1 to participant 2
         $resourceid = -10;
         $course = json_decode($this->coursedata);
-        $course->basicData->parallelGroupScenario = campusconnect_parallelgroups::PGROUP_SEPARATE_GROUPS;
+        $course->groupScenario = campusconnect_parallelgroups::PGROUP_SEPARATE_GROUPS;
 
         // Should be no courses before we process the request.
         $courses = $DB->get_records_select('course', 'id > 1', array(), '', 'id, fullname, shortname, category, summary');
         $this->assertEmpty($courses);
 
         campusconnect_course::create($resourceid, $this->settings[2], $course, $this->transferdetails);
-        $course->basicData->parallelGroupScenario = campusconnect_parallelgroups::PGROUP_SEPARATE_COURSES;
+        $course->groupScenario = campusconnect_parallelgroups::PGROUP_SEPARATE_COURSES;
         campusconnect_course::update($resourceid, $this->settings[2], $course, $this->transferdetails);
 
         // Should now be 6 courses - check they are as expected.

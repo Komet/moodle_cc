@@ -59,8 +59,32 @@ class local_campusconnect_course_test extends advanced_testcase {
         {
             "organisation": "Synergy Learning",
             "id": "abc_1234",
-            "title": "Test course creation"
+            "term": "012013",
+            "title": "Test course creation",
+            "courseType": "online",
+            "hoursPerWeek": 2,
+            "maxParticipants": 30
         },
+        "lecturers":
+        [
+            {
+                "firstName": "Fred",
+                "lastName": "Bloggs"
+            }
+        ],
+        "degreeProgrammes":
+        [
+            {
+                "id": "programmeID",
+                "title": "Test programme",
+                "code": "pr21",
+                "courseUnitYearOfStudy":
+                {
+                    "from": 1234567,
+                    "to": 2345678
+                }
+            }
+        ],
         "allocations":
         [
             {
@@ -70,6 +94,43 @@ class local_campusconnect_course_test extends advanced_testcase {
             {
                 "parentID": "id1002",
                 "order": 9
+            }
+        ],
+        "comment1": "This just a test",
+        "recommendedReading": "Lord of the Rings",
+        "organisationalUnit":
+        [
+            {
+                "id": "org01",
+                "title": "Org1 title"
+            },
+            {
+                "id": "org02",
+                "title": "Org2 title"
+            }
+        ],
+        "prerequisites": "ability to breathe",
+        "courseAssessmentMethod": "guessing",
+        "courseTopics": "things + other stuff",
+        "linkToCurriculumt": "none",
+        "targetAudience": "everyone",
+        "links":
+        [
+            {
+                "href": "http://en.wikipedia.org",
+                "title": "Wikipedia"
+            }
+        ],
+        "modules":
+        [
+            {
+                "id": "mod01",
+                "title": "First module",
+                "number": 5,
+                "credits": 20,
+                "hoursPerWeek": 10,
+                "duration": 5,
+                "cycle": "weekly"
             }
         ]
     }

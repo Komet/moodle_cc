@@ -99,6 +99,9 @@ class campusconnect_course {
             campusconnect_log::add("Course resource ({$resourceid}) should contain a single course, not an array of courses");
             $course = reset($course);
         }
+        if (empty($course)) {
+            throw new coding_exception("Should not call campusconnect_course::create without course data");
+        }
 
         $coursedata = self::map_course_settings($course, $ecssettings);
         if (self::get_by_resourceid($resourceid, $ecssettings->get_id())) {
@@ -228,6 +231,9 @@ class campusconnect_course {
         if (is_array($course)) {
             campusconnect_log::add("Course resource ({$resourceid}) must contain a single course, not an array of courses");
             $course = reset($course);
+        }
+        if (empty($course)) {
+            throw new coding_exception("Should not call campusconnect_course::update without course data");
         }
 
         $currcourses = self::get_by_resourceid($resourceid, $ecsid);

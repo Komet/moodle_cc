@@ -58,7 +58,19 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
         "lectureID": "abc_1234",
         "title": "Test course creation",
         "organisation": "Synergy Learning",
-        "term": "012013",
+        "organisationalUnits":
+        [
+            {
+                "id": "org01",
+                "title": "Org1 title"
+            },
+            {
+                "id": "org02",
+                "title": "Org2 title"
+            }
+        ],
+        "term": "Summer 2013",
+        "termID": "20131",
         "lectureType": "online",
         "hoursPerWeek": 2,
         "groupScenario": 0,
@@ -70,8 +82,8 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
                 "code": "pr21",
                 "courseUnitYearOfStudy":
                 {
-                    "from": 1234567,
-                    "to": 2345678
+                    "from": 5,
+                    "to": 8
                 }
             }
         ],
@@ -88,17 +100,6 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
         ],
         "comment1": "This just a test",
         "recommendedReading": "Lord of the Rings",
-        "organisationalUnits":
-        [
-            {
-                "id": "org01",
-                "title": "Org1 title"
-            },
-            {
-                "id": "org02",
-                "title": "Org2 title"
-            }
-        ],
         "prerequisites": "ability to breathe",
         "lectureAssessmentType": "guessing",
         "lectureTopics": "things + other stuff",
@@ -120,7 +121,6 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
                 "id": "grp1",
                 "title": "Group1",
                 "comment": "This is a group",
-                "maxParticipants": 20,
                 "lecturers":
                 [
                     {
@@ -131,7 +131,8 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
                         "firstName": "Sam",
                         "lastName": "Spade"
                     }
-                ]
+                ],
+                "maxParticipants": 20
             },
             {
                 "id": "grp2",
@@ -231,49 +232,7 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
         // Course create request from participant 1 to participant 2
         $resourceid = -10;
         $course = json_decode($this->coursedata);
-
-        // Should be no courses before we process the request.
-        $courses = $DB->get_records_select('course', 'id > 1', array(), '', 'id, fullname, shortname, category, summary');
-        $this->assertEmpty($courses);
-
-        campusconnect_course::create($resourceid, $this->settings[2], $course, $this->transferdetails);
-
-        // Should now be 2 courses - check they are as expected.
-        $courses = $DB->get_records_select('course', 'id > 1', array(), 'id', 'id, fullname, shortname, category, summary');
-        $this->assertCount(2, $courses);
-        $course1 = array_shift($courses);
-        $course2 = array_shift($courses);
-
-        // Check all the course settings have been mapped as expected.
-        $this->assertEquals('abc_1234', $course1->shortname);
-        $this->assertEquals('Test course creation', $course1->fullname);
-        $this->assertEquals($this->directory[0]->get_category_id(), $course1->category);
-        $this->assertContains('Synergy Learning', $course1->summary);
-
-        $this->assertEquals('Test course creation', $course2->fullname);
-        $this->assertEquals($this->directory[1]->get_category_id(), $course2->category);
-        $this->assertContains('Synergy Learning', $course2->summary);
-
-        $this->assertFalse(campusconnect_course::check_redirect($course1->id)); // No redirect for the real course.
-        $expectedredirect = new moodle_url('/course/view.php', array('id' => $course1->id));
-        $actualredirect = campusconnect_course::check_redirect($course2->id);
-        $this->assertEquals($expectedredirect->out(), $actualredirect->out()); // Link redirects to the real course.
-
-        // Check no Moodle groups have been created.
-        $this->assertEmpty(groups_get_all_groups($course1->id));
-        $this->assertEmpty(groups_get_all_groups($course2->id));
-
-        // Check no parallel groups records created.
-        $this->assertEmpty($DB->get_records('local_campusconnect_pgroup'));
-    }
-
-    public function test_parallelgroups_onecourse() {
-        global $DB;
-
-        // Course create request from participant 1 to participant 2
-        $resourceid = -10;
-        $course = json_decode($this->coursedata);
-        $course->groupScenario = campusconnect_parallelgroups::PGROUP_ONE_COURSE;
+        $course->groupScenario = campusconnect_parallelgroups::PGROUP_NONE;
 
         // Should be no courses before we process the request.
         $courses = $DB->get_records_select('course', 'id > 1', array(), '', 'id, fullname, shortname, category, summary');

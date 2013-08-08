@@ -1200,16 +1200,14 @@ class campusconnect_course_url {
  */
 class campusconnect_parallelgroups {
     // Parallel group scenarios
-    /** No groups created */
-    const PGROUP_NONE = 0;
     /** Groups created, but mapped onto one course/group */
-    const PGROUP_ONE_COURSE = 1;
+    const PGROUP_NONE = 0;
     /** Groups mapped onto groups in a single course */
-    const PGROUP_SEPARATE_GROUPS = 2;
+    const PGROUP_SEPARATE_GROUPS = 1;
     /** Groups mapped onto single groups in multiple courses */
-    const PGROUP_SEPARATE_COURSES = 3;
+    const PGROUP_SEPARATE_COURSES = 2;
     /** One course per lecturer, one course group per course */
-    const PGROUP_SEPARATE_LECTURERS = 4;
+    const PGROUP_SEPARATE_LECTURERS = 3;
 
     /**
      * @var campusconnect_ecssettings
@@ -1245,13 +1243,13 @@ class campusconnect_parallelgroups {
         if (!empty($course->groupScenario)) {
             $scenario = $course->groupScenario;
         } else {
-            return array(array(), self::PGROUP_NONE);
+            $scenario = self::PGROUP_NONE;
         }
 
         $parallelgroups = self::get_parallel_group_internal($course);
 
         switch ($scenario) {
-        case self::PGROUP_ONE_COURSE:
+        case self::PGROUP_NONE:
         case self::PGROUP_SEPARATE_GROUPS:
             $courses = array($parallelgroups);
             break;
@@ -1420,10 +1418,6 @@ class campusconnect_parallelgroups {
     public function update_parallel_groups(stdClass $course, $pgroupmode, $pcourse) {
         global $DB;
 
-        if ($pgroupmode == self::PGROUP_NONE) {
-            return; // Nothing to do.
-        }
-
         if ($pgroupmode == self::PGROUP_SEPARATE_COURSES) {
             if (count($pcourse) > 1) {
                 throw new coding_exception("With 'separate groups' mode, only one group should be passed in to each course");
@@ -1447,7 +1441,7 @@ class campusconnect_parallelgroups {
         $ins->courseid = $course->id;
 
         // Create each of the parallel groups requested.
-        $creategroup = ($pgroupmode != self::PGROUP_ONE_COURSE) && (count($pcourse) > 1);
+        $creategroup = ($pgroupmode != self::PGROUP_NONE) && (count($pcourse) > 1);
         foreach ($pcourse as $pg) {
             if (array_key_exists($pg->id, $existing)) {
                 // The pgroup is already mapped onto this course - update it if needed.

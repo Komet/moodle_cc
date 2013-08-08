@@ -58,7 +58,19 @@ class local_campusconnect_course_test extends advanced_testcase {
         "lectureID": "abc_1234",
         "title": "Test course creation",
         "organisation": "Synergy Learning",
-        "term": "012013",
+        "organisationalUnits":
+        [
+            {
+                "id": "org01",
+                "title": "Org1 title"
+            },
+            {
+                "id": "org02",
+                "title": "Org2 title"
+            }
+        ],
+        "term": "Summer 2013",
+        "termID": "20131",
         "lectureType": "online",
         "hoursPerWeek": 2,
         "degreeProgrammes":
@@ -69,8 +81,8 @@ class local_campusconnect_course_test extends advanced_testcase {
                 "code": "pr21",
                 "courseUnitYearOfStudy":
                 {
-                    "from": 1234567,
-                    "to": 2345678
+                    "from": 5,
+                    "to": 8
                 }
             }
         ],
@@ -87,17 +99,6 @@ class local_campusconnect_course_test extends advanced_testcase {
         ],
         "comment1": "This just a test",
         "recommendedReading": "Lord of the Rings",
-        "organisationalUnits":
-        [
-            {
-                "id": "org01",
-                "title": "Org1 title"
-            },
-            {
-                "id": "org02",
-                "title": "Org2 title"
-            }
-        ],
         "prerequisites": "ability to breathe",
         "lectureAssessmentType": "guessing",
         "lectureTopics": "things + other stuff",

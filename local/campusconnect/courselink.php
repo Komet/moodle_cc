@@ -143,22 +143,13 @@ class campusconnect_courselink {
 
             $coursedata->category = $settings->get_import_category();
 
-            if ($settings->get_id() > 0) {
-                $baseshortname = $coursedata->shortname;
-                $num = 1;
-                while ($DB->record_exists('course', array('shortname' => $coursedata->shortname))) {
-                    $num++;
-                    $coursedata->shortname = "{$baseshortname}_{$num}";
-                }
-                $course = create_course($coursedata);
-            } else {
-                // Nasty hack for unit testing - 'create_course' is too complex to
-                // be practical to mock up the database responses
-                global $DB;
-                $course = $coursedata;
-                /** @noinspection PhpUndefinedMethodInspection */
-                $course->id = $DB->mock_create_course($coursedata);
+            $baseshortname = $coursedata->shortname;
+            $num = 1;
+            while ($DB->record_exists('course', array('shortname' => $coursedata->shortname))) {
+                $num++;
+                $coursedata->shortname = "{$baseshortname}_{$num}";
             }
+            $course = create_course($coursedata);
 
             $ins = new stdClass();
             $ins->courseid = $course->id;
@@ -235,22 +226,13 @@ class campusconnect_courselink {
             if (!$DB->record_exists('course', array('id' => $currlink->courseid))) {
                 // The course has been deleted - recreate it.
                 $coursedata->category = $settings->get_import_category();
-                if ($settings->get_id() > 0) {
-                    $baseshortname = $coursedata->shortname;
-                    $num = 1;
-                    while ($DB->record_exists('course', array('shortname' => $coursedata->shortname))) {
-                        $num++;
-                        $coursedata->shortname = "{$baseshortname}_{$num}";
-                    }
-                    $course = create_course($coursedata);
-                } else {
-                    // Nasty hack for unit testing - 'create_course' is too complex to
-                    // be practical to mock up the database responses
-                    global $DB;
-                    $course = $coursedata;
-                    /** @noinspection PhpUndefinedMethodInspection */
-                    $course->id = $DB->mock_create_course($coursedata);
+                $baseshortname = $coursedata->shortname;
+                $num = 1;
+                while ($DB->record_exists('course', array('shortname' => $coursedata->shortname))) {
+                    $num++;
+                    $coursedata->shortname = "{$baseshortname}_{$num}";
                 }
+                $course = create_course($coursedata);
 
                 // Update the courselink record to point at this new course.
                 $upd = new stdClass();
@@ -265,22 +247,12 @@ class campusconnect_courselink {
             } else {
                 // Course still exists - update it.
                 $coursedata->id = $currlink->courseid;
-                if ($settings->get_id() > 0) {
-                    // Nasty hack for unit testing - 'update_course' is too complex to
-                    // be practical to mock up the database responses
-                    update_course($coursedata);
+                update_course($coursedata);
 
-                    campusconnect_notification::queue_message($settings->get_id(),
-                                                              campusconnect_notification::MESSAGE_IMPORT_COURSELINK,
-                                                              campusconnect_notification::TYPE_UPDATE,
-                                                              $coursedata->id);
-                } else {
-                    global $DB;
-                    /** @noinspection PhpUndefinedMethodInspection */
-                    $DB->mock_update_course($coursedata);
-                }
-
-
+                campusconnect_notification::queue_message($settings->get_id(),
+                                                          campusconnect_notification::MESSAGE_IMPORT_COURSELINK,
+                                                          campusconnect_notification::TYPE_UPDATE,
+                                                          $coursedata->id);
             }
 
             if ($currlink->url != $courselink->url) {
@@ -313,14 +285,7 @@ class campusconnect_courselink {
                                                       campusconnect_notification::MESSAGE_IMPORT_COURSELINK,
                                                       campusconnect_notification::TYPE_DELETE,
                                                       0, $msg);
-            if ($settings->get_id() > 0) {
-                // Nasty hack for unit testing - 'delete_course' is too complex to
-                // be practical to mock up the database responses
-                delete_course($currlink->courseid, false);
-            } else {
-                /** @noinspection PhpUndefinedMethodInspection */
-                $DB->mock_delete_course($currlink->courseid);
-            }
+            delete_course($currlink->courseid, false);
             $DB->delete_records('local_campusconnect_clink', array('id' => $currlink->id));
         }
 

@@ -161,6 +161,49 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
     }
     ';
 
+    protected $altgroupdata = '
+        [
+            {
+                "title": "Renamed Group1",
+                "comment": "Updated comment",
+                "lecturers":
+                [
+                    {
+                        "firstName": "Humphrey",
+                        "lastName": "Bogart"
+                    },
+                    {
+                        "firstName": "Sam",
+                        "lastName": "Spade"
+                    }
+                ],
+                "maxParticipants": 20
+            },
+            {
+                "lecturers":
+                [
+                    {
+                        "firstName": "Humphrey",
+                        "lastName": "Bogart"
+                    }
+                ]
+            },
+            {
+                "title": "Adding a title to group 3"
+            },
+            {
+                "title": "Newly added group 4",
+                "lecturers":
+                [
+                    {
+                        "firstName": "Sam",
+                        "lastName": "Spade"
+                    }
+                ]
+            }
+        ]
+    ';
+
     public function setUp() {
         global $DB;
 
@@ -286,6 +329,69 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
         $this->assertEquals('Group 2', $pgroup3->grouptitle);
         $this->assertEquals($course1->id, $pgroup3->courseid);
         $this->assertEquals(0, $pgroup3->groupid);
+
+        /////////////////////////////////
+        // Update the group definition.
+        /////////////////////////////////
+        $course->groups = json_decode($this->altgroupdata);
+        campusconnect_course::update($resourceid, $this->settings[2], $course, $this->transferdetails);
+
+        // Should still be 2 courses - check they are as expected.
+        $courses = $DB->get_records_select('course', 'id > 1', array(), 'id', 'id, fullname, shortname, category, summary');
+        $this->assertCount(2, $courses);
+        $course1 = array_shift($courses);
+        $course2 = array_shift($courses);
+
+        // Check all the course settings have been mapped as expected.
+        $this->assertEquals('abc_1234', $course1->shortname);
+        $this->assertEquals('Test course creation', $course1->fullname);
+        $this->assertEquals($this->directory[0]->get_category_id(), $course1->category);
+        $this->assertContains('Synergy Learning', $course1->summary);
+
+        $this->assertEquals('Test course creation', $course2->fullname);
+        $this->assertEquals($this->directory[1]->get_category_id(), $course2->category);
+        $this->assertContains('Synergy Learning', $course2->summary);
+
+        $this->assertFalse(campusconnect_course::check_redirect($course1->id)); // No redirect for the real course.
+        $expectedredirect = new moodle_url('/course/view.php', array('id' => $course1->id));
+        $actualredirect = campusconnect_course::check_redirect($course2->id);
+        $this->assertEquals($expectedredirect->out(), $actualredirect->out()); // Link redirects to the real course.
+
+        // Check no Moodle groups have been created.
+        $this->assertEmpty(groups_get_all_groups($course1->id));
+        $this->assertEmpty(groups_get_all_groups($course2->id));
+
+        // Check parallel groups records have been updated.
+        $pgroups = $DB->get_records('local_campusconnect_pgroup');
+        $this->assertCount(4, $pgroups);
+        $pgroup1 = array_shift($pgroups);
+        $pgroup2 = array_shift($pgroups);
+        $pgroup3 = array_shift($pgroups);
+        $pgroup4 = array_shift($pgroups);
+
+        $this->assertEquals('0', $pgroup1->groupnum);
+        $this->assertEquals('abc_1234', $pgroup1->cmscourseid);
+        $this->assertEquals('Renamed Group1', $pgroup1->grouptitle);
+        $this->assertEquals($course1->id, $pgroup1->courseid);
+        $this->assertEquals(0, $pgroup1->groupid);
+
+        $this->assertEquals('1', $pgroup2->groupnum);
+        $this->assertEquals('abc_1234', $pgroup2->cmscourseid);
+        $this->assertEquals('Group 1', $pgroup2->grouptitle);
+        $this->assertEquals($course1->id, $pgroup2->courseid);
+        $this->assertEquals(0, $pgroup2->groupid);
+
+        $this->assertEquals('2', $pgroup3->groupnum);
+        $this->assertEquals('abc_1234', $pgroup3->cmscourseid);
+        $this->assertEquals('Adding a title to group 3', $pgroup3->grouptitle);
+        $this->assertEquals($course1->id, $pgroup3->courseid);
+        $this->assertEquals(0, $pgroup3->groupid);
+
+        $this->assertEquals('3', $pgroup4->groupnum);
+        $this->assertEquals('abc_1234', $pgroup4->cmscourseid);
+        $this->assertEquals('Newly added group 4', $pgroup4->grouptitle);
+        $this->assertEquals($course1->id, $pgroup4->courseid);
+        $this->assertEquals(0, $pgroup4->groupid);
     }
 
     public function test_parallelgroups_separategroups() {
@@ -334,7 +440,7 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
 
         $this->assertEquals('Test Group1', $group1->name);
         $this->assertEquals('Test Group2', $group2->name);
-        $this->assertEquals('Group 2', $group3->name); // ID used when no title available.
+        $this->assertEquals('Group 2', $group3->name);
 
         // Check parallel groups records have been created.
         $pgroups = $DB->get_records('local_campusconnect_pgroup');
@@ -344,19 +450,96 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
         $pgroup3 = array_shift($pgroups);
 
         $this->assertEquals('0', $pgroup1->groupnum);
+        $this->assertEquals('abc_1234', $pgroup1->cmscourseid);
         $this->assertEquals('Test Group1', $pgroup1->grouptitle);
         $this->assertEquals($course1->id, $pgroup1->courseid);
         $this->assertEquals($group1->id, $pgroup1->groupid);
 
         $this->assertEquals('1', $pgroup2->groupnum);
+        $this->assertEquals('abc_1234', $pgroup2->cmscourseid);
         $this->assertEquals('Test Group2', $pgroup2->grouptitle);
         $this->assertEquals($course1->id, $pgroup2->courseid);
         $this->assertEquals($group2->id, $pgroup2->groupid);
 
         $this->assertEquals('2', $pgroup3->groupnum);
+        $this->assertEquals('abc_1234', $pgroup3->cmscourseid);
         $this->assertEquals('Group 2', $pgroup3->grouptitle);
         $this->assertEquals($course1->id, $pgroup3->courseid);
         $this->assertEquals($group3->id, $pgroup3->groupid);
+
+        /////////////////////////////////
+        // Update the group definition.
+        /////////////////////////////////
+        $course->groups = json_decode($this->altgroupdata);
+        campusconnect_course::update($resourceid, $this->settings[2], $course, $this->transferdetails);
+
+        // Should still be 2 courses - check they are as expected.
+        $courses = $DB->get_records_select('course', 'id > 1', array(), 'id', 'id, fullname, shortname, category, summary');
+        $this->assertCount(2, $courses);
+        $course1 = array_shift($courses);
+        $course2 = array_shift($courses);
+
+        // Check all the course settings have been mapped as expected.
+        $this->assertEquals('abc_1234', $course1->shortname);
+        $this->assertEquals('Test course creation', $course1->fullname);
+        $this->assertEquals($this->directory[0]->get_category_id(), $course1->category);
+        $this->assertContains('Synergy Learning', $course1->summary);
+
+        $this->assertEquals('Test course creation', $course2->fullname);
+        $this->assertEquals($this->directory[1]->get_category_id(), $course2->category);
+        $this->assertContains('Synergy Learning', $course2->summary);
+
+        $this->assertFalse(campusconnect_course::check_redirect($course1->id)); // No redirect for the real course.
+        $expectedredirect = new moodle_url('/course/view.php', array('id' => $course1->id));
+        $actualredirect = campusconnect_course::check_redirect($course2->id);
+        $this->assertEquals($expectedredirect->out(), $actualredirect->out()); // Link redirects to the real course.
+
+        // Check Moodle groups have been updated.
+        $this->assertEmpty(groups_get_all_groups($course2->id));
+        $groups = groups_get_all_groups($course1->id);
+        ksort($groups);
+        $this->assertCount(4, $groups);
+        $group1 = array_shift($groups);
+        $group2 = array_shift($groups);
+        $group3 = array_shift($groups);
+        $group4 = array_shift($groups);
+
+        $this->assertEquals('Renamed Group1', $group1->name);
+        $this->assertEquals('Group 1', $group2->name);
+        $this->assertEquals('Adding a title to group 3', $group3->name);
+        $this->assertEquals('Newly added group 4', $group4->name);
+
+        // Check parallel groups records have been updated.
+        $pgroups = $DB->get_records('local_campusconnect_pgroup', array(), 'id');
+        $this->assertCount(4, $pgroups);
+        $pgroup1 = array_shift($pgroups);
+        $pgroup2 = array_shift($pgroups);
+        $pgroup3 = array_shift($pgroups);
+        $pgroup4 = array_shift($pgroups);
+
+        $this->assertEquals('0', $pgroup1->groupnum);
+        $this->assertEquals('abc_1234', $pgroup1->cmscourseid);
+        $this->assertEquals('Renamed Group1', $pgroup1->grouptitle);
+        $this->assertEquals($course1->id, $pgroup1->courseid);
+        $this->assertEquals($group1->id, $pgroup1->groupid);
+
+        $this->assertEquals('1', $pgroup2->groupnum);
+        $this->assertEquals('abc_1234', $pgroup2->cmscourseid);
+        $this->assertEquals('Group 1', $pgroup2->grouptitle);
+        $this->assertEquals($course1->id, $pgroup2->courseid);
+        $this->assertEquals($group2->id, $pgroup2->groupid);
+
+        $this->assertEquals('2', $pgroup3->groupnum);
+        $this->assertEquals('abc_1234', $pgroup3->cmscourseid);
+        $this->assertEquals('Adding a title to group 3', $pgroup3->grouptitle);
+        $this->assertEquals($course1->id, $pgroup3->courseid);
+        $this->assertEquals($group3->id, $pgroup3->groupid);
+
+        $this->assertEquals('3', $pgroup4->groupnum);
+        $this->assertEquals('abc_1234', $pgroup4->cmscourseid);
+        $this->assertEquals('Newly added group 4', $pgroup4->grouptitle);
+        $this->assertEquals($course1->id, $pgroup4->courseid);
+        $this->assertEquals($group4->id, $pgroup4->groupid);
     }
 
     public function test_parallelgroups_separatecourses() {
@@ -439,19 +622,135 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
         $pgroup3 = array_shift($pgroups);
 
         $this->assertEquals('0', $pgroup1->groupnum);
+        $this->assertEquals('abc_1234', $pgroup1->cmscourseid);
         $this->assertEquals('Test Group1', $pgroup1->grouptitle);
         $this->assertEquals($course1->id, $pgroup1->courseid);
         $this->assertEquals(0, $pgroup1->groupid);
 
         $this->assertEquals('1', $pgroup2->groupnum);
+        $this->assertEquals('abc_1234', $pgroup2->cmscourseid);
         $this->assertEquals('Test Group2', $pgroup2->grouptitle);
         $this->assertEquals($course3->id, $pgroup2->courseid);
         $this->assertEquals(0, $pgroup2->groupid);
 
         $this->assertEquals('2', $pgroup3->groupnum);
+        $this->assertEquals('abc_1234', $pgroup3->cmscourseid);
         $this->assertEquals('Group 2', $pgroup3->grouptitle);
         $this->assertEquals($course5->id, $pgroup3->courseid);
         $this->assertEquals(0, $pgroup3->groupid);
+
+        /////////////////////////////////
+        // Update the group definition.
+        /////////////////////////////////
+        $course->groups = json_decode($this->altgroupdata);
+        campusconnect_course::update($resourceid, $this->settings[2], $course, $this->transferdetails);
+
+        // Should now be 8 courses - check they are as expected.
+        $courses = $DB->get_records_select('course', 'id > 1', array(), 'id', 'id, fullname, shortname, category, summary');
+        $this->assertCount(8, $courses);
+        $course1 = array_shift($courses);
+        $course2 = array_shift($courses);
+        $course3 = array_shift($courses);
+        $course4 = array_shift($courses);
+        $course5 = array_shift($courses);
+        $course6 = array_shift($courses);
+        $course7 = array_shift($courses);
+        $course8 = array_shift($courses);
+
+        // Check all the course settings have been mapped as expected.
+        // PGroup 1.
+        $this->assertEquals('Test course creation (Renamed Group1)', $course1->fullname);
+        $this->assertEquals($this->directory[0]->get_category_id(), $course1->category);
+
+        $this->assertEquals('Test course creation (Renamed Group1)', $course2->fullname);
+        $this->assertEquals($this->directory[1]->get_category_id(), $course2->category);
+
+        // PGroup 2.
+        $this->assertEquals('Test course creation (Group 1)', $course3->fullname);
+        $this->assertEquals($this->directory[0]->get_category_id(), $course3->category);
+
+        $this->assertEquals('Test course creation (Group 1)', $course4->fullname);
+        $this->assertEquals($this->directory[1]->get_category_id(), $course4->category);
+
+        // PGroup 3.
+        $this->assertEquals('Test course creation (Adding a title to group 3)', $course5->fullname);
+        $this->assertEquals($this->directory[0]->get_category_id(), $course5->category);
+
+        $this->assertEquals('Test course creation (Adding a title to group 3)', $course6->fullname);
+        $this->assertEquals($this->directory[1]->get_category_id(), $course6->category);
+
+        // PGroup 4.
+        $this->assertEquals('Test course creation (Newly added group 4)', $course7->fullname);
+        $this->assertEquals($this->directory[0]->get_category_id(), $course7->category);
+
+        $this->assertEquals('Test course creation (Newly added group 4)', $course8->fullname);
+        $this->assertEquals($this->directory[1]->get_category_id(), $course8->category);
+
+        // PGroup 1.
+        $this->assertFalse(campusconnect_course::check_redirect($course1->id)); // No redirect for the real course.
+        $expectedredirect = new moodle_url('/course/view.php', array('id' => $course1->id));
+        $actualredirect = campusconnect_course::check_redirect($course2->id);
+        $this->assertEquals($expectedredirect->out(), $actualredirect->out()); // Link redirects to the real course.
+
+        // PGroup 2.
+        $this->assertFalse(campusconnect_course::check_redirect($course3->id)); // No redirect for the real course.
+        $expectedredirect = new moodle_url('/course/view.php', array('id' => $course3->id));
+        $actualredirect = campusconnect_course::check_redirect($course4->id);
+        $this->assertEquals($expectedredirect->out(), $actualredirect->out()); // Link redirects to the real course.
+
+        // PGroup 3.
+        $this->assertFalse(campusconnect_course::check_redirect($course5->id)); // No redirect for the real course.
+        $expectedredirect = new moodle_url('/course/view.php', array('id' => $course5->id));
+        $actualredirect = campusconnect_course::check_redirect($course6->id);
+        $this->assertEquals($expectedredirect->out(), $actualredirect->out()); // Link redirects to the real course.
+
+        // PGroup 4.
+        $this->assertFalse(campusconnect_course::check_redirect($course7->id)); // No redirect for the real course.
+        $expectedredirect = new moodle_url('/course/view.php', array('id' => $course7->id));
+        $actualredirect = campusconnect_course::check_redirect($course8->id);
+        $this->assertEquals($expectedredirect->out(), $actualredirect->out()); // Link redirects to the real course.
+
+        // Check no Moodle groups have been created.
+        $this->assertEmpty(groups_get_all_groups($course1->id));
+        $this->assertEmpty(groups_get_all_groups($course2->id));
+        $this->assertEmpty(groups_get_all_groups($course3->id));
+        $this->assertEmpty(groups_get_all_groups($course4->id));
+        $this->assertEmpty(groups_get_all_groups($course5->id));
+        $this->assertEmpty(groups_get_all_groups($course6->id));
+        $this->assertEmpty(groups_get_all_groups($course7->id));
+        $this->assertEmpty(groups_get_all_groups($course8->id));
+
+        // Check parallel groups records have been created.
+        $pgroups = $DB->get_records('local_campusconnect_pgroup');
+        $this->assertCount(4, $pgroups);
+        $pgroup1 = array_shift($pgroups);
+        $pgroup2 = array_shift($pgroups);
+        $pgroup3 = array_shift($pgroups);
+        $pgroup4 = array_shift($pgroups);
+
+        $this->assertEquals('0', $pgroup1->groupnum);
+        $this->assertEquals('abc_1234', $pgroup1->cmscourseid);
+        $this->assertEquals('Renamed Group1', $pgroup1->grouptitle);
+        $this->assertEquals($course1->id, $pgroup1->courseid);
+        $this->assertEquals(0, $pgroup1->groupid);
+
+        $this->assertEquals('1', $pgroup2->groupnum);
+        $this->assertEquals('abc_1234', $pgroup2->cmscourseid);
+        $this->assertEquals('Group 1', $pgroup2->grouptitle);
+        $this->assertEquals($course3->id, $pgroup2->courseid);
+        $this->assertEquals(0, $pgroup2->groupid);
+
+        $this->assertEquals('2', $pgroup3->groupnum);
+        $this->assertEquals('abc_1234', $pgroup3->cmscourseid);
+        $this->assertEquals('Adding a title to group 3', $pgroup3->grouptitle);
+        $this->assertEquals($course5->id, $pgroup3->courseid);
+        $this->assertEquals(0, $pgroup3->groupid);
+
+        $this->assertEquals('3', $pgroup4->groupnum);
+        $this->assertEquals('abc_1234', $pgroup4->cmscourseid);
+        $this->assertEquals('Newly added group 4', $pgroup4->grouptitle);
+        $this->assertEquals($course7->id, $pgroup4->courseid);
+        $this->assertEquals(0, $pgroup4->groupid);
     }
 
     public function test_parallelgroups_separatelecturers() {
@@ -524,19 +823,125 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
         $pgroup3 = array_shift($pgroups);
 
         $this->assertEquals('0', $pgroup1->groupnum);
+        $this->assertEquals('abc_1234', $pgroup1->cmscourseid);
         $this->assertEquals('Test Group1', $pgroup1->grouptitle);
         $this->assertEquals($course1->id, $pgroup1->courseid);
         $this->assertEquals($group1->id, $pgroup1->groupid);
 
         $this->assertEquals('1', $pgroup2->groupnum);
+        $this->assertEquals('abc_1234', $pgroup2->cmscourseid);
         $this->assertEquals('Test Group2', $pgroup2->grouptitle);
         $this->assertEquals($course1->id, $pgroup2->courseid);
         $this->assertEquals($group2->id, $pgroup2->groupid);
 
         $this->assertEquals('2', $pgroup3->groupnum);
+        $this->assertEquals('abc_1234', $pgroup3->cmscourseid);
         $this->assertEquals('Group 2', $pgroup3->grouptitle);
         $this->assertEquals($course3->id, $pgroup3->courseid);
         $this->assertEquals(0, $pgroup3->groupid);
+
+        /////////////////////////////////
+        // Update the group definition.
+        /////////////////////////////////
+        $course->groups = json_decode($this->altgroupdata);
+        campusconnect_course::update($resourceid, $this->settings[2], $course, $this->transferdetails);
+
+        // Should now be 6 courses - check they are as expected.
+        $courses = $DB->get_records_select('course', 'id > 1', array(), 'id', 'id, fullname, shortname, category, summary');
+        $this->assertCount(6, $courses);
+        $course1 = array_shift($courses);
+        $course2 = array_shift($courses);
+        $course3 = array_shift($courses);
+        $course4 = array_shift($courses);
+        $course5 = array_shift($courses);
+        $course6 = array_shift($courses);
+
+        // Check all the course settings have been mapped as expected.
+        // PGroup 1 + 2.
+        $this->assertEquals('Test course creation (Humphrey Bogart)', $course1->fullname);
+        $this->assertEquals($this->directory[0]->get_category_id(), $course1->category);
+
+        $this->assertEquals('Test course creation (Humphrey Bogart)', $course2->fullname);
+        $this->assertEquals($this->directory[1]->get_category_id(), $course2->category);
+
+        // PGroup 3.
+        $this->assertEquals('Test course creation ()', $course3->fullname); // No lecturer specified.
+        $this->assertEquals($this->directory[0]->get_category_id(), $course3->category);
+
+        $this->assertEquals('Test course creation ()', $course4->fullname);
+        $this->assertEquals($this->directory[1]->get_category_id(), $course4->category);
+
+        // PGroup 4.
+        $this->assertEquals('Test course creation (Sam Spade)', $course5->fullname); // No lecturer specified.
+        $this->assertEquals($this->directory[0]->get_category_id(), $course5->category);
+
+        $this->assertEquals('Test course creation (Sam Spade)', $course6->fullname);
+        $this->assertEquals($this->directory[1]->get_category_id(), $course6->category);
+
+        // PGroup 1 + 2.
+        $this->assertFalse(campusconnect_course::check_redirect($course1->id)); // No redirect for the real course.
+        $expectedredirect = new moodle_url('/course/view.php', array('id' => $course1->id));
+        $actualredirect = campusconnect_course::check_redirect($course2->id);
+        $this->assertEquals($expectedredirect->out(), $actualredirect->out()); // Link redirects to the real course.
+
+        // PGroup 3.
+        $this->assertFalse(campusconnect_course::check_redirect($course3->id)); // No redirect for the real course.
+        $expectedredirect = new moodle_url('/course/view.php', array('id' => $course3->id));
+        $actualredirect = campusconnect_course::check_redirect($course4->id);
+        $this->assertEquals($expectedredirect->out(), $actualredirect->out()); // Link redirects to the real course.
+
+        // PGroup 4.
+        $this->assertFalse(campusconnect_course::check_redirect($course5->id)); // No redirect for the real course.
+        $expectedredirect = new moodle_url('/course/view.php', array('id' => $course5->id));
+        $actualredirect = campusconnect_course::check_redirect($course6->id);
+        $this->assertEquals($expectedredirect->out(), $actualredirect->out()); // Link redirects to the real course.
+
+        // Check no Moodle groups have been created.
+        $this->assertEmpty(groups_get_all_groups($course2->id));
+        $this->assertEmpty(groups_get_all_groups($course3->id));
+        $this->assertEmpty(groups_get_all_groups($course4->id));
+        $this->assertEmpty(groups_get_all_groups($course5->id));
+        $this->assertEmpty(groups_get_all_groups($course6->id));
+        $groups = groups_get_all_groups($course1->id);
+        ksort($groups);
+        $this->assertCount(2, $groups);
+        $group1 = array_shift($groups);
+        $group2 = array_shift($groups);
+
+        $this->assertEquals('Renamed Group1', $group1->name);
+        $this->assertEquals('Group 1', $group2->name);
+
+        // Check parallel groups records have been created.
+        $pgroups = $DB->get_records('local_campusconnect_pgroup');
+        $this->assertCount(4, $pgroups);
+        $pgroup1 = array_shift($pgroups);
+        $pgroup2 = array_shift($pgroups);
+        $pgroup3 = array_shift($pgroups);
+        $pgroup4 = array_shift($pgroups);
+
+        $this->assertEquals('0', $pgroup1->groupnum);
+        $this->assertEquals('abc_1234', $pgroup1->cmscourseid);
+        $this->assertEquals('Renamed Group1', $pgroup1->grouptitle);
+        $this->assertEquals($course1->id, $pgroup1->courseid);
+        $this->assertEquals($group1->id, $pgroup1->groupid);
+
+        $this->assertEquals('1', $pgroup2->groupnum);
+        $this->assertEquals('abc_1234', $pgroup2->cmscourseid);
+        $this->assertEquals('Group 1', $pgroup2->grouptitle);
+        $this->assertEquals($course1->id, $pgroup2->courseid);
+        $this->assertEquals($group2->id, $pgroup2->groupid);
+
+        $this->assertEquals('2', $pgroup3->groupnum);
+        $this->assertEquals('abc_1234', $pgroup3->cmscourseid);
+        $this->assertEquals('Adding a title to group 3', $pgroup3->grouptitle);
+        $this->assertEquals($course3->id, $pgroup3->courseid);
+        $this->assertEquals(0, $pgroup3->groupid);
+
+        $this->assertEquals('3', $pgroup4->groupnum);
+        $this->assertEquals('abc_1234', $pgroup4->cmscourseid);
+        $this->assertEquals('Newly added group 4', $pgroup4->grouptitle);
+        $this->assertEquals($course5->id, $pgroup4->courseid);
+        $this->assertEquals(0, $pgroup4->groupid);
     }
 
     public function test_parallelgroups_separatecourses_to_separategroups() {
@@ -597,16 +1002,19 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
         $pgroup3 = array_shift($pgroups);
 
         $this->assertEquals('0', $pgroup1->groupnum);
+        $this->assertEquals('abc_1234', $pgroup1->cmscourseid);
         $this->assertEquals('Test Group1', $pgroup1->grouptitle);
         $this->assertEquals($course1->id, $pgroup1->courseid);
         $this->assertEquals($group1->id, $pgroup1->groupid);
 
         $this->assertEquals('1', $pgroup2->groupnum);
+        $this->assertEquals('abc_1234', $pgroup2->cmscourseid);
         $this->assertEquals('Test Group2', $pgroup2->grouptitle);
         $this->assertEquals($course1->id, $pgroup2->courseid);
         $this->assertEquals($group2->id, $pgroup2->groupid);
 
         $this->assertEquals('2', $pgroup3->groupnum);
+        $this->assertEquals('abc_1234', $pgroup3->cmscourseid);
         $this->assertEquals('Group 2', $pgroup3->grouptitle);
         $this->assertEquals($course1->id, $pgroup3->courseid);
         $this->assertEquals($group3->id, $pgroup3->groupid);
@@ -643,7 +1051,7 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
         $this->assertEquals('Test course creation (Test Group1)', $course1->fullname);
         $this->assertEquals($this->directory[0]->get_category_id(), $course1->category);
 
-        $this->assertEquals('Test course creation', $course2->fullname);
+        $this->assertEquals('Test course creation (Test Group1)', $course2->fullname);
         $this->assertEquals($this->directory[1]->get_category_id(), $course2->category);
 
         // PGroup 2.
@@ -694,16 +1102,19 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
         $pgroup3 = array_shift($pgroups);
 
         $this->assertEquals('0', $pgroup1->groupnum);
+        $this->assertEquals('abc_1234', $pgroup1->cmscourseid);
         $this->assertEquals('Test Group1', $pgroup1->grouptitle);
         $this->assertEquals($course1->id, $pgroup1->courseid);
         $this->assertEquals(0, $pgroup1->groupid);
 
         $this->assertEquals('1', $pgroup2->groupnum);
+        $this->assertEquals('abc_1234', $pgroup2->cmscourseid);
         $this->assertEquals('Test Group2', $pgroup2->grouptitle);
         $this->assertEquals($course3->id, $pgroup2->courseid);
         $this->assertEquals(0, $pgroup2->groupid);
 
         $this->assertEquals('2', $pgroup3->groupnum);
+        $this->assertEquals('abc_1234', $pgroup3->cmscourseid);
         $this->assertEquals('Group 2', $pgroup3->grouptitle);
         $this->assertEquals($course5->id, $pgroup3->courseid);
         $this->assertEquals(0, $pgroup3->groupid);

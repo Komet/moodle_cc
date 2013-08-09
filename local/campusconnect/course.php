@@ -156,22 +156,13 @@ class campusconnect_course {
 
         foreach ($categories as $category) {
             $coursedata->category = $category->get_categoryid();
-            if ($ecssettings->get_id() > 0) {
-                $baseshortname = $coursedata->shortname;
-                $num = 1;
-                while ($DB->record_exists('course', array('shortname' => $coursedata->shortname))) {
-                    $num++;
-                    $coursedata->shortname = "{$baseshortname}_{$num}";
-                }
-                $newcourse = create_course($coursedata);
-            } else {
-                // Nasty hack for unit testing - 'create_course' is too complex to
-                // be practical to mock up the database responses
-                global $DB;
-                $newcourse = $coursedata;
-                /** @noinspection PhpUndefinedMethodInspection */
-                $newcourse->id = $DB->mock_create_course($coursedata);
+            $baseshortname = $coursedata->shortname;
+            $num = 1;
+            while ($DB->record_exists('course', array('shortname' => $coursedata->shortname))) {
+                $num++;
+                $coursedata->shortname = "{$baseshortname}_{$num}";
             }
+            $newcourse = create_course($coursedata);
 
             $ins = new stdClass();
             $ins->courseid = $newcourse->id;
@@ -342,19 +333,12 @@ class campusconnect_course {
                 // Course still exists - update it.
                 $coursedetails = clone $coursedata;
                 $coursedetails->id = $currcourse->courseid;
-                if (isset($pgmatched[$coursedetails->id])) {
+                $realcourseid = $currcourse->internallink ? $currcourse->internallink : $currcourse->courseid;
+                if (isset($pgmatched[$realcourseid])) {
                     $coursedetails->fullname = $pgclass->update_course_name($coursedetails->fullname,
-                                                                            $pgroupmode, $pgmatched[$coursedetails->id]);
+                                                                            $pgroupmode, $pgmatched[$realcourseid]);
                 }
-                if ($ecssettings->get_id() > 0) {
-                    // Nasty hack for unit testing - 'update_course' is too complex to
-                    // be practical to mock up the database responses
-                    update_course($coursedetails);
-                } else {
-                    global $DB;
-                    /** @noinspection PhpUndefinedMethodInspection */
-                    $DB->mock_update_course($coursedetails);
-                }
+                update_course($coursedetails);
 
                 // The cms course id has changed (not sure if this should ever happen, but handle it anyway)
                 if ($course->lectureID != $currcourse->cmsid) {
@@ -387,22 +371,13 @@ class campusconnect_course {
             $internallink = ($currcourse->internallink == 0) ? $currcourse->courseid : $currcourse->internallink;
             foreach ($newcategories as $newcategory) {
                 $coursedata->category = $newcategory->get_categoryid();
-                if ($ecssettings->get_id() > 0) {
-                    $baseshortname = $coursedata->shortname;
-                    $num = 1;
-                    while ($DB->record_exists('course', array('shortname' => $coursedata->shortname))) {
-                        $num++;
-                        $coursedata->shortname = "{$baseshortname}_{$num}";
-                    }
-                    $newcourse = create_course($coursedata);
-                } else {
-                    // Nasty hack for unit testing - 'create_course' is too complex to
-                    // be practical to mock up the database responses
-                    global $DB;
-                    $newcourse = $coursedata;
-                    /** @noinspection PhpUndefinedMethodInspection */
-                    $newcourse->id = $DB->mock_create_course($coursedata);
+                $baseshortname = $coursedata->shortname;
+                $num = 1;
+                while ($DB->record_exists('course', array('shortname' => $coursedata->shortname))) {
+                    $num++;
+                    $coursedata->shortname = "{$baseshortname}_{$num}";
                 }
+                $newcourse = create_course($coursedata);
 
                 // Create a new crs record to redirect to the internallink course
                 $ins = new stdClass();
@@ -1379,9 +1354,6 @@ class campusconnect_parallelgroups {
     public function match_parallel_groups_to_courses($cmscourseid, $pgroups, $pgroupsmode, $firstcourseid) {
         global $DB;
 
-        if ($pgroupsmode == self::PGROUP_NONE) {
-            return array(array(), array());
-        }
         $matched = array();
         $notmatched = array();
         $existing = $DB->get_records('local_campusconnect_pgroup', array('ecsid' => $this->ecssettings->get_id(),

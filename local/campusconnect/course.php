@@ -193,7 +193,7 @@ class campusconnect_course {
                 $courseurl->add();
 
                 // Create any required groups for this course
-                $pgclass->update_parallel_groups($newcourse, $pgroupmode, $pgcourse);
+                $pgclass->update_parallel_groups($course->lectureID, $newcourse, $pgroupmode, $pgcourse);
 
                 // Process any existing enrolment requests for this course
                 campusconnect_membership::assign_course_users($newcourse, $ins->cmsid);
@@ -258,7 +258,8 @@ class campusconnect_course {
             $pgroups[] = array(); // Make sure there is at least one course to be created.
         }
         $pgclass = new campusconnect_parallelgroups($ecssettings, $resourceid);
-        list ($pgmatched, $pgnotmatched) = $pgclass->match_parallel_groups_to_courses($pgroups, $pgroupmode, $currcourse->courseid);
+        list ($pgmatched, $pgnotmatched) = $pgclass->match_parallel_groups_to_courses($course->lectureID, $pgroups,
+                                                                                      $pgroupmode, $currcourse->courseid);
 
         // Compare the existing allocations to the new allocations.
         list($csql, $params) = $DB->get_in_or_equal(array_keys($currcourses), SQL_PARAMS_NAMED);
@@ -327,7 +328,7 @@ class campusconnect_course {
 
                     // Update any groups for this course
                     if (isset($pgmatched[$oldcourseid])) {
-                        $pgclass->update_parallel_groups($newcourse, $pgroupmode, $pgmatched[$oldcourseid]);
+                        $pgclass->update_parallel_groups($course->lectureID, $newcourse, $pgroupmode, $pgmatched[$oldcourseid]);
                     }
                 }
             }
@@ -375,7 +376,7 @@ class campusconnect_course {
 
                 // Check the groups for this course
                 if (isset($pgmatched[$coursedetails->id])) {
-                    $pgclass->update_parallel_groups($coursedetails, $pgroupmode, $pgmatched[$coursedetails->id]);
+                    $pgclass->update_parallel_groups($course->lectureID, $coursedetails, $pgroupmode, $pgmatched[$coursedetails->id]);
                 }
             }
         }
@@ -1271,7 +1272,7 @@ class campusconnect_parallelgroups {
                 if (!isset($courses[$lecturer])) {
                     $courses[$lecturer] = array();
                 }
-                $courses[$lecturer][$pgroup->id] = $pgroup;
+                $courses[$lecturer][] = $pgroup;
             }
             break;
 
@@ -1294,11 +1295,13 @@ class campusconnect_parallelgroups {
             return array();
         }
 
+        $groupnum = 0;
         $groups = array();
         foreach ($course->groups as $group) {
             $details = new stdClass();
-            $details->id = $group->id;
-            $details->title = !empty($group->title) ? $group->title : '';
+            $details->cmscourseid = $course->lectureID;
+            $details->groupnum = $groupnum;
+            $details->title = !empty($group->title) ? $group->title : get_string('groupname', 'local_campusconnect', $groupnum);
             $details->comment = isset($group->comment) ? $group->comment : null;
             if (isset($group->lecturers)) {
                 // Only use the first lecturer name => map all groups starting with same lecturer onto same course
@@ -1308,7 +1311,8 @@ class campusconnect_parallelgroups {
             } else {
                 $details->lecturer = '';
             }
-            $groups[$details->id] = $details;
+            $groups[] = $details;
+            $groupnum++;
         }
 
         return $groups;
@@ -1324,6 +1328,8 @@ class campusconnect_parallelgroups {
      */
     public static function get_groups_for_user($pgroups, $defaultcourseids, $defaultrole) {
         global $DB;
+
+        die("THIS WILL NOT WORK DUE TO THE CHANGE IN DATA STRUCTURE");
 
         // User not enroling in a parallel group - add them to the first course in the list.
         if (empty($pgroups)) {
@@ -1363,13 +1369,14 @@ class campusconnect_parallelgroups {
     /**
      * Attempts to organise the parallel groups based on the Moodle courseids that the groups have already been mapped onto.
      * Any groups that cannot be mapped onto an existing course are mapped on to an existing course are returned separately.
+     * @param string $cmscourseid
      * @param stdClass[] $pgroups
      * @param int $pgroupsmode the current parallel groups mode
      * @param int $firstcourseid the ID of the first existing course (needed if there are no exiting pgroups found)
      * @return array [ $matched, $notmatched ] - $matched = associative array $courseid => array of group details
      *                                           $notmatched = array of array of group details
      */
-    public function match_parallel_groups_to_courses($pgroups, $pgroupsmode, $firstcourseid) {
+    public function match_parallel_groups_to_courses($cmscourseid, $pgroups, $pgroupsmode, $firstcourseid) {
         global $DB;
 
         if ($pgroupsmode == self::PGROUP_NONE) {
@@ -1378,8 +1385,9 @@ class campusconnect_parallelgroups {
         $matched = array();
         $notmatched = array();
         $existing = $DB->get_records('local_campusconnect_pgroup', array('ecsid' => $this->ecssettings->get_id(),
-                                                                        'resourceid' => $this->resourceid),
-                                     '', 'cmsgroupid, id, courseid');
+                                                                        'resourceid' => $this->resourceid,
+                                                                        'cmscourseid' => $cmscourseid),
+                                     '', 'id, cmscourseid, groupnum, courseid');
         if (empty($existing)) {
             // This probably means we've just switched from PGROUP_NONE to one of the scenarios. Assume that the existing
             // course matches the first pgcourse
@@ -1391,8 +1399,15 @@ class campusconnect_parallelgroups {
             // Go through the groups in each parallel course and see if we can match them with already-instantiated versions
             // (based on the group 'ID' from the CMS).
             foreach ($pcourse as $pg) {
-                if (array_key_exists($pg->id, $existing)) {
-                    $courseid = $existing[$pg->id]->courseid;
+                $foundgroup = null;
+                foreach ($existing as $existinggroup) {
+                    if ($pg->groupnum == $existinggroup->groupnum) {
+                        $foundgroup = $existinggroup;
+                        break;
+                    }
+                }
+                if ($foundgroup) {
+                    $courseid = $foundgroup->courseid;
                     if (!isset($matched[$courseid])) {
                         // If courseid might already be 'taken' if switching from one group per pgroup to one course
                         // per pgroup, so only match up the first time the courseid is found (others will be used to
@@ -1411,11 +1426,13 @@ class campusconnect_parallelgroups {
 
     /**
      * Compare the parallel groups already existing in the course and update to match the current scenario / groups
+     * @param string $cmscourseid
      * @param stdClass $course
      * @param int $pgroupmode
      * @param array $pcourse
+     * @throws coding_exception
      */
-    public function update_parallel_groups(stdClass $course, $pgroupmode, $pcourse) {
+    public function update_parallel_groups($cmscourseid, stdClass $course, $pgroupmode, $pcourse) {
         global $DB;
 
         if ($pgroupmode == self::PGROUP_SEPARATE_COURSES) {
@@ -1424,76 +1441,99 @@ class campusconnect_parallelgroups {
             }
         }
 
-        $sql = "SELECT pg.cmsgroupid, pg.id, pg.grouptitle, pg.groupid, g.id AS groupexists
+        $sql = "SELECT pg.id, pg.grouptitle, pg.cmscourseid, pg.groupnum, pg.groupid, g.id AS groupexists
                   FROM {local_campusconnect_pgroup} pg
                   LEFT JOIN {groups} g ON g.id = pg.groupid
-                 WHERE pg.ecsid = :ecsid AND pg.resourceid = :resourceid AND pg.courseid = :courseid";
-        $params = array('ecsid' => $this->ecssettings->get_id(), 'resourceid' => $this->resourceid, 'courseid' => $course->id);
+                 WHERE pg.ecsid = :ecsid AND pg.resourceid = :resourceid
+                   AND pg.courseid = :courseid AND pg.cmscourseid = :cmscourseid";
+        $params = array('ecsid' => $this->ecssettings->get_id(), 'resourceid' => $this->resourceid,
+                        'courseid' => $course->id, 'cmscourseid' => $cmscourseid);
         $existing = $DB->get_records_sql($sql, $params);
 
         unset($params['courseid']);
         $existingallcourses = $DB->get_records('local_campusconnect_pgroup', $params, '',
-                                               'cmsgroupid, id, courseid, groupid, grouptitle');
+                                               'id, groupnum, courseid, groupid, grouptitle');
 
         $ins = new stdClass();
         $ins->ecsid = $this->ecssettings->get_id();
         $ins->resourceid = $this->resourceid;
         $ins->courseid = $course->id;
+        $ins->cmscourseid = $cmscourseid;
 
         // Create each of the parallel groups requested.
         $creategroup = ($pgroupmode != self::PGROUP_NONE) && (count($pcourse) > 1);
         foreach ($pcourse as $pg) {
-            if (array_key_exists($pg->id, $existing)) {
+            /** @var stdClass $foundgroup */
+            $foundgroup = null;
+            foreach ($existing as $existinggroup) {
+                if ($existinggroup->groupnum == $pg->groupnum) {
+                    $foundgroup = $existinggroup;
+                    break;
+                }
+            }
+            if ($foundgroup) {
                 // The pgroup is already mapped onto this course - update it if needed.
                 $upd = new stdClass();
-                if ($creategroup && is_null($existing[$pg->id]->groupexists)) {
+                if ($creategroup && is_null($foundgroup->groupexists)) {
                     // The Moodle group does not exist/has been deleted - (re)create it..
                     $upd->groupid = $this->create_or_update_group($course, $pg);
                     $upd->grouptitle = $pg->title;
-                } else if (!$creategroup && $existing[$pg->id]->groupid) {
+                } else if (!$creategroup && $foundgroup->groupid) {
                     // Not creating groups but there is an existing group - remove the reference to the group
                     $upd->groupid = 0;
                     $upd->grouptitle = $pg->title;
-                } else if ($existing[$pg->id]->grouptitle != $pg->title) {
+                } else if ($foundgroup->grouptitle != $pg->title) {
                     // Group title has changed - update it (and the Moodle group title as well, if required).
                     $upd->grouptitle = $pg->title;
                     if ($creategroup) {
-                        $this->create_or_update_group($course, $pg, $existing[$pg->id]->groupid);
+                        $this->create_or_update_group($course, $pg, $foundgroup->groupid);
                     }
                 } else {
                     continue; // No changes, so no need to update the record.
                 }
 
                 // Update pgroup record with the changes.
-                $upd->id = $existing[$pg->id]->id;
-                $DB->update_record('local_campusconnect_pgroup', $upd);
-
-            } else if (array_key_exists($pg->id, $existingallcourses)) {
-                // The group exists, but is in a different course (probably because the parallel groups scenario has changed)
-                $upd = new stdClass();
-                $upd->id = $existingallcourses[$pg->id]->id;
-                $upd->courseid = $course->id;
-                $upd->grouptitle = $pg->title;
-                if ($creategroup) {
-                    $upd->groupid = $this->create_or_update_group($course, $pg);
-                } else {
-                    $upd->groupid = 0;
-                }
+                $upd->id = $foundgroup->id;
                 $DB->update_record('local_campusconnect_pgroup', $upd);
 
             } else {
-                // The pgroup does not yet exist.
-                if ($DB->record_exists('local_campusconnect_pgroup', array('cmsgroupid' => $pg->id))) {
-                    debugging("Group already exists with ID: {$pg->id} - skipping creation of new group");
-                } else {
-                    $ins->cmsgroupid = $pg->id;
-                    $ins->grouptitle = $pg->title;
-                    if ($creategroup) {
-                        $ins->groupid = $this->create_or_update_group($course, $pg);
-                    } else {
-                        $ins->groupid = 0;
+                /** @var stdClass $foundallgroup */
+                $foundallgroup = null;
+                foreach ($existingallcourses as $existinggroup) {
+                    if ($existinggroup->groupnum == $pg->groupnum) {
+                        $foundallgroup = $existinggroup;
+                        break;
                     }
-                    $DB->insert_record('local_campusconnect_pgroup', $ins);
+                }
+
+                if ($foundallgroup) {
+                    // The group exists, but is in a different course (probably because the parallel groups scenario has changed)
+                    $upd = new stdClass();
+                    $upd->id = $foundallgroup->id;
+                    $upd->courseid = $course->id;
+                    $upd->grouptitle = $pg->title;
+                    if ($creategroup) {
+                        $upd->groupid = $this->create_or_update_group($course, $pg);
+                    } else {
+                        $upd->groupid = 0;
+                    }
+                    $DB->update_record('local_campusconnect_pgroup', $upd);
+
+                } else {
+                    // The pgroup does not yet exist.
+                    if ($DB->record_exists('local_campusconnect_pgroup', array('cmscourseid' => $cmscourseid,
+                                                                              'groupnum' => $pg->groupnum))) {
+                        debugging("Group already exists with cmscourseid: {$cmscourseid} and groupnum: {$pg->groupnum} - skipping creation of new group");
+                    } else {
+                        $ins->groupnum = $pg->groupnum;
+                        $ins->grouptitle = $pg->title;
+                        if ($creategroup) {
+                            $ins->groupid = $this->create_or_update_group($course, $pg);
+                        } else {
+                            $ins->groupid = 0;
+                        }
+                        $DB->insert_record('local_campusconnect_pgroup', $ins);
+                    }
                 }
             }
         }
@@ -1513,7 +1553,7 @@ class campusconnect_parallelgroups {
         require_once($CFG->dirroot.'/group/lib.php');
         $data = new stdClass();
         $data->courseid = $course->id;
-        $data->name = !empty($pgroup->title) ? $pgroup->title : $pgroup->id;
+        $data->name = $pgroup->title;
         if (isset($pgroup->comment) && !is_null($pgroup->comment)) {
             $data->description = $pgroup->comment;
             $data->descriptionformat = FORMAT_PLAIN;

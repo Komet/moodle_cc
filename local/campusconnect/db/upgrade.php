@@ -721,5 +721,37 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2012121400, 'local', 'campusconnect');
     }
 
+    if ($oldversion < 2013080800) {
+        // Define index cmsgroupid (unique) to be dropped form local_campusconnect_pgroup.
+        $table = new xmldb_table('local_campusconnect_pgroup');
+
+        // Remove the cmsgroupid
+        $index = new xmldb_index('cmsgroupid', XMLDB_INDEX_UNIQUE, array('cmsgroupid'));
+        if ($dbman->index_exists($table, $index)) {
+            $dbman->drop_index($table, $index);
+        }
+        $field = new xmldb_field('cmsgroupid');
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->drop_field($table, $field);
+        }
+
+        // Add the cmscourseid + groupnum fields (+ index).
+        $field = new xmldb_field('cmscourseid', XMLDB_TYPE_CHAR, '255', null, null, null, null, 'groupid');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        $field = new xmldb_field('groupnum', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'cmscourseid');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        $index = new xmldb_index('cmscourseid', XMLDB_INDEX_NOTUNIQUE, array('cmscourseid'));
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Campusconnect savepoint reached.
+        upgrade_plugin_savepoint(true, 2013080800, 'local', 'campusconnect');
+    }
+
     return true;
 }

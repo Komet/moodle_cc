@@ -118,6 +118,7 @@ $string['filtersettings'] = 'Filter settings';
 $string['filterwords'] = 'Filter words';
 $string['fixedvalue'] = 'Fixed value';
 $string['furtherinformation'] = 'Further information';
+$string['groupname'] = 'Group {$a}';
 $string['import'] = 'Import';
 $string['importcat'] = 'Import category';
 $string['importtype'] = 'Import type';

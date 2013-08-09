@@ -225,13 +225,14 @@
     </TABLE>
     <TABLE NAME="local_campusconnect_pgroup" COMMENT="Stores details of parallel groups for students to enrol in." PREVIOUS="local_campusconnect_filter">
       <FIELDS>
-        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="ecsid"/>
-        <FIELD NAME="ecsid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ECS that this group came from" PREVIOUS="id" NEXT="resourceid"/>
-        <FIELD NAME="resourceid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The course resource that this group relates to" PREVIOUS="ecsid" NEXT="cmsgroupid"/>
-        <FIELD NAME="cmsgroupid" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="The ID of the group (from the CMS)" PREVIOUS="resourceid" NEXT="grouptitle"/>
-        <FIELD NAME="grouptitle" TYPE="text" LENGTH="small" NOTNULL="false" SEQUENCE="false" COMMENT="The title of the group (from the CMS)" PREVIOUS="cmsgroupid" NEXT="courseid"/>
-        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The course that the group belongs to" PREVIOUS="grouptitle" NEXT="groupid"/>
-        <FIELD NAME="groupid" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="false" SEQUENCE="false" COMMENT="The ID of the Moodle group this maps onto" PREVIOUS="courseid"/>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" NEXT="ecsid"/>
+        <FIELD NAME="ecsid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="The ECS that this group came from" PREVIOUS="id" NEXT="resourceid"/>
+        <FIELD NAME="resourceid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="The course resource that this group relates to" PREVIOUS="ecsid" NEXT="grouptitle"/>
+        <FIELD NAME="grouptitle" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="The title of the group (from the CMS)" PREVIOUS="resourceid" NEXT="courseid"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="The course that the group belongs to" PREVIOUS="grouptitle" NEXT="groupid"/>
+        <FIELD NAME="groupid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="The ID of the Moodle group this maps onto" PREVIOUS="courseid" NEXT="cmscourseid"/>
+        <FIELD NAME="cmscourseid" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The cms course this group is part of" PREVIOUS="groupid" NEXT="groupnum"/>
+        <FIELD NAME="groupnum" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="The number of this group within the list of groups for the course" PREVIOUS="cmscourseid"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id" NEXT="ecsid"/>
@@ -240,8 +241,8 @@
         <KEY NAME="groupid" TYPE="foreign" FIELDS="groupid" REFTABLE="group" REFFIELDS="id" PREVIOUS="courseid"/>
       </KEYS>
       <INDEXES>
-        <INDEX NAME="resourceid" UNIQUE="false" FIELDS="resourceid, ecsid" NEXT="cmsgroupid"/>
-        <INDEX NAME="cmsgroupid" UNIQUE="true" FIELDS="cmsgroupid" PREVIOUS="resourceid"/>
+        <INDEX NAME="resourceid" UNIQUE="false" FIELDS="resourceid, ecsid" NEXT="cmscourseid"/>
+        <INDEX NAME="cmscourseid" UNIQUE="false" FIELDS="cmscourseid" PREVIOUS="resourceid"/>
       </INDEXES>
     </TABLE>
   </TABLES>

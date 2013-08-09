@@ -47,6 +47,13 @@ class campusconnect_membership {
     const STATUS_UPDATED = 2;
     const STATUS_DELETED = 3;
 
+    const ROLE_UNSPECIFIED = -1;
+    const ROLE_LECTURER = 0;
+    const ROLE_STUDENT = 1;
+    const ROLE_ASSISTANT = 2;
+
+    protected static $validroles = array(self::ROLE_LECTURER, self::ROLE_STUDENT, self::ROLE_ASSISTANT);
+
     /**
      * Functions to create & update membership lists based on events from the ECS
      */
@@ -70,7 +77,7 @@ class campusconnect_membership {
         }
 
         if (self::get_by_resourceid($resourceid)) {
-            throw new campusconnect_course_exception("Cannot create a membership list from resource $resourceid - it already exists.");
+            self::update($resourceid, $ecssettings, $membership, $transferdetails);
         }
 
         if (is_array($membership)) {
@@ -81,10 +88,16 @@ class campusconnect_membership {
         $ins->resourceid = $resourceid;
         $ins->status = self::STATUS_CREATED;
 
-        $ins->cmscourseid = $membership->courseID;
+        $ins->cmscourseid = $membership->lectureID;
         foreach ($membership->members as $member) {
             $ins->personid = $member->personID;
-            $ins->role = $member->courseRole;
+
+            $ins->role = self::ROLE_UNSPECIFIED;
+            if (isset($member->role)) {
+                if (in_array($member->role, self::$validroles)) {
+                    $ins->role = $member->role;
+                }
+            }
             $ins->parallelgroups = self::prepare_parallel_groups($member);
 
             $DB->insert_record('local_campusconnect_mbr', $ins);
@@ -205,18 +218,18 @@ class campusconnect_membership {
      * @return string encoded parallel groups ready to save in the database
      */
     protected static function prepare_parallel_groups($member) {
-        if (!isset($member->parallelGroups)) {
+        if (!isset($member->groups)) {
             return '';
         }
         $pgroups = array();
-        foreach ($member->parallelGroups as $pgroup) {
-            $id = str_replace(array('#', ':', ','), array('#23', '#3a', '#2c'), $pgroup->id);
-            if (isset($pgroup->groupRole)) {
-                $grouprole = str_replace(array('#', ':', ','), array('#23', '#3a', '#2c'), $pgroup->groupRole);
+        foreach ($member->groups as $pgroup) {
+            $num = str_replace(array('#', ':', ','), array('#23', '#3a', '#2c'), $pgroup->num);
+            if (isset($pgroup->role)) {
+                $grouprole = str_replace(array('#', ':', ','), array('#23', '#3a', '#2c'), $pgroup->role);
             } else {
                 $grouprole = '';
             }
-            $pg = $id.':'.$grouprole;
+            $pg = $num.':'.$grouprole;
             $pgroups[] = $pg;
         }
         return implode(',', $pgroups);
@@ -225,7 +238,7 @@ class campusconnect_membership {
     /**
      * Extract the parallel group details from the database entry.
      * @param $member
-     * @return array pgroupid => role
+     * @return array num => role
      */
     protected static function extract_parallel_groups($member) {
         if (empty($member->parallelgroups)) {
@@ -234,9 +247,12 @@ class campusconnect_membership {
         $pgroups = explode(',', $member->parallelgroups);
         $ret = array();
         foreach ($pgroups as $pgroup) {
-            list($id, $grouprole) = explode(':', $pgroup, 2);
-            $id = str_replace(array('#23', '#3a', '#2c'), array('#', ':', ','), $id);
-            $ret[$id] =  str_replace(array('#23', '#3a', '#2c'), array('#', ':', ','), $grouprole);
+            list($num, $grouprole) = explode(':', $pgroup, 2);
+            if ($grouprole === '') {
+                $grouprole = self::ROLE_UNSPECIFIED;
+            }
+            $num = str_replace(array('#23', '#3a', '#2c'), array('#', ':', ','), $num);
+            $ret[$num] =  str_replace(array('#23', '#3a', '#2c'), array('#', ':', ','), $grouprole);
         }
         return $ret;
     }

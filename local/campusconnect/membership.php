@@ -424,7 +424,7 @@ class campusconnect_membership {
             }
             $courseidarray = $mappedcourseids[$membership->cmscourseid];
             $pgroups = self::extract_parallel_groups($membership);
-            $pgroups = campusconnect_parallelgroups::get_groups_for_user($pgroups, $courseidarray, $membership->role);
+            $pgroups = campusconnect_parallelgroups::get_groups_for_user($pgroups, $membership->cmscourseid, $courseidarray, $membership->role);
 
             foreach ($pgroups as $pgroup) {
                 if (!isset($courseenrol[$pgroup->courseid])) {
@@ -469,7 +469,9 @@ class campusconnect_membership {
                     if ($pgroup->groupid) {
                         require_once($CFG->dirroot.'/group/lib.php');
                         if (groups_add_member($pgroup->groupid, $userid)) {
-                            mtrace("... adding user to group {$pgroup->groupid}");
+                            if ($output) {
+                                mtrace("... adding user to group {$pgroup->groupid}");
+                            }
                         }
                     }
                 }
@@ -529,7 +531,7 @@ class campusconnect_membership {
             }
             $userid = $userids[$membership->personid];
             $pgroups = self::extract_parallel_groups($membership);
-            $pgroups = campusconnect_parallelgroups::get_groups_for_user($pgroups, array($course->id), $membership->role);
+            $pgroups = campusconnect_parallelgroups::get_groups_for_user($pgroups, $cmscourseid, array($course->id), $membership->role);
 
             $assigned = false;
             foreach ($pgroups as $pgroup) {
@@ -605,7 +607,7 @@ class campusconnect_membership {
             }
             $courseidarray = $mappedcourseids[$membership->cmscourseid];
             $pgroups = self::extract_parallel_groups($membership);
-            $pgroups = campusconnect_parallelgroups::get_groups_for_user($pgroups, $courseidarray, $membership->role);
+            $pgroups = campusconnect_parallelgroups::get_groups_for_user($pgroups, $membership->cmscourseid, $courseidarray, $membership->role);
 
             foreach ($pgroups as $pgroup) {
                 if (!isset($courseenrol[$pgroup->courseid])) {

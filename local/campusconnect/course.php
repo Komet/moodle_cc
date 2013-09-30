@@ -1296,48 +1296,53 @@ class campusconnect_parallelgroups {
     /**
      * Given the details of the parallel groups and pg roles for a user, return a list of courses and groups to
      * enrol this user into.
-     * @param string[] $pgroups mapping cmsgroupid => role to assign
+     * @param string[] $pgroups mapping groupnum => role to assign
+     * @param string $cmscourseid
      * @param int[] $defaultcourseids all courseids associated with the cms course the user is enroling into
      * @param string $defaultrole the role to be assigned to the user
      * @return array
      */
-    public static function get_groups_for_user($pgroups, $defaultcourseids, $defaultrole) {
+    public static function get_groups_for_user($pgroups, $cmscourseid, $defaultcourseids, $defaultrole) {
         global $DB;
 
-        die("THIS WILL NOT WORK DUE TO THE CHANGE IN DATA STRUCTURE");
-
-        // User not enroling in a parallel group - add them to the first course in the list.
-        if (empty($pgroups)) {
-            $pgroup = (object)array(
-                'courseid' => reset($defaultcourseids),
-                'role' => $defaultrole,
-                'groupid' => 0,
-                'cmsgroupid' => ''
-            );
-            return array($pgroup);
-        }
-
         static $groupcache = array();
+        if (PHPUNIT_TEST) {
+            $groupcache = array(); // Static cache breaks unit tests when more than one test uses the same cmscourseid.
+        }
 
         // User enroling in parallel groups - generate a list of all the courses they need to enrol in.
         $ret = array();
-        foreach ($pgroups as $groupid => $grouprole) {
-            if (!isset($groupcache[$groupid])) {
-                $groupcache[$groupid] = $DB->get_record('local_campusconnect_pgroup', array('cmsgroupid' => $groupid),
-                                                        'cmsgroupid, courseid, groupid');
+        foreach ($pgroups as $groupnum => $grouprole) {
+            if (!isset($groupcache[$cmscourseid])) {
+                $groupcache[$cmscourseid] = $DB->get_records('local_campusconnect_pgroup', array('cmscourseid' => $cmscourseid),
+                                                             '', 'groupnum, courseid, groupid');
             }
-            if ($groupcache[$groupid]) {
+            $coursegroups = $groupcache[$cmscourseid];
+            if (isset($coursegroups[$groupnum])) {
                 $ret[] = (object)array(
-                    'courseid' => $groupcache[$groupid]->courseid,
-                    'role' => empty($grouprole) ? $defaultrole : $grouprole,
-                    'groupid' => $groupcache[$groupid]->groupid,
-                    'cmsgroupid' => $groupid
+                    'courseid' => $coursegroups[$groupnum]->courseid,
+                    'role' => ($grouprole >= 0) ? $grouprole : $defaultrole,
+                    'groupid' => $coursegroups[$groupnum]->groupid,
+                    'groupnum' => $groupnum
                 );
-                if (!in_array($groupcache[$groupid]->courseid, $defaultcourseids)) {
-                    debugging("Expected {$groupcache[$groupid]->courseid}, the course for parallel group {$groupid}, to be in the list of courses: (".implode(', ', $defaultcourseids).")");
+                if (!in_array($coursegroups[$groupnum]->courseid, $defaultcourseids)) {
+                    debugging("Expected {$coursegroups[$groupnum]->courseid}, the course for parallel group {$groupnum}, to be in the list of courses: (".implode(', ', $defaultcourseids).")");
                 }
             }
         }
+
+        // No parallel groups found - just enrol into the first course with the default role.
+        if (empty($ret)) {
+            $ret = array(
+                (object)array(
+                    'courseid' => reset($defaultcourseids),
+                    'role' => $defaultrole,
+                    'groupid' => 0,
+                    'groupnum' => 0,
+                )
+            );
+        }
+
         return $ret;
     }
 

@@ -438,10 +438,12 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             $usernamesplit = explode('_', $newuser->username);
             if (!isset($usernamesplit[1]) || substr($usernamesplit[1], 0, 3) != 'ecs') {
                 mtrace(get_string('usernamecantfindecs', 'auth_campusconnect'). ': ' . $newuser->username);
+                continue;
             }
             $ecsid = (int)str_replace('ecs', '', $usernamesplit[1]);
             if (!isset($ecslist[$ecsid])) {
                 mtrace(get_string('usernamecantfindecs', 'auth_campusconnect'). ': ' . $newuser->username);
+                continue;
             }
             if (!isset($notified[$ecsid])) {
                 list($in, $params) = $DB->get_in_or_equal($ecsemails[$ecsid]);

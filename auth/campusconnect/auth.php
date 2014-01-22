@@ -404,7 +404,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
                 list($usql, $params) = $DB->get_in_or_equal($userids);
                 $DB->execute("UPDATE {user} u
                                  SET suspended = 1
-                               WHERE u $usql", $params);
+                               WHERE u.id $usql", $params);
             }
 
             //For later:

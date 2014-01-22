@@ -102,6 +102,10 @@ class campusconnect_course {
         if (empty($course)) {
             throw new coding_exception("Should not call campusconnect_course::create without course data");
         }
+        if (empty($course->lectureID)) {
+            campusconnect_log::add("Course resource ({$resourceid}) is missing the lectureID value - is it using an old, unsupported data format?");
+            return true; // Remove the event.
+        }
 
         $coursedata = self::map_course_settings($course, $ecssettings);
         if (self::get_by_resourceid($resourceid, $ecssettings->get_id())) {
@@ -225,6 +229,10 @@ class campusconnect_course {
         }
         if (empty($course)) {
             throw new coding_exception("Should not call campusconnect_course::update without course data");
+        }
+        if (empty($course->lectureID)) {
+            campusconnect_log::add("Course resource ({$resourceid}) is missing the lectureID value - is it using an old, unsupported data format?");
+            return true; // Remove the event.
         }
 
         $currcourses = self::get_by_resourceid($resourceid, $ecsid);

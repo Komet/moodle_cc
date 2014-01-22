@@ -241,13 +241,13 @@ a.skip:active {position: static;display: block;}
 .mform fieldset.hidden {border-width:0;}
 .mform fieldset.group {margin-bottom: 0}
 .mform fieldset.error {border: 1px solid #A00;}
-.mform .collapsible-actions {display: none;}
-.jsenabled .mform .collapsible-actions {text-align: right; display: block;}
-.dir-rtl .mform .collapsible-actions {text-align: left;}
-.mform .collapseexpand {background: url([[pix:t/collapsed]]) left center no-repeat; padding-left: 18px;}
-.dir-rtl .mform .collapseexpand {background-image: url([[pix:t/collapsed_rtl]]); background-position: right center; padding-left: 0; padding-right: 18px;}
-.mform .collapse-all,
-.dir-rtl .mform .collapse-all {background-image: url([[pix:t/expanded]]);}
+.collapsible-actions {display: none;}
+.jsenabled .collapsible-actions {text-align: right; display: block;}
+.dir-rtl .collapsible-actions {text-align: left;}
+.collapseexpand {background: url([[pix:t/collapsed]]) left center no-repeat; padding-left: 18px;}
+.dir-rtl .collapseexpand {background-image: url([[pix:t/collapsed_rtl]]); background-position: right center; padding-left: 0; padding-right: 18px;}
+.collapse-all,
+.dir-rtl .collapse-all {background-image: url([[pix:t/expanded]]);}
 .mform fieldset legend {padding: 0 0.35em;}
 .mform fieldset.collapsible legend a.fheader {padding-left: 18px; background: url([[pix:t/expanded]]) left center no-repeat;}
 .mform fieldset.collapsed legend a.fheader {background-image: url([[pix:t/collapsed]]);}
@@ -263,6 +263,7 @@ a.skip:active {position: static;display: block;}
 .mform .fitem fieldset.felement {margin-left:15%;padding-left:1%;margin-bottom:0}
 .mform .error,
 .mform .required {color:#A00;}
+.mform span.error {display: inline-block;padding: 4px;margin-bottom: 4px;background-color: #F2DEDE;border: 1px solid #EED3D7;}
 .mform .required .fgroup span label {color:#000;}
 .mform .fdescription.required {color:#A00;text-align:right;}
 .dir-rtl .mform .fdescription.required {text-align:left;}
@@ -345,6 +346,7 @@ input#id_externalurl {direction:ltr;}
 .groupmanagementtable #potentialcell {width: 42%;}
 .groupmanagementtable #buttonscell {width: 16%;}
 .groupmanagementtable #buttonscell input {width: 80%;}
+.groupmanagementtable #buttonscell p.arrow_button input {width: auto;min-width: 80%;margin: 0 auto;}
 .groupmanagementtable #removeselect_wrapper,
 .groupmanagementtable #addselect_wrapper {width: 100%;}
 .groupmanagementtable #removeselect_wrapper label,
@@ -892,6 +894,10 @@ sup {vertical-align: super;}
     background-color:#AAA;
 }
 
+.moodle-dialogue-base .moodle-dialogue {
+    outline: #000 dotted 0;
+}
+
 .moodle-dialogue-base .hidden,
 .moodle-dialogue-base .moodle-dialogue-hidden {display:none;}
 .moodle-dialogue-base .moodle-dialogue {
@@ -1239,6 +1245,7 @@ html[dir=rtl] .configphp {direction:ltr;text-align:left;}
 
 table.flexible .r0, table.generaltable .r0 {background-color: #F0F0F0;}
 table.flexible .r1, table.generaltable .r1 {background-color: #FAFAFA;}
+table.flexible .emptyrow {display: none;}
 
 /* Form element: listing */
 .formlistingradio {padding-bottom: 25px; padding-right: 10px;}
@@ -1363,6 +1370,7 @@ div.badge .expireimage { width: 100px; height: 100px; left: 20px; top: 0px; }
 .statusbox.inactive { background-color: #FFEBA8; }
 .activatebadge { margin: 0px; text-align: left; vertical-align: middle; }
 .addcourse { float: right; }
+img#persona_signin { cursor: pointer; }
 
 /**
  * The date selector popup.
@@ -1372,3 +1380,11 @@ div.badge .expireimage { width: 100px; height: 100px; left: 20px; top: 0px; }
  }
 
 .path-mod-lesson .centerpadded { padding: 5px; text-align: center; }
+
+a.disabled:hover,
+a.disabled {
+    text-decoration: none;
+    cursor: default;
+    font-style: italic;
+    color: #808080;
+}

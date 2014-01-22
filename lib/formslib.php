@@ -264,7 +264,8 @@ abstract class moodleform {
                 $submission = $_POST;
             }
         } else {
-            $submission = array_merge_recursive($_GET, $_POST); // emulate handling of parameters in xxxx_param()
+            $submission = $_GET;
+            merge_query_params($submission, $_POST); // Emulate handling of parameters in xxxx_param().
         }
 
         // following trick is needed to enable proper sesskey checks when using GET forms
@@ -281,6 +282,15 @@ abstract class moodleform {
         $this->detectMissingSetType();
 
         $this->_form->updateSubmission($submission, $files);
+    }
+
+    /**
+     * Internal method - should not be used anywhere.
+     * @deprecated since 2.6
+     * @return array $_POST.
+     */
+    protected function _get_post_params() {
+        return $_POST;
     }
 
     /**
@@ -997,13 +1007,16 @@ abstract class moodleform {
      *
      * @param array $elementobjs Array of elements or groups of elements that are to be repeated
      * @param int $repeats no of times to repeat elements initially
-     * @param array $options Array of options to apply to elements. Array keys are element names.
-     *     This is an array of arrays. The second sets of keys are the option types for the elements :
-     *         'default' - default value is value
-     *         'type' - PARAM_* constant is value
-     *         'helpbutton' - helpbutton params array is value
-     *         'disabledif' - last three moodleform::disabledIf()
-     *         params are value as an array
+     * @param array $options a nested array. The first array key is the element name.
+     *    the second array key is the type of option to set, and depend on that option,
+     *    the value takes different forms.
+     *         'default'    - default value to set. Can include '{no}' which is replaced by the repeat number.
+     *         'type'       - PARAM_* type.
+     *         'helpbutton' - array containing the helpbutton params.
+     *         'disabledif' - array containing the disabledIf() arguments after the element name.
+     *         'rule'       - array containing the addRule arguments after the element name.
+     *         'expanded'   - whether this section of the form should be expanded by default. (Name be a header element.)
+     *         'advanced'   - whether this element is hidden by 'Show more ...'.
      * @param string $repeathiddenname name for hidden element storing no of repeats in this form
      * @param string $addfieldsname name for button to add more fields
      * @param int $addfieldsno how many fields to add at a time
@@ -2102,8 +2115,9 @@ class MoodleQuickForm extends HTML_QuickForm_DHTMLRulesTableless {
                         }
                     }
                     //for editor element, [text] is appended to the name.
+                    $fullelementname = $elementName;
                     if ($element->getType() == 'editor') {
-                        $elementName .= '[text]';
+                        $fullelementname .= '[text]';
                         //Add format to rule as moodleform check which format is supported by browser
                         //it is not set anywhere... So small hack to make sure we pass it down to quickform
                         if (is_null($rule['format'])) {
@@ -2111,8 +2125,8 @@ class MoodleQuickForm extends HTML_QuickForm_DHTMLRulesTableless {
                         }
                     }
                     // Fix for bug displaying errors for elements in a group
-                    $test[$elementName][0][] = $registry->getValidationScript($element, $elementName, $rule);
-                    $test[$elementName][1]=$element;
+                    $test[$fullelementname][0][] = $registry->getValidationScript($element, $fullelementname, $rule);
+                    $test[$fullelementname][1]=$element;
                     //end of fix
                 }
             }
@@ -2136,6 +2150,7 @@ function qf_errorHandler(element, _qfMsg) {
     return true;
   }
 
+
   if (_qfMsg != \'\') {
     var errorSpan = document.getElementById(\'id_error_\'+element.name);
     if (!errorSpan) {
@@ -2143,6 +2158,8 @@ function qf_errorHandler(element, _qfMsg) {
       errorSpan.id = \'id_error_\'+element.name;
       errorSpan.className = "error";
       element.parentNode.insertBefore(errorSpan, element.parentNode.firstChild);
+      document.getElementById(errorSpan.id).setAttribute(\'TabIndex\', \'0\');
+      document.getElementById(errorSpan.id).focus();
     }
 
     while (errorSpan.firstChild) {
@@ -2150,11 +2167,14 @@ function qf_errorHandler(element, _qfMsg) {
     }
 
     errorSpan.appendChild(document.createTextNode(_qfMsg.substring(3)));
-    errorSpan.appendChild(document.createElement("br"));
 
     if (div.className.substr(div.className.length - 6, 6) != " error"
-        && div.className != "error") {
-      div.className += " error";
+      && div.className != "error") {
+        div.className += " error";
+        linebreak = document.createElement("br");
+        linebreak.className = "error";
+        linebreak.id = \'id_error_break_\'+element.name;
+        errorSpan.parentNode.insertBefore(linebreak, errorSpan.nextSibling);
     }
 
     return false;
@@ -2162,6 +2182,10 @@ function qf_errorHandler(element, _qfMsg) {
     var errorSpan = document.getElementById(\'id_error_\'+element.name);
     if (errorSpan) {
       errorSpan.parentNode.removeChild(errorSpan);
+    }
+    var linebreak = document.getElementById(\'id_error_break_\'+element.name);
+    if (linebreak) {
+      linebreak.parentNode.removeChild(linebreak);
     }
 
     if (div.className.substr(div.className.length - 6, 6) == " error") {
@@ -2210,7 +2234,7 @@ function validate_' . $this->_formName . '_' . $escapedElementName . '(element) 
   ret = validate_' . $this->_formName . '_' . $escapedElementName.'(frm.elements[\''.$elementName.'\']) && ret;
   if (!ret && !first_focus) {
     first_focus = true;
-    frm.elements[\''.$elementName.'\'].focus();
+    document.getElementById(\'id_error_'.$elementName.'\').focus();
   }
 ';
 

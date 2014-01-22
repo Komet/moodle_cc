@@ -43,6 +43,9 @@ class phpunit_util extends testing_util {
     /** @var phpunit_message_sink alternative target for moodle messaging */
     protected static $messagesink = null;
 
+    /** @var phpunit_phpmailer_sink alternative target for phpmailer messaging */
+    protected static $phpmailersink = null;
+
     /**
      * @var array Files to skip when resetting dataroot folder
      */
@@ -94,6 +97,9 @@ class phpunit_util extends testing_util {
 
         // Stop any message redirection.
         phpunit_util::stop_message_redirection();
+
+        // Stop any message redirection.
+        phpunit_util::stop_phpmailer_redirection();
 
         // Release memory and indirectly call destroy() methods to release resource handles, etc.
         gc_collect_cycles();
@@ -187,6 +193,7 @@ class phpunit_util extends testing_util {
         reset_text_filters_cache(true);
         events_get_handlers('reset');
         textlib::reset_caches();
+        get_message_processors(false, true);
         if (class_exists('repository')) {
             repository::reset_caches();
         }
@@ -261,63 +268,7 @@ class phpunit_util extends testing_util {
      * @return void
      */
     public static function bootstrap_moodle_info() {
-        global $CFG;
-
-        // All developers have to understand English, do not localise!
-
-        $release = null;
-        require("$CFG->dirroot/version.php");
-
-        echo "Moodle $release, $CFG->dbtype";
-        if ($hash = self::get_git_hash()) {
-            echo ", $hash";
-        }
-        echo "\n";
-    }
-
-    /**
-     * Try to get current git hash of the Moodle in $CFG->dirroot.
-     * @return string null if unknown, sha1 hash if known
-     */
-    public static function get_git_hash() {
-        global $CFG;
-
-        // This is a bit naive, but it should mostly work for all platforms.
-
-        if (!file_exists("$CFG->dirroot/.git/HEAD")) {
-            return null;
-        }
-
-        $ref = file_get_contents("$CFG->dirroot/.git/HEAD");
-        if ($ref === false) {
-            return null;
-        }
-
-        $ref = trim($ref);
-
-        if (strpos($ref, 'ref: ') !== 0) {
-            return null;
-        }
-
-        $ref = substr($ref, 5);
-
-        if (!file_exists("$CFG->dirroot/.git/$ref")) {
-            return null;
-        }
-
-        $hash = file_get_contents("$CFG->dirroot/.git/$ref");
-
-        if ($hash === false) {
-            return null;
-        }
-
-        $hash = trim($hash);
-
-        if (strlen($hash) != 40) {
-            return null;
-        }
-
-        return $hash;
+        echo self::get_site_info();
     }
 
     /**
@@ -658,6 +609,55 @@ class phpunit_util extends testing_util {
     public static function message_sent($message) {
         if (self::$messagesink) {
             self::$messagesink->add_message($message);
+        }
+    }
+
+    /**
+     * Start phpmailer redirection.
+     *
+     * Note: Do not call directly from tests,
+     *       use $sink = $this->redirectEmails() instead.
+     *
+     * @return phpunit_phpmailer_sink
+     */
+    public static function start_phpmailer_redirection() {
+        if (self::$phpmailersink) {
+            self::stop_phpmailer_redirection();
+        }
+        self::$phpmailersink = new phpunit_phpmailer_sink();
+        return self::$phpmailersink;
+    }
+
+    /**
+     * End phpmailer redirection.
+     *
+     * Note: Do not call directly from tests,
+     *       use $sink->close() instead.
+     */
+    public static function stop_phpmailer_redirection() {
+        self::$phpmailersink = null;
+    }
+
+    /**
+     * Are messages for phpmailer redirected to some sink?
+     *
+     * Note: to be called from moodle_phpmailer.php only!
+     *
+     * @return bool
+     */
+    public static function is_redirecting_phpmailer() {
+        return !empty(self::$phpmailersink);
+    }
+
+    /**
+     * To be called from messagelib.php only!
+     *
+     * @param stdClass $message record from message_read table
+     * @return bool true means send message, false means message "sent" to sink.
+     */
+    public static function phpmailer_sent($message) {
+        if (self::$phpmailersink) {
+            self::$phpmailersink->add_message($message);
         }
     }
 }

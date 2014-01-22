@@ -17,7 +17,7 @@
 /**
  * Files and filepicker manipulation steps definitions.
  *
- * @package    core
+ * @package    core_filepicker
  * @category   test
  * @copyright  2013 David Monllaó
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -34,7 +34,7 @@ use Behat\Mink\Exception\ExpectationException as ExpectationException;
  *
  * Extends behat_files rather than behat_base as is file-related.
  *
- * @package    core
+ * @package    core_filepicker
  * @category   test
  * @copyright  2013 David Monllaó
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -60,10 +60,12 @@ class behat_filepicker extends behat_files {
 
         // Setting the folder name in the modal window.
         $exception = new ExpectationException('The dialog to enter the folder name does not appear', $this->getSession());
-        $dialoginput = $this->find('css', '.fp-mkdir-dlg-text input');
+        $dialoginput = $this->find('css', '.fp-mkdir-dlg-text input', $exception);
         $dialoginput->setValue($foldername);
 
-        $this->getSession()->getPage()->pressButton(get_string('makeafolder'));
+        $exception = new ExpectationException('The button for the create folder dialog can not be located', $this->getSession());
+        $buttonnode = $this->find('css', '.fp-dlg-butcreate', $exception);
+        $buttonnode->click();
 
         // Wait until the process finished and modal windows are hidden.
         $this->wait_until_return_to_form();

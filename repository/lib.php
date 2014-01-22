@@ -255,6 +255,7 @@ class repository_type implements cacheable_object {
             }
             //run plugin_init function
             if (!repository::static_function($this->_typename, 'plugin_init')) {
+                $this->update_visibility(false);
                 if (!$silent) {
                     throw new repository_exception('cannotinitplugin', 'repository');
                 }
@@ -1139,7 +1140,7 @@ abstract class repository implements cacheable_object {
      *
      * @static
      * @param string $plugin repository plugin name
-     * @param string $function funciton name
+     * @param string $function function name
      * @return mixed
      */
     public static function static_function($plugin, $function) {
@@ -1150,14 +1151,6 @@ abstract class repository implements cacheable_object {
         if (!file_exists($typedirectory)) {
             //throw new repository_exception('invalidplugin', 'repository');
             return false;
-        }
-
-        $pname = null;
-        if (is_object($plugin) || is_array($plugin)) {
-            $plugin = (object)$plugin;
-            $pname = $plugin->name;
-        } else {
-            $pname = $plugin;
         }
 
         $args = func_get_args();
@@ -2437,7 +2430,7 @@ abstract class repository implements cacheable_object {
 
     /**
      * For oauth like external authentication, when external repository direct user back to moodle,
-     * this funciton will be called to set up token and token_secret
+     * this function will be called to set up token and token_secret
      */
     public function callback() {
     }
@@ -2574,6 +2567,8 @@ abstract class repository implements cacheable_object {
             if ($tempfile = $fs->get_file($user_context->id, 'user', 'draft', $itemid, $newfilepath, $newfilename)) {
                 // Remember original file source field.
                 $source = @unserialize($file->get_source());
+                // Remember the original sortorder.
+                $sortorder = $file->get_sortorder();
                 if ($tempfile->is_external_file()) {
                     // New file is a reference. Check that existing file does not have any other files referencing to it
                     if (isset($source->original) && $fs->search_references_count($source->original)) {
@@ -2592,6 +2587,7 @@ abstract class repository implements cacheable_object {
                     $newfilesource->original = $source->original;
                     $newfile->set_source(serialize($newfilesource));
                 }
+                $newfile->set_sortorder($sortorder);
                 // remove temp file
                 $tempfile->delete();
                 return true;

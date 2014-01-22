@@ -174,3 +174,11 @@ img.icon-pre {
     .opacity(100);
     display: inline;
 }
+
+// Extends bootstrapbase/less/bootstrap/navbar.less
+// to enable scroll in the language menu.
+.langmenu.open > .dropdown-menu {
+    display: block;
+    max-height: 150px;
+    overflow-y: auto;
+}

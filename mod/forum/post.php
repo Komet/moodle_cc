@@ -152,7 +152,8 @@ if (!empty($forum)) {      // User is starting a new discussion in a forum
         $post->groupid = groups_get_activity_group($cm);
     }
 
-    forum_set_return();
+    // Unsetting this will allow the correct return URL to be calculated later.
+    unset($SESSION->fromdiscussion);
 
 } else if (!empty($reply)) {      // User is writing a new reply
 
@@ -227,6 +228,7 @@ if (!empty($forum)) {      // User is starting a new discussion in a forum
         $post->subject = $strre.' '.$post->subject;
     }
 
+    // Unsetting this will allow the correct return URL to be calculated later.
     unset($SESSION->fromdiscussion);
 
 } else if (!empty($edit)) {  // User is editing their own post
@@ -277,8 +279,8 @@ if (!empty($forum)) {      // User is starting a new discussion in a forum
 
     $post = trusttext_pre_edit($post, 'message', $modcontext);
 
+    // Unsetting this will allow the correct return URL to be calculated later.
     unset($SESSION->fromdiscussion);
-
 
 }else if (!empty($delete)) {  // User is deleting a post
 
@@ -786,7 +788,7 @@ if ($fromform = $mform_post->get_data()) {
             }
 
             if ($subscribemessage = forum_post_subscription($discussion, $forum)) {
-                $timemessage = 4;
+                $timemessage = 6;
             }
 
             // Update completion status

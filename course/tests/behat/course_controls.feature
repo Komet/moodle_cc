@@ -74,8 +74,8 @@ Feature: Course activity controls works as expected
     And section "1" should be visible
     And I add the "Section links" block
     And "#section-2" "css_element" <should_see_other_sections> exists
-    And I should see "1 2 3 4 5" in the ".block_section_links" "css_element"
-    And I click on "2" "link" in the ".block_section_links" "css_element"
+    And I should see "1 2 3 4 5" in the "Section links" "block"
+    And I click on "2" "link" in the "Section links" "block"
     And I <should_see_other_sections_following_block_sections_links> see "Test forum name 2"
 
     Examples:
@@ -134,7 +134,7 @@ Feature: Course activity controls works as expected
     And "#section-2" "css_element" <should_see_other_sections> exists
     And I delete "Test forum name 1" activity
     And "#section-2" "css_element" <should_see_other_sections> exists
-    And I should not see "Test forum name 1" in the ".region-content" "css_element"
+    And I should not see "Test forum name 1" in the "#region-main" "css_element"
     And I duplicate "Test forum name 2" activity editing the new copy with:
       | Forum name | Edited test forum name 2 |
     And "#section-2" "css_element" <should_see_other_sections> exists
@@ -148,8 +148,8 @@ Feature: Course activity controls works as expected
     And section "1" should be visible
     And I add the "Section links" block
     And "#section-2" "css_element" <should_see_other_sections> exists
-    And I should see "1 2 3 4 5" in the ".block_section_links" "css_element"
-    And I click on "2" "link" in the ".block_section_links" "css_element"
+    And I should see "1 2 3 4 5" in the "Section links" "block"
+    And I click on "2" "link" in the "Section links" "block"
     And I <should_see_other_sections_following_block_sections_links> see "Test forum name 2"
 
     Examples:

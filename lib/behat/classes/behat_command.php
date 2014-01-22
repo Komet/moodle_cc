@@ -43,34 +43,6 @@ class behat_command {
     const DOCS_URL = 'http://docs.moodle.org/dev/Acceptance_testing';
 
     /**
-     * @var Allowed types when using text selectors arguments.
-     */
-    public static $allowedtextselectors = array(
-        'css_element' => 'css_element',
-        'xpath_element' => 'xpath_element'
-    );
-
-    /**
-     * @var Allowed types when using selector arguments.
-     */
-    public static $allowedselectors = array(
-        'link' => 'link',
-        'button' => 'button',
-        'link_or_button' => 'link_or_button',
-        'select' => 'select',
-        'checkbox' => 'checkbox',
-        'radio' => 'radio',
-        'file' => 'file',
-        'optgroup' => 'optgroup',
-        'option' => 'option',
-        'table' => 'table',
-        'field' => 'field',
-        'fieldset' => 'fieldset',
-        'css_element' => 'css_element',
-        'xpath_element' => 'xpath_element'
-    );
-
-    /**
      * Ensures the behat dir exists in moodledata
      * @return string Full path
      */
@@ -94,10 +66,30 @@ class behat_command {
 
     /**
      * Returns the executable path
+     *
+     * Allows returning a customized command for cygwin when the
+     * command is just displayed, when using exec(), system() and
+     * friends we stay with DIRECTORY_SEPARATOR as they use the
+     * normal cmd.exe (in Windows).
+     *
+     * @param  bool $custombyterm  If the provided command should depend on the terminal where it runs
      * @return string
      */
-    public final static function get_behat_command() {
-        return 'vendor' . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'behat';
+    public final static function get_behat_command($custombyterm = false) {
+
+        $separator = DIRECTORY_SEPARATOR;
+        $exec = 'behat';
+
+        // Cygwin uses linux-style directory separators.
+        if ($custombyterm && testing_is_cygwin()) {
+            $separator = '/';
+
+            // MinGW can not execute .bat scripts.
+            if (!testing_is_mingw()) {
+                $exec = 'behat.bat';
+            }
+        }
+        return 'vendor' . $separator . 'bin' . $separator . $exec;
     }
 
     /**
@@ -136,7 +128,7 @@ class behat_command {
 
         // We don't check the PHP version if $CFG->behat_switchcompletely has been enabled.
         // Here we are in CLI.
-        if (empty($CFG->behat_switchcompletely) && $checkphp && version_compare(PHP_VERSION, '5.4.0', '<')) {
+        if (empty($CFG->behat_switchcompletely) && empty($CFG->behat_wwwroot) && $checkphp && version_compare(PHP_VERSION, '5.4.0', '<')) {
             behat_error(BEHAT_EXITCODE_REQUIREMENT, 'PHP 5.4 is required. See config-dist.php for possible alternatives');
         }
 
@@ -176,6 +168,9 @@ class behat_command {
         }
 
         // Checking behat dataroot existence otherwise echo about admin/tool/behat/cli/init.php.
+        if (!empty($CFG->behat_dataroot)) {
+            $CFG->behat_dataroot = realpath($CFG->behat_dataroot);
+        }
         if (empty($CFG->behat_dataroot) || !is_dir($CFG->behat_dataroot) || !is_writable($CFG->behat_dataroot)) {
             self::output_msg(get_string('runclitool', 'tool_behat', 'php admin/tool/behat/cli/init.php'));
             return BEHAT_EXITCODE_CONFIG;

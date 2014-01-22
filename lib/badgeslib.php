@@ -333,10 +333,11 @@ class badge {
      */
     public function has_awards() {
         global $DB;
-        if ($DB->record_exists('badge_issued', array('badgeid' => $this->id))) {
-            return true;
-        }
-        return false;
+        $awarded = $DB->record_exists_sql('SELECT b.uniquehash
+                    FROM {badge_issued} b INNER JOIN {user} u ON b.userid = u.id
+                    WHERE b.badgeid = :badgeid AND u.deleted = 0', array('badgeid' => $this->id));
+
+        return $awarded;
     }
 
     /**
@@ -351,7 +352,7 @@ class badge {
                 'SELECT b.userid, b.dateissued, b.uniquehash, u.firstname, u.lastname
                     FROM {badge_issued} b INNER JOIN {user} u
                         ON b.userid = u.id
-                    WHERE b.badgeid = :badgeid', array('badgeid' => $this->id));
+                    WHERE b.badgeid = :badgeid AND u.deleted = 0', array('badgeid' => $this->id));
 
         return $awards;
     }
@@ -765,7 +766,9 @@ function badges_get_badges($type, $courseid = 0, $sort = '', $dir = '', $page = 
             $badges[$r->id]->dateissued = $r->dateissued;
             $badges[$r->id]->uniquehash = $r->uniquehash;
         } else {
-            $badges[$r->id]->awards = $DB->count_records('badge_issued', array('badgeid' => $badge->id));
+            $badges[$r->id]->awards = $DB->count_records_sql('SELECT COUNT(b.userid)
+                                         FROM {badge_issued} b INNER JOIN {user} u ON b.userid = u.id
+                                         WHERE b.badgeid = :badgeid AND u.deleted = 0', array('badgeid' => $badge->id));
             $badges[$r->id]->statstring = $badge->get_status_name();
         }
     }
@@ -895,38 +898,29 @@ function badges_add_course_navigation(navigation_node $coursenode, stdClass $cou
 
     $coursecontext = context_course::instance($course->id);
     $isfrontpage = (!$coursecontext || $course->id == $SITE->id);
+    $canmanage = has_any_capability(array('moodle/badges:viewawarded',
+                                          'moodle/badges:createbadge',
+                                          'moodle/badges:awardbadge',
+                                          'moodle/badges:configurecriteria',
+                                          'moodle/badges:configuremessages',
+                                          'moodle/badges:configuredetails',
+                                          'moodle/badges:deletebadge'), $coursecontext);
 
-    if (!empty($CFG->enablebadges) && !empty($CFG->badges_allowcoursebadges) && !$isfrontpage) {
-        if (has_capability('moodle/badges:configuredetails', $coursecontext)) {
-            $coursenode->add(get_string('coursebadges', 'badges'), null,
-                    navigation_node::TYPE_CONTAINER, null, 'coursebadges',
-                    new pix_icon('i/badge', get_string('coursebadges', 'badges')));
+    if (!empty($CFG->enablebadges) && !empty($CFG->badges_allowcoursebadges) && !$isfrontpage && $canmanage) {
+        $coursenode->add(get_string('coursebadges', 'badges'), null,
+                navigation_node::TYPE_CONTAINER, null, 'coursebadges',
+                new pix_icon('i/badge', get_string('coursebadges', 'badges')));
 
-            if (has_capability('moodle/badges:viewawarded', $coursecontext)) {
-                $url = new moodle_url('/badges/index.php',
-                        array('type' => BADGE_TYPE_COURSE, 'id' => $course->id));
+        $url = new moodle_url('/badges/index.php', array('type' => BADGE_TYPE_COURSE, 'id' => $course->id));
 
-                $coursenode->get('coursebadges')->add(get_string('managebadges', 'badges'), $url,
-                    navigation_node::TYPE_SETTING, null, 'coursebadges');
-            }
+        $coursenode->get('coursebadges')->add(get_string('managebadges', 'badges'), $url,
+            navigation_node::TYPE_SETTING, null, 'coursebadges');
 
-            if (has_capability('moodle/badges:createbadge', $coursecontext)) {
-                $url = new moodle_url('/badges/newbadge.php',
-                        array('type' => BADGE_TYPE_COURSE, 'id' => $course->id));
+        if (has_capability('moodle/badges:createbadge', $coursecontext)) {
+            $url = new moodle_url('/badges/newbadge.php', array('type' => BADGE_TYPE_COURSE, 'id' => $course->id));
 
-                $coursenode->get('coursebadges')->add(get_string('newbadge', 'badges'), $url,
-                        navigation_node::TYPE_SETTING, null, 'newbadge');
-            }
-        } else if (has_capability('moodle/badges:awardbadge', $coursecontext)) {
-            $coursenode->add(get_string('coursebadges', 'badges'), null,
-                    navigation_node::TYPE_CONTAINER, null, 'coursebadges',
-                    new pix_icon('i/badge', get_string('coursebadges', 'badges')));
-
-            $url = new moodle_url('/badges/index.php',
-                    array('type' => BADGE_TYPE_COURSE, 'id' => $course->id));
-
-            $coursenode->get('coursebadges')->add(get_string('managebadges', 'badges'), $url,
-                    navigation_node::TYPE_SETTING, null, 'coursebadges');
+            $coursenode->get('coursebadges')->add(get_string('newbadge', 'badges'), $url,
+                    navigation_node::TYPE_SETTING, null, 'newbadge');
         }
     }
 }
@@ -1106,7 +1100,8 @@ function print_badge_image(badge $badge, stdClass $context, $size = 'small') {
 
     $imageurl = moodle_url::make_pluginfile_url($context->id, 'badges', 'badgeimage', $badge->id, '/', $fsize, false);
     // Appending a random parameter to image link to forse browser reload the image.
-    $attributes = array('src' => $imageurl . '?' . rand(1, 10000), 'alt' => s($badge->name), 'class' => 'activatebadge');
+    $imageurl->param('refresh', rand(1, 10000));
+    $attributes = array('src' => $imageurl, 'alt' => s($badge->name), 'class' => 'activatebadge');
 
     return html_writer::empty_tag('img', $attributes);
 }
@@ -1166,13 +1161,25 @@ function badges_bake($hash, $badgeid, $userid = 0, $pathhash = false) {
 /**
  * Returns external backpack settings and badges from this backpack.
  *
+ * This function first checks if badges for the user are cached and
+ * tries to retrieve them from the cache. Otherwise, badges are obtained
+ * through curl request to the backpack.
+ *
  * @param int $userid Backpack user ID.
+ * @param boolean $refresh Refresh badges collection in cache.
  * @return null|object Returns null is there is no backpack or object with backpack settings.
  */
-function get_backpack_settings($userid) {
+function get_backpack_settings($userid, $refresh = false) {
     global $DB;
     require_once(dirname(dirname(__FILE__)) . '/badges/lib/backpacklib.php');
 
+    // Try to get badges from cache first.
+    $badgescache = cache::make('core', 'externalbadges');
+    $out = $badgescache->get($userid);
+    if ($out !== false && !$refresh) {
+        return $out;
+    }
+    // Get badges through curl request to the backpack.
     $record = $DB->get_record('badge_backpack', array('userid' => $userid));
     if ($record) {
         $backpack = new OpenBadgesBackpackHandler($record);
@@ -1197,6 +1204,7 @@ function get_backpack_settings($userid) {
             $out->totalcollections = 0;
         }
 
+        $badgescache->set($userid, $out);
         return $out;
     }
 
@@ -1246,13 +1254,20 @@ function profile_display_badges($userid, $courseid = 0) {
     global $CFG, $PAGE, $USER, $SITE;
     require_once($CFG->dirroot . '/badges/renderer.php');
 
-    if ($USER->id == $userid || has_capability('moodle/badges:viewotherbadges', context_user::instance($USER->id))) {
+    // Determine context.
+    if (isloggedin()) {
+        $context = context_user::instance($USER->id);
+    } else {
+        $context = context_system::instance();
+    }
+
+    if ($USER->id == $userid || has_capability('moodle/badges:viewotherbadges', $context)) {
         $records = badges_get_user_badges($userid, $courseid, null, null, null, true);
         $renderer = new core_badges_renderer($PAGE, '');
 
         // Print local badges.
         if ($records) {
-            $left = get_string('localbadgesp', 'badges', $SITE->fullname);
+            $left = get_string('localbadgesp', 'badges', format_string($SITE->fullname));
             $right = $renderer->print_badges_list($records, $userid, true);
             echo html_writer::tag('dt', $left);
             echo html_writer::tag('dd', $right);

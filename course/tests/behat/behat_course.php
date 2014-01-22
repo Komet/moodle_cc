@@ -90,7 +90,7 @@ class behat_course extends behat_base {
     }
 
     /**
-     * Adds the selected activity/resource filling the form data with the specified field/value pairs.
+     * Adds the selected activity/resource filling the form data with the specified field/value pairs. Sections 0 and 1 are also allowed on frontpage.
      *
      * @When /^I add a "(?P<activity_or_resource_name_string>(?:[^"]|\\")*)" to section "(?P<section_number>\d+)" and I fill the form with:$/
      * @param string $activity The activity name
@@ -107,7 +107,7 @@ class behat_course extends behat_base {
     }
 
     /**
-     * Opens the activity chooser and opens the activity/resource form page.
+     * Opens the activity chooser and opens the activity/resource form page. Sections 0 and 1 are also allowed on frontpage.
      *
      * @Given /^I add a "(?P<activity_or_resource_name_string>(?:[^"]|\\")*)" to section "(?P<section_number>\d+)"$/
      * @throws ElementNotFoundException Thrown by behat_base::find
@@ -116,7 +116,19 @@ class behat_course extends behat_base {
      */
     public function i_add_to_section($activity, $section) {
 
-        $sectionxpath = "//li[@id='section-" . $section . "']";
+        if ($this->getSession()->getPage()->find('css', 'body#page-site-index') && (int)$section <= 1) {
+            // We are on the frontpage.
+            if ($section) {
+                // Section 1 represents the contents on the frontpage.
+                $sectionxpath = "//body[@id='page-site-index']/descendant::div[contains(concat(' ',normalize-space(@class),' '),' sitetopic ')]";
+            } else {
+                // Section 0 represents "Site main menu" block.
+                $sectionxpath = "//div[contains(concat(' ',normalize-space(@class),' '),' block_site_main_menu ')]";
+            }
+        } else {
+            // We are inside the course.
+            $sectionxpath = "//li[@id='section-" . $section . "']";
+        }
 
         $activityliteral = $this->getSession()->getSelectorsHandler()->xpathLiteral(ucfirst($activity));
 
@@ -216,6 +228,33 @@ class behat_course extends behat_base {
         if ($this->running_javascript()) {
             $this->getSession()->wait(5000, false);
         }
+    }
+
+    /**
+     * Go to editing section page for specified section number. You need to be in the course page and on editing mode.
+     *
+     * @Given /^I edit the section "(?P<section_number>\d+)"$/
+     * @param int $sectionnumber
+     */
+    public function i_edit_the_section($sectionnumber) {
+        return new Given('I click on "' . get_string('editsummary') . '" "link" in the "#section-' . $sectionnumber . '" "css_element"');
+    }
+
+    /**
+     * Edit specified section and fill the form data with the specified field/value pairs.
+     *
+     * @When /^I edit the section "(?P<section_number>\d+)" and I fill the form with:$/
+     * @param int $sectionnumber The section number
+     * @param TableNode $data The activity field/value data
+     * @return Given[]
+     */
+    public function i_edit_the_section_and_i_fill_the_form_with($sectionnumber, TableNode $data) {
+
+        return array(
+            new Given('I edit the section "' . $sectionnumber . '"'),
+            new Given('I fill the moodle form with:', $data),
+            new Given('I press "' . get_string('savechanges') . '"')
+        );
     }
 
     /**
@@ -775,6 +814,30 @@ class behat_course extends behat_base {
         }
 
         return true;
+    }
+
+    /**
+     * Clicks to expand or collapse a category displayed on the frontpage
+     *
+     * @Given /^I toggle "(?P<categoryname_string>(?:[^"]|\\")*)" category children visibility in frontpage$/
+     * @throws ExpectationException
+     * @param string $categoryname
+     */
+    public function i_toggle_category_children_visibility_in_frontpage($categoryname) {
+
+        $headingtags = array();
+        for ($i = 1; $i <= 6; $i++) {
+            $headingtags[] = 'self::h' . $i;
+        }
+
+        $exception = new ExpectationException('"' . $categoryname . '" category can not be found', $this->getSession());
+        $categoryliteral = $this->getSession()->getSelectorsHandler()->xpathLiteral($categoryname);
+        $xpath = "//div[@class='info']/descendant::*[" . implode(' or ', $headingtags) . "][@class='name'][./descendant::a[.=$categoryliteral]]";
+        $node = $this->find('xpath', $xpath, $exception);
+        $node->click();
+
+        // Smooth expansion.
+        $this->getSession()->wait(1000, false);
     }
 
 }

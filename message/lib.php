@@ -1996,9 +1996,11 @@ function message_format_message($message, $format='', $keywords='', $class='othe
         $messagetext = highlight($keywords, $messagetext);
     }
 
+    $messagetext = clean_text($messagetext, FORMAT_HTML);
+
     return <<<TEMPLATE
 <div class='message $class'>
-    <a name="m'.{$message->id}.'"></a>
+    <a name="m{$message->id}"></a>
     <span class="message-meta"><span class="time">$time</span></span>: <span class="text">$messagetext</span>
 </div>
 TEMPLATE;
@@ -2280,12 +2282,16 @@ function message_print_heading($title, $colspan=3) {
  * system configuration
  *
  * @param bool $ready only return ready-to-use processors
+ * @param bool $reset Reset list of message processors (used in unit tests)
  * @return mixed $processors array of objects containing information on message processors
  */
-function get_message_processors($ready = false) {
+function get_message_processors($ready = false, $reset = false) {
     global $DB, $CFG;
 
     static $processors;
+    if ($reset) {
+        $processors = array();
+    }
 
     if (empty($processors)) {
         // Get all processors, ensure the name column is the first so it will be the array key

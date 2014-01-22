@@ -959,7 +959,9 @@ function get_array_of_activities($courseid) {
                                    $mod[$seq]->extraclasses = $info->extraclasses;
                                }
                                if (!empty($info->iconurl)) {
-                                   $mod[$seq]->iconurl = $info->iconurl;
+                                   // Convert URL to string as it's easier to store. Also serialized object contains \0 byte and can not be written to Postgres DB.
+                                   $url = new moodle_url($info->iconurl);
+                                   $mod[$seq]->iconurl = $url->out(false);
                                }
                                if (!empty($info->onclick)) {
                                    $mod[$seq]->onclick = $info->onclick;
@@ -1236,9 +1238,10 @@ function get_category_or_system_context($categoryid) {
 function make_categories_options() {
     global $CFG;
     require_once($CFG->libdir. '/coursecatlib.php');
-    $cats = coursecat::make_categories_list();
+    $cats = coursecat::make_categories_list('', 0, ' / ');
     foreach ($cats as $key => $value) {
-        $cats[$key] = str_repeat('&nbsp;', coursecat::get($key)->depth - 1). $value;
+        // Prefix the value with the number of spaces equal to category depth (number of separators in the value).
+        $cats[$key] = str_repeat('&nbsp;', substr_count($value, ' / ')). $value;
     }
     return $cats;
 }
@@ -1328,6 +1331,10 @@ function course_create_sections_if_missing($courseorid, $sections) {
  *
  * Updates both tables {course_sections} and {course_modules}
  *
+ * Note: This function does not use modinfo PROVIDED that the section you are
+ * adding the module to already exists. If the section does not exist, it will
+ * build modinfo if necessary and create the section.
+ *
  * @param int|stdClass $courseorid course id or course object
  * @param int $cmid id of the module already existing in course_modules table
  * @param int $sectionnum relative number of the section (field course_sections.section)
@@ -1347,9 +1354,16 @@ function course_add_cm_to_section($courseorid, $cmid, $sectionnum, $beforemod = 
     } else {
         $courseid = $courseorid;
     }
-    course_create_sections_if_missing($courseorid, $sectionnum);
     // Do not try to use modinfo here, there is no guarantee it is valid!
-    $section = $DB->get_record('course_sections', array('course'=>$courseid, 'section'=>$sectionnum), '*', MUST_EXIST);
+    $section = $DB->get_record('course_sections',
+            array('course' => $courseid, 'section' => $sectionnum), '*', IGNORE_MISSING);
+    if (!$section) {
+        // This function call requires modinfo.
+        course_create_sections_if_missing($courseorid, $sectionnum);
+        $section = $DB->get_record('course_sections',
+                array('course' => $courseid, 'section' => $sectionnum), '*', MUST_EXIST);
+    }
+
     $modarray = explode(",", trim($section->sequence));
     if (empty($section->sequence)) {
         $newsequence = "$cmid";
@@ -1434,14 +1448,6 @@ function set_coursemodule_visible($id, $visible) {
         }
     }
 
-    // Hide the associated grade items so the teacher doesn't also have to go to the gradebook and hide them there.
-    $grade_items = grade_item::fetch_all(array('itemtype'=>'mod', 'itemmodule'=>$modulename, 'iteminstance'=>$cm->instance, 'courseid'=>$cm->course));
-    if ($grade_items) {
-        foreach ($grade_items as $grade_item) {
-            $grade_item->set_hidden(!$visible);
-        }
-    }
-
     // Updating visible and visibleold to keep them in sync. Only changing a section visibility will
     // affect visibleold to allow for an original visibility restore. See set_section_visible().
     $cminfo = new stdClass();
@@ -1449,6 +1455,25 @@ function set_coursemodule_visible($id, $visible) {
     $cminfo->visible = $visible;
     $cminfo->visibleold = $visible;
     $DB->update_record('course_modules', $cminfo);
+
+    require_once($CFG->dirroot . '/mod/' . $modulename . '/lib.php');
+    $functionname = $modulename . '_grade_item_update';
+
+    // Hide the associated grade items so the teacher doesn't also have to go to the gradebook and hide them there.
+    // Note that this must be done after updating the row in course_modules, in case
+    // the modules grade_item_update function needs to access $cm->visible.
+    if (plugin_supports('mod', $modulename, FEATURE_CONTROLS_GRADE_VISIBILITY) &&
+            function_exists($functionname)) {
+        $instance = $DB->get_record($modulename, array('id' => $cm->instance), '*', MUST_EXIST);
+        $functionname($instance);
+    } else {
+        $grade_items = grade_item::fetch_all(array('itemtype'=>'mod', 'itemmodule'=>$modulename, 'iteminstance'=>$cm->instance, 'courseid'=>$cm->course));
+        if ($grade_items) {
+            foreach ($grade_items as $grade_item) {
+                $grade_item->set_hidden(!$visible);
+            }
+        }
+    }
 
     rebuild_course_cache($cm->course, true);
     return true;
@@ -2348,6 +2373,20 @@ function update_course($data, $editoroptions = NULL) {
         $data = file_postupdate_standard_filemanager($data, 'overviewfiles', $overviewfilesoptions, $context, 'course', 'overviewfiles', 0);
     }
 
+    // Check we don't have a duplicate shortname.
+    if (!empty($data->shortname) && $oldcourse->shortname != $data->shortname) {
+        if ($DB->record_exists('course', array('shortname' => $data->shortname))) {
+            throw new moodle_exception('shortnametaken', '', '', $data->shortname);
+        }
+    }
+
+    // Check we don't have a duplicate idnumber.
+    if (!empty($data->idnumber) && $oldcourse->idnumber != $data->idnumber) {
+        if ($DB->record_exists('course', array('idnumber' => $data->idnumber))) {
+            throw new moodle_exception('idnumbertaken', 'error');
+        }
+    }
+
     if (!isset($data->category) or empty($data->category)) {
         // prevent nulls and 0 in category field
         unset($data->category);
@@ -2388,7 +2427,10 @@ function update_course($data, $editoroptions = NULL) {
         context_moved($context, $newparent);
     }
 
-    fix_course_sortorder();
+    if ($movecat || (isset($data->sortorder) && $oldcourse->sortorder != $data->sortorder)) {
+        fix_course_sortorder();
+    }
+
     // purge appropriate caches in case fix_course_sortorder() did not change anything
     cache_helper::purge_by_event('changesincourse');
     if ($changesincoursecat) {
@@ -2955,7 +2997,7 @@ function include_course_ajax($course, $usedmodules = array(), $enabledmodules = 
     );
 
     // Include course dragdrop
-    if ($course->id != $SITE->id) {
+    if (course_format_uses_sections($course->format)) {
         $PAGE->requires->yui_module('moodle-course-dragdrop', 'M.course.init_section_dragdrop',
             array(array(
                 'courseid' => $course->id,
@@ -2990,8 +3032,8 @@ function include_course_ajax($course, $usedmodules = array(), $enabledmodules = 
             'movesection',
         ), 'moodle');
 
-    // Include format-specific strings
-    if ($course->id != $SITE->id) {
+    // Include section-specific strings for formats which support sections.
+    if (course_format_uses_sections($course->format)) {
         $PAGE->requires->strings_for_js(array(
                 'showfromothers',
                 'hidefromothers',

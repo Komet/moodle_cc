@@ -564,10 +564,6 @@ class page_wiki_edit extends page_wiki {
             $params['filearea']   = 'attachments';
         }
 
-        if (!empty($CFG->usetags)) {
-            $params['tags'] = tag_get_tags_csv('wiki_pages', $this->page->id, TAG_RETURN_TEXT);
-        }
-
         $form = new mod_wiki_edit_form($url, $params);
 
         if ($formdata = $form->get_data()) {
@@ -576,7 +572,7 @@ class page_wiki_edit extends page_wiki {
             }
         } else {
             if (!empty($CFG->usetags)) {
-                $data->tags = tag_get_tags_array('wiki', $this->page->id);
+                $data->tags = tag_get_tags_array('wiki_pages', $this->page->id);
             }
         }
 
@@ -2202,8 +2198,14 @@ class page_wiki_prettyview extends page_wiki {
 
         $content = wiki_parse_content($version->contentformat, $version->content, array('printable' => true, 'swid' => $this->subwiki->id, 'pageid' => $this->page->id, 'pretty_print' => true));
 
+        $html = $content['parsed_text'];
+        $id = $this->subwiki->wikiid;
+        if ($cm = get_coursemodule_from_instance("wiki", $id)) {
+            $context = context_module::instance($cm->id);
+            $html = file_rewrite_pluginfile_urls($html, 'pluginfile.php', $context->id, 'mod_wiki', 'attachments', $this->subwiki->id);
+        }
         echo '<div id="wiki_printable_content">';
-        echo format_text($content['parsed_text'], FORMAT_HTML);
+        echo format_text($html, FORMAT_HTML);
         echo '</div>';
     }
 }

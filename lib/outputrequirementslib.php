@@ -274,6 +274,9 @@ class page_requirements_manager {
         if (debugging('', DEBUG_DEVELOPER)) {
             $this->M_cfg['developerdebug'] = true;
         }
+        if (defined('BEHAT_SITE_RUNNING')) {
+            $this->M_cfg['behatsiterunning'] = true;
+        }
 
         // Accessibility stuff.
         $this->skip_link_to('maincontent', get_string('tocontent', 'access'));
@@ -654,7 +657,7 @@ class page_requirements_manager {
                                                         array('nofilesavailable', 'repository'), array('norepositoriesavailable', 'repository'),
                                                         array('fileexistsdialogheader', 'repository'), array('fileexistsdialog_editor', 'repository'),
                                                         array('fileexistsdialog_filemanager', 'repository'), array('renameto', 'repository'),
-                                                        array('referencesexist', 'repository')
+                                                        array('referencesexist', 'repository'), array('select', 'repository')
                                                     ));
                     break;
                 case 'core_comment':

@@ -31,7 +31,6 @@ $badgeid    = required_param('id', PARAM_INT);
 $sortby     = optional_param('sort', 'dateissued', PARAM_ALPHA);
 $sorthow    = optional_param('dir', 'DESC', PARAM_ALPHA);
 $page       = optional_param('page', 0, PARAM_INT);
-$updatepref = optional_param('updatepref', false, PARAM_BOOL);
 
 require_login();
 
@@ -88,7 +87,7 @@ if ($badge->has_manual_award_criteria() && has_capability('moodle/badges:awardba
 $sql = "SELECT b.userid, b.dateissued, b.uniquehash, u.firstname, u.lastname
     FROM {badge_issued} b INNER JOIN {user} u
         ON b.userid = u.id
-    WHERE b.badgeid = :badgeid
+    WHERE b.badgeid = :badgeid AND u.deleted = 0
     ORDER BY $sortby $sorthow";
 
 $totalcount = $DB->count_records('badge_issued', array('badgeid' => $badge->id));

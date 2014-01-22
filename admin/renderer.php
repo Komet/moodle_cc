@@ -135,9 +135,10 @@ class core_admin_renderer extends plugin_renderer_base {
      * during upgrade.
      * @param string $strnewversion
      * @param int $maturity
+     * @param string $testsite
      * @return string HTML to output.
      */
-    public function upgrade_confirm_page($strnewversion, $maturity) {
+    public function upgrade_confirm_page($strnewversion, $maturity, $testsite) {
         $output = '';
 
         $continueurl = new moodle_url('index.php', array('confirmupgrade' => 1));
@@ -145,6 +146,7 @@ class core_admin_renderer extends plugin_renderer_base {
 
         $output .= $this->header();
         $output .= $this->maturity_warning($maturity);
+        $output .= $this->test_site_warning($testsite);
         $output .= $this->confirm(get_string('upgradesure', 'admin', $strnewversion), $continueurl, $cancelurl);
         $output .= $this->footer();
 
@@ -168,7 +170,7 @@ class core_admin_renderer extends plugin_renderer_base {
         $output .= $this->environment_check_table($envstatus, $environment_results);
 
         if (!$envstatus) {
-            $output .= $this->upgrade_reload(new moodle_url('/admin/index.php'), array('confirmupgrade' => 1));
+            $output .= $this->upgrade_reload(new moodle_url('/admin/index.php'), array('confirmupgrade' => 1, 'cache' => 0));
 
         } else {
             $output .= $this->notification(get_string('environmentok', 'admin'), 'notifysuccess');
@@ -177,7 +179,7 @@ class core_admin_renderer extends plugin_renderer_base {
                 $output .= $this->box(get_string('langpackwillbeupdated', 'admin'), 'generalbox', 'notice');
             }
 
-            $output .= $this->continue_button(new moodle_url('/admin/index.php', array('confirmupgrade' => 1, 'confirmrelease' => 1)));
+            $output .= $this->continue_button(new moodle_url('/admin/index.php', array('confirmupgrade' => 1, 'confirmrelease' => 1, 'cache' => 0)));
         }
 
         $output .= $this->footer();
@@ -604,6 +606,24 @@ class core_admin_renderer extends plugin_renderer_base {
                 'generalbox maturitywarning');
     }
 
+    /*
+     * If necessary, displays a warning about upgrading a test site.
+     *
+     * @param string $testsite
+     * @return string HTML
+     */
+    protected function test_site_warning($testsite) {
+
+        if (!$testsite) {
+            return '';
+        }
+
+        return $this->box(
+            $this->container(get_string('testsiteupgradewarning', 'admin', $testsite)),
+            'generalbox testsitewarning'
+        );
+    }
+
     /**
      * Output the copyright notice.
      * @return string HTML to output.
@@ -681,7 +701,7 @@ class core_admin_renderer extends plugin_renderer_base {
         }
 
         $updateinfo .= $this->container_start('checkforupdates');
-        $fetchurl = new moodle_url('/admin/index.php', array('fetchupdates' => 1, 'sesskey' => sesskey(), 'cache' => 1));
+        $fetchurl = new moodle_url('/admin/index.php', array('fetchupdates' => 1, 'sesskey' => sesskey(), 'cache' => 0));
         $updateinfo .= $this->single_button($fetchurl, get_string('checkforupdates', 'core_plugin'));
         if ($fetch) {
             $updateinfo .= $this->container(get_string('checkforupdateslast', 'core_plugin',
@@ -932,7 +952,7 @@ class core_admin_renderer extends plugin_renderer_base {
             $out .= $this->output->heading(get_string('nonehighlighted', 'core_plugin'));
             if (empty($options['full'])) {
                 $out .= html_writer::link(new moodle_url('/admin/index.php',
-                    array('confirmupgrade' => 1, 'confirmrelease' => 1, 'showallplugins' => 1)),
+                    array('confirmupgrade' => 1, 'confirmrelease' => 1, 'showallplugins' => 1, 'cache' => 0)),
                     get_string('nonehighlightedinfo', 'core_plugin'));
             }
             $out .= $this->output->container_end();
@@ -942,11 +962,11 @@ class core_admin_renderer extends plugin_renderer_base {
             $out .= $this->output->heading(get_string('somehighlighted', 'core_plugin', $sumofhighlighted));
             if (empty($options['full'])) {
                 $out .= html_writer::link(new moodle_url('/admin/index.php',
-                    array('confirmupgrade' => 1, 'confirmrelease' => 1, 'showallplugins' => 1)),
+                    array('confirmupgrade' => 1, 'confirmrelease' => 1, 'showallplugins' => 1, 'cache' => 0)),
                     get_string('somehighlightedinfo', 'core_plugin'));
             } else {
                 $out .= html_writer::link(new moodle_url('/admin/index.php',
-                    array('confirmupgrade' => 1, 'confirmrelease' => 1, 'showallplugins' => 0)),
+                    array('confirmupgrade' => 1, 'confirmrelease' => 1, 'showallplugins' => 0, 'cache' => 0)),
                     get_string('somehighlightedonly', 'core_plugin'));
             }
             $out .= $this->output->container_end();
@@ -1001,9 +1021,11 @@ class core_admin_renderer extends plugin_renderer_base {
             } else {
                 $str = 'otherplugin';
             }
+            $componenturl = new moodle_url('https://moodle.org/plugins/view.php?plugin='.$component);
+            $componenturl = html_writer::tag('a', $component, array('href' => $componenturl->out()));
             $requires[] = html_writer::tag('li',
                     get_string($str, 'core_plugin',
-                            array('component' => $component, 'version' => $requiredversion)),
+                            array('component' => $componenturl, 'version' => $requiredversion)),
                     array('class' => $class));
         }
 

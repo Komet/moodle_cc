@@ -35,8 +35,7 @@ body {
 .errorbox,
 .continuebutton,
 .singlebutton,
-.buttons,
-.singleselect {
+.buttons {
     text-align: center;
     margin: 1em 0;
 }
@@ -273,6 +272,7 @@ body {
 
 .userprofile dl {
     margin-top: 10px;
+    display: inline-block;
 }
 
 .userprofile dl dt, .userprofile dl dd {

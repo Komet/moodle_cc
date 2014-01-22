@@ -302,12 +302,17 @@ class mod_quiz_renderer extends plugin_renderer_base {
         $output = '';
         $userpicture = $panel->user_picture();
         if ($userpicture) {
-            $output .= html_writer::tag('div', $this->render($userpicture),
+            $fullname = fullname($userpicture->user);
+            if ($userpicture->size === true) {
+                $fullname = html_writer::div($fullname);
+            }
+            $output .= html_writer::tag('div', $this->render($userpicture) . $fullname,
                     array('id' => 'user-picture', 'class' => 'clearfix'));
         }
         $output .= $panel->render_before_button_bits($this);
 
-        $output .= html_writer::start_tag('div', array('class' => 'qn_buttons'));
+        $bcc = $panel->get_button_container_class();
+        $output .= html_writer::start_tag('div', array('class' => "qn_buttons $bcc"));
         foreach ($panel->get_question_buttons() as $button) {
             $output .= $this->render($button);
         }
@@ -483,6 +488,8 @@ class mod_quiz_renderer extends plugin_renderer_base {
         // Finish the form.
         $output .= html_writer::end_tag('div');
         $output .= html_writer::end_tag('form');
+
+        $output .= $this->connection_warning();
 
         return $output;
     }
@@ -686,7 +693,6 @@ class mod_quiz_renderer extends plugin_renderer_base {
         $output = '';
         $output .= $this->view_information($quiz, $cm, $context, $viewobj->infomessages);
         $output .= $this->view_table($quiz, $context, $viewobj);
-        $output .= $this->view_best_score($viewobj);
         $output .= $this->view_result_info($quiz, $context, $cm, $viewobj);
         $output .= $this->box($this->view_page_buttons($viewobj), 'quizattempt');
         return $output;
@@ -1027,17 +1033,10 @@ class mod_quiz_renderer extends plugin_renderer_base {
     }
 
     /**
-     * Prints the students best score
-     *
-     * @param mod_quiz_view_object $viewobj
+     * @deprecated Do not use any more. Removed in Moodle 2.6.
      */
     public function view_best_score($viewobj) {
-        $output = '';
-        // Print information about the student's best score for this quiz if possible.
-        if (!$viewobj->moreattempts) {
-            $output .= $this->heading(get_string('nomoreattempts', 'quiz'));
-        }
-        return $output;
+        return '';
     }
 
     /**
@@ -1079,14 +1078,13 @@ class mod_quiz_renderer extends plugin_renderer_base {
         }
         if ($viewobj->gradebookfeedback) {
             $resultinfo .= $this->heading(get_string('comment', 'quiz'), 3, 'main');
-            $resultinfo .= '<p class="quizteacherfeedback">'.$viewobj->gradebookfeedback.
-                    "</p>\n";
+            $resultinfo .= html_writer::div($viewobj->gradebookfeedback, 'quizteacherfeedback') . "\n";
         }
         if ($viewobj->feedbackcolumn) {
             $resultinfo .= $this->heading(get_string('overallfeedback', 'quiz'), 3, 'main');
-            $resultinfo .= html_writer::tag('p',
+            $resultinfo .= html_writer::div(
                     quiz_feedback_for_grade($viewobj->mygrade, $quiz, $context),
-                    array('class' => 'quizgradefeedback'))."\n";
+                    'quizgradefeedback') . "\n";
         }
 
         if ($resultinfo) {
@@ -1168,6 +1166,18 @@ class mod_quiz_renderer extends plugin_renderer_base {
         $graph = html_writer::empty_tag('img', array('src' => $url, 'alt' => $title));
 
         return $this->heading($title) . html_writer::tag('div', $graph, array('class' => 'graph'));
+    }
+
+    /**
+     * Output the connection warning messages, which are initially hidden, and
+     * only revealed by JavaScript if necessary.
+     */
+    public function connection_warning() {
+        $options = array('filter' => false, 'newlines' => false);
+        $warning = format_text(get_string('connectionerror', 'quiz'), FORMAT_MARKDOWN, $options);
+        $ok = format_text(get_string('connectionok', 'quiz'), FORMAT_MARKDOWN, $options);
+        return html_writer::tag('div', $warning, array('id' => 'connection-error', 'style' => 'display: none;', 'role' => 'alert')) .
+                html_writer::tag('div', $ok, array('id' => 'connection-ok', 'style' => 'display: none;', 'role' => 'alert'));
     }
 }
 

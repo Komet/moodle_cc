@@ -264,6 +264,9 @@ class local_campusconnect_parallelgroups_test extends advanced_testcase {
             'owner' => (object)array('itsyou' => 0),
             'content_type' => campusconnect_event::RES_COURSE
         ));
+
+        // Moodle seems to want to create a dummy course - get rid of it.
+        $DB->delete_records_select('course', 'id > 1');
     }
 
     public function test_parallelgroups_none() {

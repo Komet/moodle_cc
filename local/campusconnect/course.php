@@ -154,9 +154,9 @@ class campusconnect_course {
         self::set_course_defaults($coursedata);
         $coursedata->fullname = $pgclass->update_course_name($coursedata->fullname, $pgroupmode, $pgcourse);
 
+        $baseshortname = $coursedata->shortname;
         foreach ($categories as $category) {
             $coursedata->category = $category->get_categoryid();
-            $baseshortname = $coursedata->shortname;
             $num = 1;
             while ($DB->record_exists('course', array('shortname' => $coursedata->shortname))) {
                 $num++;
@@ -327,7 +327,7 @@ class campusconnect_course {
 
         // Update all the existing crs records.
         foreach ($currcourses as $currcourse) {
-            if (!$DB->record_exists('course', array('id' => $currcourse->courseid))) {
+            if (!$oldcourserecord = $DB->get_record('course', array('id' => $currcourse->courseid), 'id, shortname')) {
                 throw new coding_exception("crs record {$currcourse->id} references non-existent course {$currcourse->courseid}");
             } else {
                 // Course still exists - update it.
@@ -337,6 +337,23 @@ class campusconnect_course {
                 if (isset($pgmatched[$realcourseid])) {
                     $coursedetails->fullname = $pgclass->update_course_name($coursedetails->fullname,
                                                                             $pgroupmode, $pgmatched[$realcourseid]);
+                }
+                // Avoid duplicate shortname fields.
+                if ($oldcourserecord->shortname != $coursedetails->shortname) {
+                    $matchshortname = '^'.preg_quote($coursedetails->shortname).'_\d+$';
+                    if (!preg_match("|{$matchshortname}|", $oldcourserecord->shortname)) {
+                        // Old shortname does not match the current shortname OR the current shortname + '_NN'.
+                        $baseshortname = $coursedetails->shortname;
+                        $num = 1;
+                        while ($DB->record_exists('course', array('shortname' => $coursedetails->shortname))) {
+                            $num++;
+                            $coursedetails->shortname = "{$baseshortname}_{$num}";
+                        }
+                    } else {
+                        unset($coursedetails->shortname); // Does not need updating.
+                    }
+                } else {
+                    unset($coursedetails->shortname); // Does not need updating.
                 }
                 update_course($coursedetails);
 

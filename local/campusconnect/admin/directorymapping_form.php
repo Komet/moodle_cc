@@ -58,6 +58,7 @@ class campusconnect_directorymapping_form extends moodleform {
         $mform->setDefault('takeoverallocation', $dirtree->should_take_over_allocation());
 
         $mform->addElement('hidden', 'id', $dirtree->get_root_id());
+        $mform->setType('id', PARAM_INT);
 
         $this->add_action_buttons();
     }

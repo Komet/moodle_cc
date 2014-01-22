@@ -76,7 +76,8 @@ $catform = null;
 $categorysettings = campusconnect_filtering::load_category_settings();
 if (is_null($categoryid)) {
     if (!empty($categorysettings)) {
-        $categoryid = reset(array_keys($categorysettings)); // Get the first categoryid.
+        $categoryid = array_keys($categorysettings);
+        $categoryid = reset($categoryid); // Get the first categoryid.
     }
 }
 if (!is_null($categoryid)) {

@@ -39,44 +39,48 @@ if ($mform->is_cancelled()) {
 
 } else if ($post = $mform->get_data()) {
 
-    $internaldata = array();
-    $externaldata = array();
-    foreach ($post as $key => $value) {
-        $bits = explode('_', $key, 3);
-        if (count($bits) == 3 && $bits[0] > 0) {
-            list($ecsid, $field, $type) = $bits;
-            if ($field == 'summary') {
-                $value = $value['text'];
+    $coursedata = array();
+    $courselinkdata = array();
+    foreach ($ecslist as $ecsid => $ecsname) {
+        $courselinkdata[$ecsid] = array();
+        $coursedata[$ecsid] = array();
+        foreach (campusconnect_metadata::list_local_fields() as $fieldname) {
+            $fullfieldname = $ecsid.'_'.$fieldname.'_courselink';
+            if (isset($post->{$fullfieldname})) {
+                if ($fieldname == 'summary') {
+                    $courselinkdata[$ecsid][$fieldname] = $post->{$fullfieldname}['text'];
+                } else {
+                    $courselinkdata[$ecsid][$fieldname] = $post->{$fullfieldname};
+                }
             }
-            if ($type == 'external') {
-                if (!isset($externaldata[$ecsid])) {
-                    $externaldata[$ecsid] = array();
+        }
+        foreach (campusconnect_metadata::list_local_fields() as $fieldname) {
+            $fullfieldname = $ecsid.'_'.$fieldname.'_course';
+            if (isset($post->{$fullfieldname})) {
+                if ($fieldname == 'summary') {
+                    $coursedata[$ecsid][$fieldname] = $post->{$fullfieldname}['text'];
+                } else {
+                    $coursedata[$ecsid][$fieldname] = $post->{$fullfieldname};
                 }
-                $externaldata[$ecsid][$field] = $value;
-            } else {
-                if (!isset($internaldata[$ecsid])) {
-                    $internaldata[$ecsid] = array();
-                }
-                $internaldata[$ecsid][$field] = $value;
             }
         }
     }
 
     foreach ($ecslist as $ecsid => $ecsname) {
-        if (isset($internaldata[$ecsid]) || isset($externaldata[$ecsid])) {
+        if (isset($coursedata[$ecsid]) || isset($courselinkdata[$ecsid])) {
             $ecssettings = new campusconnect_ecssettings($ecsid);
-            if (isset($internaldata[$ecsid])) {
+            if (isset($coursedata[$ecsid])) {
                 $metadata = new campusconnect_metadata($ecssettings, false);
-                if (!$metadata->set_import_mappings($internaldata[$ecsid])) {
+                if (!$metadata->set_import_mappings($coursedata[$ecsid])) {
                     list ($errmsg, $errfield) = $metadata->get_last_error();
-                    $errors[$ecsid.'_'.$errfield.'_internal'] = $errmsg;
+                    $errors[$ecsid.'_'.$errfield.'_course'] = $errmsg;
                 }
             }
-            if (isset($externaldata[$ecsid])) {
+            if (isset($courselinkdata[$ecsid])) {
                 $metadata = new campusconnect_metadata($ecssettings, true);
-                if (!$metadata->set_import_mappings($externaldata[$ecsid])) {
+                if (!$metadata->set_import_mappings($courselinkdata[$ecsid])) {
                     list ($errmsg, $errfield) = $metadata->get_last_error();
-                    $errors[$ecsid.'_'.$errfield.'_external'] = $errmsg;
+                    $errors[$ecsid.'_'.$errfield.'_courselink'] = $errmsg;
                 }
             }
 
@@ -87,6 +91,9 @@ if ($mform->is_cancelled()) {
         redirect($redir);
     }
 }
+
+echo $OUTPUT->header();
+echo $OUTPUT->heading(get_string('pluginname', 'local_campusconnect'));
 
 print '<div class="controls"><strong><a href="?type=import">'.get_string('import', 'local_campusconnect').'</a></strong> |
             <a href="?type=export">'.get_string('export', 'local_campusconnect').'</a></div>';
@@ -132,22 +139,22 @@ class campusconnect_import_form extends moodleform {
 
             $ecssettings = new campusconnect_ecssettings($ecsid);
             $metadata = new campusconnect_metadata($ecssettings, false);
-            $localfields = $metadata->list_local_fields();
-            $remotefields = $metadata->list_remote_fields(false);
+            $localfields = campusconnect_metadata::list_local_fields();
             $currentmappings = $metadata->get_import_mappings();
 
             $strunmapped = get_string('unmapped', 'local_campusconnect');
             $strnomappings = get_string('nomappings', 'local_campusconnect');
 
             foreach ($localfields as $localmap) {
-                $elname = $ecsid.'_'.$localmap.'_internal';
+                $elname = $ecsid.'_'.$localmap.'_course';
                 if ($localmap == 'summary') {
                     $mform->addElement('editor', $elname, $localmap);
-                    $mform->setType('fieldname', PARAM_RAW);
+                    $mform->setType($elname, PARAM_RAW);
                     $mform->setDefault($elname, array('text'=>$currentmappings[$localmap], 'format'=>FORMAT_HTML));
                 } else if ($metadata->is_text_field($localmap)) {
                     $mform->addElement('text', $elname, $localmap, $currentmappings[$localmap]);
                     $mform->setDefault($elname, $currentmappings[$localmap]);
+                    $mform->setType($elname, PARAM_RAW);
                 } else {
                     $maparray = $metadata->list_remote_to_local_fields($localmap, false);
                     if ($maparray) {
@@ -166,18 +173,18 @@ class campusconnect_import_form extends moodleform {
             $mform->addElement('html', "<h3>".get_string('externalcourse', 'local_campusconnect')."</h3>");
 
             $metadata = new campusconnect_metadata($ecssettings, true);
-            $localfields = $metadata->list_local_fields();
             $currentmappings = $metadata->get_import_mappings();
 
             foreach ($localfields as $localmap) {
-                $elname = $ecsid.'_'.$localmap.'_external';
+                $elname = $ecsid.'_'.$localmap.'_courselink';
                 if ($localmap == 'summary') {
                     $mform->addElement('editor', $elname, $localmap);
-                    $mform->setType('fieldname', PARAM_RAW);
+                    $mform->setType($elname, PARAM_RAW);
                     $mform->setDefault($elname, array('text'=>$currentmappings[$localmap], 'format'=>FORMAT_HTML));
                 } else if ($metadata->is_text_field($localmap)) {
                     $mform->addElement('text', $elname, $localmap, $currentmappings[$localmap]);
                     $mform->setDefault($elname, $currentmappings[$localmap]);
+                    $mform->setType($elname, PARAM_RAW);
                 } else {
                     $maparray = $metadata->list_remote_to_local_fields($localmap, true);
                     if ($maparray) {

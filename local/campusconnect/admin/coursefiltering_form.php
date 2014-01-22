@@ -99,6 +99,7 @@ class campusconnect_coursefilteringcategory_form extends moodleform {
         $attributes = $this->_customdata['attributes'];
 
         $mform->addElement('hidden', 'categoryid', 0);
+        $mform->setType('categoryid', PARAM_INT);
 
         if (empty($attributes)) {
             $mform->addElement('static', '', '', get_string('noattributes', 'local_campusconnect'));
@@ -121,6 +122,7 @@ class campusconnect_coursefilteringcategory_form extends moodleform {
 
             $mform->addElement('text', "words[$attribute]", $strwords);
             $mform->disabledIf("words[$attribute]", "allwords[$attribute]", 'eq', 1);
+            $mform->setType("words[$attribute]", PARAM_RAW);
 
             $mform->addElement('selectyesno', "createsubdirectories[$attribute]", $strcreatesubdirectories);
             $mform->disabledIf("createsubdirectories[$attribute]", "active[$attribute]", 'eq', 0);

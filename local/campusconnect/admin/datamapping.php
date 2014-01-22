@@ -37,9 +37,6 @@ admin_externalpage_setup('campusconnectdatamapping');
 require_login();
 require_capability('moodle/site:config', get_context_instance(CONTEXT_SYSTEM));
 
-echo $OUTPUT->header();
-echo $OUTPUT->heading(get_string('pluginname', 'local_campusconnect'));
-
 $type = optional_param('type', 'import', PARAM_TEXT);
 if ($type == 'export') {
     include_once($CFG->dirroot.'/local/campusconnect/admin/mapping/export.php');

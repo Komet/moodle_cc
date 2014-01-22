@@ -37,43 +37,48 @@ if ($mform->is_cancelled()) {
 
     redirect($redir);
 
-} else if ($post=$mform->get_data()) {
+} else if ($post = $mform->get_data()) {
 
-    $internaldata = array();
-    $externaldata = array();
-    foreach ($post as $key => $value) {
-        $bits = explode('_', $key, 3);
-        if (count($bits) == 3 && $bits[0] > 0) {
-            list($ecsid, $field, $type) = $bits;
-            if ($type == 'external') {
-                if (!isset($externaldata[$ecsid])) {
-                    $externaldata[$ecsid] = array();
-                }
-                $externaldata[$ecsid][$field] = $value;
-            } else {
-                if (!isset($internaldata[$ecsid])) {
-                    $internaldata[$ecsid] = array();
-                }
-                $internaldata[$ecsid][$field] = $value;
+    $courselinkdata = array();
+    $coursedata = array();
+    foreach ($ecslist as $ecsid => $ecsname) {
+        $courselinkdata[$ecsid] = array();
+        $coursedata[$ecsid] = array();
+        foreach (campusconnect_metadata::list_remote_fields(true) as $fieldname) {
+            $fullfieldname = $ecsid.'_'.$fieldname.'_courselink';
+            if (isset($post->{$fullfieldname})) {
+                $courselinkdata[$ecsid][$fieldname] = $post->{$fullfieldname};
             }
         }
+        /*
+        // No exporting of courses, just course links.
+        foreach (campusconnect_metadata::list_remote_fields(false) as $fieldname) {
+            $fullfieldname = $ecsid.'_'.$fieldname.'_course';
+            if (isset($post->{$fullfieldname})) {
+                $coursedata[$ecsid][$fieldname] = $post->{$fullfieldname};
+            }
+        }
+        */
     }
 
     foreach ($ecslist as $ecsid => $ecsname) {
-        if (isset($internaldata[$ecsid]) || isset($externaldata[$ecsid])) {
+        if (isset($coursedata[$ecsid]) || isset($courselinkdata[$ecsid])) {
             $ecssettings = new campusconnect_ecssettings($ecsid);
-            if (isset($internaldata[$ecsid])) {
+            /*
+            // No exporting of courses, just course links.
+            if (isset($coursedata[$ecsid])) {
                 $metadata = new campusconnect_metadata($ecssettings, false);
-                if (!$metadata->set_export_mappings($internaldata[$ecsid])) {
+                if (!$metadata->set_export_mappings($coursedata[$ecsid])) {
                     list ($errmsg, $errfield) = $metadata->get_last_error();
-                    $errors[$ecsid.'_'.$errfield.'_internal'] = $errmsg;
+                    $errors[$ecsid.'_'.$errfield.'_course'] = $errmsg;
                 }
             }
-            if (isset($externaldata[$ecsid])) {
+            */
+            if (isset($courselinkdata[$ecsid])) {
                 $metadata = new campusconnect_metadata($ecssettings, true);
-                if (!$metadata->set_export_mappings($externaldata[$ecsid])) {
+                if (!$metadata->set_export_mappings($courselinkdata[$ecsid])) {
                     list ($errmsg, $errfield) = $metadata->get_last_error();
-                    $errors[$ecsid.'_'.$errfield.'_external'] = $errmsg;
+                    $errors[$ecsid.'_'.$errfield.'_courselink'] = $errmsg;
                 }
             }
 
@@ -84,6 +89,9 @@ if ($mform->is_cancelled()) {
         redirect($redir);
     }
 }
+
+echo $OUTPUT->header();
+echo $OUTPUT->heading(get_string('pluginname', 'local_campusconnect'));
 
 print '<div class="controls"><a href="?type=import">'.get_string('import', 'local_campusconnect').'</a> |
             <strong><a href="?type=export">'.get_string('export', 'local_campusconnect').'</a></strong></div>';
@@ -115,8 +123,16 @@ class campusconnect_export_form extends moodleform {
             $mform = $this->_form;
 
             $mform->addElement('hidden', 'type', 'export');
+            $mform->setType('type', PARAM_ALPHA);
+
             $mform->addElement('header');
             $mform->addElement('html', "<h2>$ecsname</h2>");
+
+            $strunmapped = get_string('unmapped', 'local_campusconnect');
+            $strnomappings = get_string('nomappings', 'local_campusconnect');
+
+            /*
+            // No exporting of courses, just course links.
             $mform->addElement('html', "<h3>".get_string('course', 'local_campusconnect')."</h3>");
 
             $ecssettings = new campusconnect_ecssettings($ecsid);
@@ -124,20 +140,18 @@ class campusconnect_export_form extends moodleform {
             $remotefields = $metadata->list_remote_fields(false);
             $currentmappings = $metadata->get_export_mappings();
 
-            $strunmapped = get_string('unmapped', 'local_campusconnect');
-            $strnomappings = get_string('nomappings', 'local_campusconnect');
-
             foreach ($remotefields as $remotemap) {
-                $elname = $ecsid.'_'.$remotemap.'_internal';
+                $elname = $ecsid.'_'.$remotemap.'_course';
                 if ($remotemap == 'summary') {
                     $mform->addElement('editor', $elname, $remotemap);
-                    $mform->setType('fieldname', PARAM_RAW);
+                    $mform->setType($elname, PARAM_RAW);
                     $mform->setDefault($elname, array('text'=>$currentmappings[$remotemap], 'format'=>FORMAT_HTML));
                 } else if ($metadata->is_remote_text_field($remotemap, false)) {
                     $mform->addElement('text', $elname, $remotemap);
                     if (isset($currentmappings[$remotemap])) {
                         $mform->setDefault($elname, $currentmappings[$remotemap]);
                     }
+                    $mform->setType($elname, PARAM_RAW);
                 } else {
                     $maparray = $metadata->list_local_to_remote_fields($remotemap, false);
                     if ($maparray) {
@@ -154,6 +168,7 @@ class campusconnect_export_form extends moodleform {
                     }
                 }
             }
+            */
 
             $mform->addElement('html', "<h3>".get_string('externalcourse', 'local_campusconnect')."</h3>");
 
@@ -163,16 +178,17 @@ class campusconnect_export_form extends moodleform {
             $currentmappings = $metadata->get_export_mappings();
 
             foreach ($remotefields as $remotemap) {
-                $elname = $ecsid.'_'.$remotemap.'_external';
+                $elname = $ecsid.'_'.$remotemap.'_courselink';
                 if ($remotemap == 'summary') {
                     $mform->addElement('editor', $elname, $remotemap);
-                    $mform->setType('fieldname', PARAM_RAW);
+                    $mform->setType($elname, PARAM_RAW);
                     $mform->setDefault($elname, array('text'=>$currentmappings[$remotemap], 'format'=>FORMAT_HTML));
                 } else if ($metadata->is_remote_text_field($remotemap, true)) {
                     $mform->addElement('text', $elname, $remotemap);
                     if (isset($currentmappings[$remotemap])) {
                         $mform->setDefault($elname, $currentmappings[$remotemap]);
                     }
+                    $mform->setType($elname, PARAM_RAW);
                 } else {
                     $maparray = $metadata->list_local_to_remote_fields($remotemap, true);
                     if ($maparray) {

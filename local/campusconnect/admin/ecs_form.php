@@ -47,17 +47,23 @@ class campusconnect_ecs_form extends moodleform {
         $mform = $this->_form;
 
         $mform->addElement('hidden', 'id', null);
+        $mform->setType('id', PARAM_INT);
 
         $mform->addElement('header', 'connectionsettings', get_string('connectionsettings', 'local_campusconnect'));
 
         $mform->addElement('selectyesno', 'enabled', get_string('ecsenabled', 'local_campusconnect'));
         $mform->addElement('text', 'name', get_string('name', 'local_campusconnect'));
         $mform->addRule('name', $strrequired, 'required', null, 'client');
+        $mform->setType('name', PARAM_TEXT);
+
         $mform->addElement('text', 'url', get_string('url', 'local_campusconnect'), array('size' => 50));
         $mform->addRule('url', $strrequired, 'required', null, 'client');
+        $mform->setType('url', PARAM_TEXT);
         $mform->addElement('static', 'urldesc', '', get_string('urldesc', 'local_campusconnect'));
+
         $mform->addElement('select', 'protocol', get_string('protocol', 'local_campusconnect'), array('http'=>'HTTP', 'https'=>'HTTPS'));
         $mform->addRule('protocol', $strrequired, 'required', null, 'client');
+
         $mform->addElement('text', 'port', get_string('port', 'local_campusconnect'));
         $mform->setType('port', PARAM_INT);
 
@@ -70,20 +76,31 @@ class campusconnect_ecs_form extends moodleform {
 
         $mform->addElement('text', 'certpath', get_string('clientcertificate', 'local_campusconnect'), array('size' => 70));
         $mform->disabledIf('certpath', 'auth', 'neq', campusconnect_ecssettings::AUTH_CERTIFICATE);
+        $mform->setType('certpath', PARAM_PATH);
+
         $mform->addElement('text', 'keypath', get_string('certificatekey', 'local_campusconnect'), array('size' => 70));
         $mform->disabledIf('keypath', 'auth', 'neq', campusconnect_ecssettings::AUTH_CERTIFICATE);
+        $mform->setType('keypath', PARAM_PATH);
+
         $mform->addElement('password', 'keypass', get_string('keypassword', 'local_campusconnect'));
         $mform->disabledIf('keypass', 'auth', 'neq', campusconnect_ecssettings::AUTH_CERTIFICATE);
+        $mform->setType('keypass', PARAM_RAW);
+
         $mform->addElement('text', 'cacertpath', get_string('cacertificate', 'local_campusconnect'), array('size' => 70));
         $mform->disabledIf('cacertpath', 'auth', 'neq', campusconnect_ecssettings::AUTH_CERTIFICATE);
+        $mform->setType('cacertpath', PARAM_PATH);
 
         $mform->addElement('text', 'httpuser', get_string('username', 'local_campusconnect'));
         $mform->disabledIf('httpuser', 'auth', 'neq', campusconnect_ecssettings::AUTH_HTTP);
+        $mform->setType('httpuser', PARAM_TEXT);
+
         $mform->addElement('text', 'httppass', get_string('password', 'local_campusconnect'));
         $mform->disabledIf('httppass', 'auth', 'neq', campusconnect_ecssettings::AUTH_HTTP);
+        $mform->setType('httppass', PARAM_RAW);
 
         $mform->addElement('text', 'ecsauth', get_string('ecsauth', 'local_campusconnect'));
         $mform->disabledIf('ecsauth', 'auth', 'neq', campusconnect_ecssettings::AUTH_NONE);
+        $mform->setType('ecsauth', PARAM_TEXT);
 
         $mform->addElement('header', 'localsettings', get_string('localsettings', 'local_campusconnect'));
 
@@ -98,7 +115,7 @@ class campusconnect_ecs_form extends moodleform {
         $mform->addElement('text', 'importcategory', get_string('categoryid', 'local_campusconnect'));
         $mform->addElement('static', 'categoryiddesc', '', get_string('categoryiddesc', 'local_campusconnect'));
         $mform->addRule('importcategory', $strrequired, 'required', null, 'client');
-        //$mform->setType('importcategory', PARAM_INT);
+        $mform->setType('importcategory', PARAM_INT);
 
         $mform->addElement('header', 'useraccountsettings', get_string('useraccountsettings', 'local_campusconnect'));
 
@@ -110,15 +127,22 @@ class campusconnect_ecs_form extends moodleform {
 
         $mform->addElement('header', 'notifications', get_string('notifications', 'local_campusconnect'));
 
-        $mform->addElement('text', 'notifyusers', get_string('notifcationaboutecsusers', 'local_campusconnect'), array('size' => 50));
+        $mform->addElement('text', 'notifyusers', get_string('notifcationaboutecsusers', 'local_campusconnect'),
+                           array('size' => 50));
         $mform->addElement('static', 'usernotdesc', '', get_string('usernotificationdesc', 'local_campusconnect'));
-        $mform->addElement('text', 'notifycontent', get_string('notificationaboutnewecontent', 'local_campusconnect'), array('size' => 50));
+        $mform->setType('notifyusers', PARAM_RAW);
+
+        $mform->addElement('text', 'notifycontent', get_string('notificationaboutnewecontent', 'local_campusconnect'),
+                           array('size' => 50));
         $mform->addElement('static', 'contentnotdesc', '', get_string('contentnotificationdesc', 'local_campusconnect'));
-        $mform->addElement('text', 'notifycourses', get_string('notificationaboutapprovedcourses', 'local_campusconnect'), array('size' => 50));
+        $mform->setType('notifycontent', PARAM_RAW);
+
+        $mform->addElement('text', 'notifycourses', get_string('notificationaboutapprovedcourses', 'local_campusconnect'),
+                           array('size' => 50));
         $mform->addElement('static', 'coursenotdesc', '', get_string('coursenotificationdesc', 'local_campusconnect'));
+        $mform->setType('notifycourses', PARAM_RAW);
 
         $this->add_action_buttons();
-
     }
 
     public function validation($data, $files) {
@@ -152,5 +176,4 @@ class campusconnect_ecs_form extends moodleform {
 
         return $errors;
     }
-
 }

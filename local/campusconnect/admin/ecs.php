@@ -109,7 +109,14 @@ if ($data = $form->get_data()) {
         }
     }
     $data->url = $data->protocol.'://'.$url;
-
+    foreach (array('notifyusers', 'notifycontent', 'notifycourses') as $fieldname) {
+        if (!empty($data->{$fieldname})) {
+            $users = explode(',', $data->{$fieldname});
+            $users = clean_param_array($users, PARAM_USERNAME);
+            $users = array_filter($users);
+            $data->{$fieldname} = implode(',', $users);
+        }
+    }
     $ecssettings->save_settings($data);
 
     redirect(new moodle_url('/local/campusconnect/admin/allecs.php'));

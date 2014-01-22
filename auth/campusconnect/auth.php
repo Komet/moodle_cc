@@ -422,12 +422,13 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             'sendupto' => $sendupto
         );
         $sql = "
-        SELECT usr.*
-        FROM {user} usr
-        WHERE usr.auth = :auth
-        AND deleted = 0
-        AND usr.timecreated > :lastsent
-        AND usr.timecreated <= :sendupto
+        SELECT u.*, ac.ecsid
+          FROM {user} u
+          JOIN {auth_campusconnect} ac ON ac.username = u.username
+         WHERE u.auth = :auth
+           AND deleted = 0
+           AND u.timecreated > :lastsent
+           AND u.timecreated <= :sendupto
         ";
         $newusers = $DB->get_records_sql($sql, $params);
         $adminuser = get_admin();
@@ -435,12 +436,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         foreach ($newusers as $newuser) {
             $subject = get_string('newusernotifysubject', 'auth_campusconnect');
             $messagetext = get_string('newusernotifybody', 'auth_campusconnect', $newuser);
-            $usernamesplit = explode('_', $newuser->username);
-            if (!isset($usernamesplit[1]) || substr($usernamesplit[1], 0, 3) != 'ecs') {
-                mtrace(get_string('usernamecantfindecs', 'auth_campusconnect'). ': ' . $newuser->username);
-                continue;
-            }
-            $ecsid = (int)str_replace('ecs', '', $usernamesplit[1]);
+            $ecsid = $newuser->ecsid;
             if (!isset($ecslist[$ecsid])) {
                 mtrace(get_string('usernamecantfindecs', 'auth_campusconnect'). ': ' . $newuser->username);
                 continue;

@@ -588,7 +588,7 @@ class campusconnect_connect {
             break;
 
         case campusconnect_ecssettings::AUTH_CERTIFICATE:
-            $this->set_option(CURLOPT_SSL_VERIFYHOST, 1);
+            $this->set_option(CURLOPT_SSL_VERIFYHOST, 2);
             $this->set_option(CURLOPT_SSL_VERIFYPEER, 1);
             $this->set_option(CURLOPT_CAINFO, $this->settings->get_ca_cert_path());
             $this->set_option(CURLOPT_SSLCERT, $this->settings->get_client_cert_path());

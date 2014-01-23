@@ -29,14 +29,19 @@ require_once($CFG->libdir.'/formslib.php');
 
 class campusconnect_coursefiltering_form extends moodleform {
     protected function definition() {
+        global $CFG;
+
         $mform = $this->_form;
 
         $attributes = $this->_customdata['attributes'];
         $attributescount = $this->_customdata['attributescount'];
 
-        $categorylist = array();
-        $categoryparents = array();
-        make_categories_list($categorylist, $categoryparents);
+        if ($CFG->version < 2013051400) { // M2.5
+            make_categories_list($categorylist, $unused);
+        } else {
+            require_once($CFG->libdir.'/coursecatlib.php');
+            $categorylist = coursecat::make_categories_list();
+        }
 
         // Form elements
         $mform->addElement('header', '', get_string('coursefilteringsettings', 'local_campusconnect'));

@@ -1493,7 +1493,7 @@ class campusconnect_directory {
 
         $ret = '';
 
-        if ($CFG->version < 2013051400) {
+        if ($CFG->version < 2013051400) { // M2.5
             $cats = get_child_categories(0);
         } else {
             $basecat = coursecat::get(0);
@@ -1510,7 +1510,7 @@ class campusconnect_directory {
         global $CFG;
 
         $childcats = '';
-        if ($CFG->version < 2013051400) {
+        if ($CFG->version < 2013051400) { // M2.5
             $cats = get_child_categories($category->id);
         } else {
             $cats = $category->get_children();

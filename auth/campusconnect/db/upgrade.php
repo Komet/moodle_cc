@@ -25,7 +25,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 function xmldb_auth_campusconnect_upgrade($oldversion) {
-    global $DB;
+    global $DB, $CFG;
 
     $dbman = $DB->get_manager();
 
@@ -55,4 +55,36 @@ function xmldb_auth_campusconnect_upgrade($oldversion) {
         // campusconnect savepoint reached
         upgrade_plugin_savepoint(true, 2012111500, 'auth', 'campusconnect');
     }
+
+    if ($oldversion < 2014012200) {
+        // Define field lastenroled to be added to auth_campusconnect.
+        $table = new xmldb_table('auth_campusconnect');
+        $field = new xmldb_field('lastenroled', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'username');
+
+        // Conditionally launch add field lastenroled.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Define index username (unique) to be added to auth_campusconnect.
+        $index = new xmldb_index('username', XMLDB_INDEX_UNIQUE, array('username'));
+
+        // Conditionally launch add index username.
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Campusconnect savepoint reached.
+        upgrade_plugin_savepoint(true, 2014012200, 'auth', 'campusconnect');
+    }
+
+    if ($oldversion < 2014012300) {
+        require_once($CFG->dirroot.'/auth/campusconnect/db/upgradelib.php');
+        auth_campusconnect_populate_lastenroled();
+
+        // Campusconnect savepoint reached.
+        upgrade_plugin_savepoint(true, 2014012300, 'auth', 'campusconnect');
+    }
+
+    return true;
 }

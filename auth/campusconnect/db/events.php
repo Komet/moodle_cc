@@ -13,18 +13,29 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
-
+ 
 /**
- * Version details
+ * List of events handled by this plugin
  *
- * @package    campusconnect
- * @copyright  2012 Synergy Learning
+ * @package   auth_campusconnect
+ * @copyright 2014 Davo Smith, Synergy Learning
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-
+ 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2014012300;        // The current plugin version (Date: YYYYMMDDXX)
-$plugin->requires  = 2011112900;        // Requires this Moodle version
-$plugin->cron      = 300;
-$plugin->component = 'auth_campusconnect';        // Full name of the plugin (used for diagnostics)
-$plugin->dependencies = array('local_campusconnect' => 2012100200);
+$handlers = array(
+    'user_enrolled' => array(
+        'handlerfile' => '/auth/campusconnect/lib.php',
+        'handlerfunction' => 'auth_campusconnect_user_enrolled',
+        'schedule' => 'instant',
+        'internal' => 1
+    ),
+
+    'user_unenrolled' => array(
+        'handlerfile' => '/auth/campusconnect/lib.php',
+        'handlerfunction' => 'auth_campusconnect_user_unenrolled',
+        'schedule' => 'instant',
+        'internal' => 1
+    ),
+);

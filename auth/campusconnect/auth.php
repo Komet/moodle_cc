@@ -289,22 +289,28 @@ class auth_plugin_campusconnect extends auth_plugin_base {
      *
      */
     function prelogout_hook() {
-        global $USER, $DB;
+        global $USER, $DB, $CFG;
         if ($USER->auth != $this->authtype) {
             return;
         }
 
-        //Am I currently enrolled?
-        if(isset($USER->enrol) && isset($USER->enrol['enrolled']) && count($USER->enrol['enrolled'])) {
+        // Am I currently enrolled?
+        if(!empty($USER->enrol['enrolled'])) {
             return;
         }
 
-        //Currently not enrolled - have I ever enrolled in anything?
-        if ($DB->record_exists('log', array('userid' => $USER->id, 'action' => 'enrol'))) {
+        if (!$authrecord = $DB->get_record('auth_campusconnect', array('username' => $USER->username))) {
+            require_once($CFG->dirroot.'/local/campusconnect/log.php');
+            campusconnect_log::add("auth_campusconnect - user '{$USER->username}' missing record in auth_campusconnect database table");
+            return; // Should really exist - log this and move on.
+        }
+
+        // Currently not enrolled - have I ever enrolled in anything?
+        if ($authrecord->lastenroled) {
             return;
         }
 
-        //OK, delete:
+        // OK, delete:
         $user = $DB->get_record('user', array('id' => $USER->id));
         $this->user_dataprotect_delete($user);
     }
@@ -328,30 +334,16 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         global $CFG, $DB;
         require_once($CFG->dirroot.'/local/campusconnect/connect.php');
 
-        //Find users whose session should have expired by now
+        // Find users whose session should have expired by now and haven't ever enroled in a course.
         $params = array(
             'minaccess' => time() - $CFG->sessiontimeout,
-            'auth' => $this->authtype,
         );
         $sql = "
-        SELECT usr.*
-        FROM {user} usr
-        WHERE deleted = 0
-        AND usr.lastaccess < :minaccess
-        AND usr.auth = :auth
-        AND NOT EXISTS (
-          SELECT * FROM {user_enrolments} uen
-          WHERE uen.userid = usr.id
-        )
-        AND NOT EXISTS (
-          SELECT * FROM {log} lg
-          WHERE lg.userid = usr.id
-          AND lg.action = 'enrol'
-        )
-        AND NOT EXISTS (
-          SELECT * FROM {sessions} ssn
-          WHERE ssn.userid = usr.id
-        )
+        SELECT u.id, u.username
+          FROM {user} u
+          JOIN {auth_campusconnect} ac ON ac.username = u.username
+         WHERE u.deleted = 0 AND u.lastaccess < :minaccess
+           AND ac.lastenroled IS NULL
         ";
         $deleteusers = $DB->get_records_sql($sql, $params);
         foreach ($deleteusers as $deleteuser) {
@@ -359,11 +351,11 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             $this->user_dataprotect_delete($deleteuser);
         }
 
-        //Make users who haven't enrolled in a long time inactive
+        // Make users who haven't enrolled in a long time inactive.
         $ecslist = campusconnect_ecssettings::list_ecs();
-        $ecsemails = array(); //We'll need it for later
+        $ecsemails = array(); // We'll need it for later.
         foreach ($ecslist as $ecsid => $ecsname) {
-            //Get the activation period
+            // Get the activation period.
             $settings = new campusconnect_ecssettings($ecsid);
             $monthsago = $settings->get_import_period();
             $month = date('n') - $monthsago;
@@ -377,41 +369,22 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             $sql = "SELECT u.id
                       FROM {user} u
                       JOIN {auth_campusconnect} ac ON u.username = ac.username AND ac.ecsid = :ecsid
-                     WHERE u.suspended = 0 AND u.deleted = 0
-                       AND (
-                         EXISTS (
-                           SELECT *
-                             FROM {user_enrolments} uen
-                            WHERE uen.userid = u.id
-                         ) OR EXISTS (
-                           SELECT *
-                             FROM {log} lg
-                            WHERE lg.userid = u.id
-                              AND lg.action = 'enrol'
-                         )
-                       )
-                       AND NOT EXISTS (
-                         SELECT *
-                           FROM {log} lg2
-                          WHERE lg2.userid = u.id
-                            AND lg2.action = 'enrol'
-                            AND lg2.time > :cutoff
-                       )
+                     WHERE u.suspended = 0 AND u.deleted = 0 AND ac.lastenroled IS NOT NULL AND ac.lastenroled < :cutoff
                    ";
             $params = array('ecsid' => $ecsid, 'cutoff' => $cutoff);
             $userids = $DB->get_fieldset_sql($sql, $params);
             if (!empty($userids)) {
                 list($usql, $params) = $DB->get_in_or_equal($userids);
-                $DB->execute("UPDATE {user} u
+                $DB->execute("UPDATE {user}
                                  SET suspended = 1
-                               WHERE u.id $usql", $params);
+                               WHERE id $usql", $params);
             }
 
             //For later:
             $ecsemails[$ecsid] = $settings->get_notify_users();
         }
 
-        //Notify relevant users about new accounts
+        // Notify relevant users about new accounts.
         if (!$lastsent = get_config('auth_campusconnect', 'lastnewusersemailsent')) {
             $lastsent = 0;
         }
@@ -425,8 +398,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         SELECT u.*, ac.ecsid
           FROM {user} u
           JOIN {auth_campusconnect} ac ON ac.username = u.username
-         WHERE u.auth = :auth
-           AND deleted = 0
+         WHERE deleted = 0
            AND u.timecreated > :lastsent
            AND u.timecreated <= :sendupto
         ";
@@ -512,10 +484,10 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         }
         $DB->update_record('user', $user);
 
-        //Set to deleted:
+        // Set to deleted.
         delete_user($user);
 
-        //Delete logs:
+        // Delete logs.
         $DB->delete_records('log', array('userid' => $user->id));
     }
 

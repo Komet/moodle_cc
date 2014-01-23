@@ -477,8 +477,6 @@ class campusconnect_directorytree {
      *                            ->deleted = array of resourceids deleted
      */
     public static function refresh_from_ecs(campusconnect_ecssettings $ecssettings) {
-        global $DB;
-
         $ret = (object)array('created' => array(), 'updated' => array(), 'deleted' => array(), 'errors' => array());
 
         if (!self::enabled()) {
@@ -1491,9 +1489,16 @@ class campusconnect_directory {
     }
 
     public static function output_category_tree($radioname, $selectedcategory = null) {
+        global $CFG;
+
         $ret = '';
 
-        $cats = get_child_categories(0);
+        if ($CFG->version < 2013051400) {
+            $cats = get_child_categories(0);
+        } else {
+            $basecat = coursecat::get(0);
+            $cats = $basecat->get_children();
+        }
         foreach ($cats as $cat) {
             $ret .= self::output_category_and_children($cat, $radioname, $selectedcategory);
         }
@@ -1502,14 +1507,21 @@ class campusconnect_directory {
     }
 
     public static function output_category_and_children($category, $radioname, $selectedcategory = null) {
+        global $CFG;
+
         $childcats = '';
-        if ($cats = get_child_categories($category->id)) {
+        if ($CFG->version < 2013051400) {
+            $cats = get_child_categories($category->id);
+        } else {
+            $cats = $category->get_children();
+        }
+        if ($cats) {
             foreach ($cats as $cat) {
                 $childcats .= self::output_category_and_children($cat, $radioname, $selectedcategory);
             }
             $childcats = html_writer::tag('ul', $childcats);
         }
-        $ret = s($category->name);
+        $ret = format_string($category->name);
         $elid = $radioname.'-'.$category->id;
         $labelparams = array('for' => $elid,
                              'id' => 'label'.$elid,

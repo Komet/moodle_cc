@@ -380,8 +380,15 @@ class campusconnect_filtering {
      * @return string
      */
     public static function output_category_tree($baseurl, $activecategories, $selectedcategory = null) {
+        global $CFG;
+
         $ret = '';
-        $cats = get_child_categories(0);
+        if ($CFG->version < 2013051400) {
+            $cats = get_child_categories(0);
+        } else {
+            $basecat = coursecat::get(0);
+            $cats = $basecat->get_children();
+        }
         foreach ($cats as $cat) {
             $ret .= self::output_category_and_children($cat, $baseurl, $activecategories, $selectedcategory);
         }
@@ -397,8 +404,15 @@ class campusconnect_filtering {
      * @return string
      */
     protected static function output_category_and_children($category, $baseurl, $activecategories, $selectedcategory = null) {
+        global $CFG;
+
         $childcats = '';
-        if ($cats = get_child_categories($category->id)) {
+        if ($CFG->version < 2013051400) {
+            $cats = get_child_categories($category->id);
+        } else {
+            $cats = $category->get_children();
+        }
+        if ($cats) {
             foreach ($cats as $cat) {
                 $childcats .= self::output_category_and_children($cat, $baseurl, $activecategories, $selectedcategory);
             }

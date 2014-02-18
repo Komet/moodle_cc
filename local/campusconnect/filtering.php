@@ -107,13 +107,14 @@ class campusconnect_filtering {
      * @return int[] the categoryids to create the course in
      */
     public static function find_or_create_categories($coursedata, $attributes, $categoryid) {
-        global $DB;
+        global $DB, $CFG;
 
         if (count($attributes) == 0) {
             return array($categoryid);
         }
 
-        $attribute = array_shift(array_keys($attributes));
+        $attributekeys = array_keys($attributes);
+        $attribute = array_shift($attributekeys);
         $settings = array_shift($attributes);
 
         if ($settings->createsubdirectories) {
@@ -138,7 +139,12 @@ class campusconnect_filtering {
                     $ins->parent = $categoryid;
                     $ins->name = $catname;
                     $ins->sortorder = 999;
-                    $subcatid = $DB->insert_record('course_categories', $ins);
+                    if ($CFG->version < 2013051400) { // M2.5
+                        $subcatid = $DB->insert_record('course_categories', $ins);
+                    } else {
+                        $newcat = coursecat::create($ins);
+                        $subcatid = $newcat->id;
+                    }
                 }
                 $catids = array_merge($catids, self::find_or_create_categories($coursedata, $attributes, $subcatid));
             }

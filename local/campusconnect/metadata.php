@@ -39,34 +39,62 @@ class campusconnect_metadata {
 
     protected static $remotefieldcourselink = array(
         'destinationForDisplay' => 'string',
-        'lang' => 'lang', 'hoursPerWeek' => 'string',
-        'id' => 'string', 'number' => 'string',
-        'term' => 'string', 'credits' => 'string',
-        'status' => 'string', 'courseType' => 'string',
-        'title' => 'string', 'firstDate' => 'date',
-        'datesAndVenues.day' => 'string', 'datesAndVenues.start' => 'date',
-        'datesAndVenues.end' => 'date', 'datesAndVenues.cycle' => 'string',
-        'datesAndVenues.venue' => 'string', 'datesAndVenues.firstDate.startDatetime' => 'date',
-        'datesAndVenues.firstDate.endDatetime' => 'date', 'datesAndVenues.lastDate.startDatetime' => 'date',
-        'datesAndVenues.lastDate.endDatetime' => 'date', 'degreeProgrammes_code' => 'degreelist',
-        'degreeProgrammes_title' => 'degreelist', 'degreeProgrammes' => 'degreelist',
-        'lecturers_lastName' => 'personlist', 'lecturers_firstName' => 'personlist',
-        'lecturers' => 'personlist');
+        'lang' => 'lang',
+        'hoursPerWeek' => 'string',
+        'id' => 'string',
+        'number' => 'string',
+        'term' => 'string',
+        'credits' => 'string',
+        'status' => 'string',
+        'courseType' => 'string',
+        'title' => 'string',
+        'firstDate' => 'date',
+        'datesAndVenues.day' => 'string',
+        'datesAndVenues.start' => 'date',
+        'datesAndVenues.end' => 'date',
+        'datesAndVenues.cycle' => 'string',
+        'datesAndVenues.venue' => 'string',
+        'datesAndVenues.firstDate.startDatetime' => 'date',
+        'datesAndVenues.firstDate.endDatetime' => 'date',
+        'datesAndVenues.lastDate.startDatetime' => 'date',
+        'datesAndVenues.lastDate.endDatetime' => 'date',
+        'degreeProgrammes_code' => 'degreelist',
+        'degreeProgrammes_title' => 'degreelist',
+        'degreeProgrammes' => 'degreelist',
+        'lecturers_lastName' => 'personlist',
+        'lecturers_firstName' => 'personlist',
+        'lecturers' => 'personlist'
+    );
 
     protected static $remotefields = array(
-        'lectureID' => 'string', 'title' => 'string',
-        'organisation' => 'string', 'number' => 'string',
-        'term' => 'string', 'termid' => 'string',
-        'lectureType' => 'string', 'hoursPerWeek' => 'integer',
+        'lectureID' => 'string',
+        'title' => 'string',
+        'organisation' => 'string',
+        'number' => 'string',
+        'term' => 'string',
+        'termid' => 'string',
+        'lectureType' => 'string',
+        'hoursPerWeek' => 'integer',
         'groupScenario' => 'integer',
-        'degreeProgrammes_code' => 'degreelist', 'degreeProgrammes_title' => 'degreelist',
-        'degreeProgrammes' => 'degreelist', 'comment1' => 'string',
-        'comment2' => 'string', 'comment3' => 'string',
-        'recommendedReading' => 'string', 'prerequisites' => 'string',
-        'lectureAssessmentType' => 'string', 'lectureTopics' => 'string',
-        'linkToCurriculum' => 'string', 'targetAudience' => 'string',
-        'links' => 'linklist', 'linkToLecture' => 'link',
-        'modules' => 'moduleslist');
+        'degreeProgrammes_code' => 'degreelist',
+        'degreeProgrammes_title' => 'degreelist',
+        'degreeProgrammes' => 'degreelist',
+        'comment1' => 'string',
+        'comment2' => 'string',
+        'comment3' => 'string',
+        'recommendedReading' => 'string',
+        'organisationalUnits' => 'orglist',
+        'prerequisites' => 'string',
+        'lectureAssessmentType' => 'string',
+        'lectureTopics' => 'string',
+        'linkToCurriculum' => 'string',
+        'targetAudience' => 'string',
+        'links' => 'linklist',
+        'linkToLecture' => 'link',
+        'groups_lecturers' => 'grouplist',
+        'groups' => 'grouplist',
+        'modules' => 'moduleslist'
+    );
     // Note - leaving out fields 'allocations', 'organisationalUnit', 'groups', as there is no obvious place to map these to in Moodle.
 
     // Default import mappings
@@ -543,68 +571,98 @@ class campusconnect_metadata {
             }
             if (isset($details[$basename])) {
                 switch ($fieldtype) {
-                case 'date':
-                    $details[$fieldname] = strtotime($details[$basename]);
-                    break;
-                case 'personlist':
-                    foreach ($details[$basename] as $key => $person) {
-                        if ($subname) {
-                            $details[$fieldname][$key] = $person->{$subname};
-                        } else {
-                            $fakeuser = new stdClass();
-                            $fakeuser->firstname = $person->firstName;
-                            $fakeuser->lastname = $person->lastName;
-                            $details[$fieldname][$key] = fullname($fakeuser);
+                    case 'date':
+                        $details[$fieldname] = strtotime($details[$basename]);
+                        break;
+                    case 'personlist':
+                        foreach ($details[$basename] as $key => $person) {
+                            if ($subname) {
+                                $details[$fieldname][$key] = $person->{$subname};
+                            } else {
+                                $fakeuser = new stdClass();
+                                $fakeuser->firstname = $person->firstName;
+                                $fakeuser->lastname = $person->lastName;
+                                $details[$fieldname][$key] = fullname($fakeuser);
+                            }
                         }
-                    }
-                    if ($flattenarrays) {
-                        $details[$fieldname] = implode(', ', $details[$fieldname]);
-                    }
-                    break;
-                case 'degreelist':
-                    foreach ($details[$basename] as $key => $degree) {
-                        if ($subname) {
-                            $details[$fieldname][$key] = $degree->{$subname};
-                        } else {
-                            $details[$fieldname][$key] = $degree->code.' - '.$degree->title;
+                        if ($flattenarrays) {
+                            $details[$fieldname] = implode(', ', $details[$fieldname]);
                         }
-                    }
-                    if ($flattenarrays) {
-                        $details[$fieldname] = implode(', ', $details[$fieldname]);
-                    }
-                    break;
-                case 'linklist':
-                    foreach ($details[$basename] as $key => $link) {
-                        $details[$fieldname][$key] = html_writer::link($details[$basename][$key]->href, $details[$basename][$key]->title);
-                    }
-                    if ($flattenarrays) {
-                        $details[$fieldname] = implode(', ', $details[$fieldname]);
-                    }
-                    break;
-                case 'moduleslist':
-                    foreach ($details[$basename] as $key => $module) {
-                        $details[$fieldname][$key] = $module->title;
-                    }
-                    if ($flattenarrays) {
-                        $details[$fieldname] = implode(', ', $details[$fieldname]);
-                    }
-                    break;
-                case 'list':
-                    if ($flattenarrays) {
-                        $details[$fieldname] = implode(', ', $details[$basename]);
-                    }
-                    break;
-                case 'link':
-                    $title = (isset($details[$basename]->title)) ? $details[$basename]->title : $details[$basename]->href;
-                    $details[$fieldname] = html_writer::link($details[$basename]->href, $title);
-                    break;
-                case 'lang':
-                    $details[$fieldname] = self::check_lang($details[$fieldname]);
-                    break;
-                case 'url':
-                case 'string':
-                default:
-                    // Nothing to do for these.
+                        break;
+                    case 'orglist':
+                        foreach ($details[$fieldname] as $key => $organisation) {
+                            $details[$fieldname][$key] = $organisation->title;
+                        }
+                        if ($flattenarrays) {
+                            $details[$fieldname] = implode(', ', $details[$fieldname]);
+                        }
+                        break;
+                    case 'grouplist':
+                        if ($subname == 'lecturers') {
+                            $lecturers = array();
+                            foreach ($details[$basename] as $group) {
+                                foreach ($group->lecturers as $lecturer) {
+                                    $fakeuser = (object)array(
+                                        'firstname' => $lecturer->firstName,
+                                        'lastname' => $lecturer->lastName,
+                                    );
+                                    $lecturers[] = fullname($fakeuser);
+                                }
+                            }
+                            $details[$fieldname] = array_unique($lecturers);
+                        } else {
+                            foreach ($details[$basename] as $key => $group) {
+                                $details[$fieldname][$key] = $group->title;
+                            }
+                        }
+                        if ($flattenarrays) {
+                            $details[$fieldname] = implode(', ', $details[$fieldname]);
+                        }
+                        break;
+                    case 'degreelist':
+                        foreach ($details[$basename] as $key => $degree) {
+                            if ($subname) {
+                                $details[$fieldname][$key] = $degree->{$subname};
+                            } else {
+                                $details[$fieldname][$key] = $degree->code.' - '.$degree->title;
+                            }
+                        }
+                        if ($flattenarrays) {
+                            $details[$fieldname] = implode(', ', $details[$fieldname]);
+                        }
+                        break;
+                    case 'linklist':
+                        foreach ($details[$basename] as $key => $link) {
+                            $details[$fieldname][$key] = html_writer::link($details[$basename][$key]->href, $details[$basename][$key]->title);
+                        }
+                        if ($flattenarrays) {
+                            $details[$fieldname] = implode(', ', $details[$fieldname]);
+                        }
+                        break;
+                    case 'moduleslist':
+                        foreach ($details[$basename] as $key => $module) {
+                            $details[$fieldname][$key] = $module->title;
+                        }
+                        if ($flattenarrays) {
+                            $details[$fieldname] = implode(', ', $details[$fieldname]);
+                        }
+                        break;
+                    case 'list':
+                        if ($flattenarrays) {
+                            $details[$fieldname] = implode(', ', $details[$basename]);
+                        }
+                        break;
+                    case 'link':
+                        $title = (isset($details[$basename]->title)) ? $details[$basename]->title : $details[$basename]->href;
+                        $details[$fieldname] = html_writer::link($details[$basename]->href, $title);
+                        break;
+                    case 'lang':
+                        $details[$fieldname] = self::check_lang($details[$fieldname]);
+                        break;
+                    case 'url':
+                    case 'string':
+                    default:
+                        // Nothing to do for these.
                 }
                 if (is_string($details[$fieldname])) {
                     $details[$fieldname] = trim($details[$fieldname]);

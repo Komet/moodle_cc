@@ -73,8 +73,12 @@ class campusconnect_receivequeue {
         // Loop through all the events.
         while ($events = $connect->read_event_fifo()) {
             foreach ($events as $eventdata) {
-                $event = new campusconnect_event($eventdata, $connect->get_ecs_id());
-                $this->add_to_queue($event);
+                try {
+                    $event = new campusconnect_event($eventdata, $connect->get_ecs_id());
+                    $this->add_to_queue($event);
+                } catch (campusconnect_event_exception $e) {
+                    debugging($e->getMessage());
+                }
             }
             $connect->read_event_fifo(true); // Delete the event from ECS.
         }

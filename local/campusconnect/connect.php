@@ -120,6 +120,7 @@ class campusconnect_connect {
         $this->set_memberships($targetmid);
         $this->set_postfields($poststr);
 
+        self::log("add_auth - $targetmid");
         self::log($poststr);
 
         $result = $this->call();
@@ -301,6 +302,7 @@ class campusconnect_connect {
         $this->init_connection('/'.$type, $sendurilist);
         $this->set_postfields($poststr);
 
+        self::log("add_resource $type - $targetcommunityids, $targetmids");
         self::log($poststr);
 
         $this->include_response_header();
@@ -364,6 +366,7 @@ class campusconnect_connect {
             $poststr = json_encode($post);
         }
 
+        self::log("update_resource $id $type - $targetcommunityids, $targetmids");
         self::log($poststr);
 
         fwrite($fp, $poststr);

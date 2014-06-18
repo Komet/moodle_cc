@@ -59,6 +59,15 @@ class campusconnect_connect {
     const HTTP_CODE_CREATED = 201;
     const HTTP_CODE_NOT_FOUND = 404;
 
+    const SENT = 'sent';
+    const RECEIVED = 'received';
+
+    const CONTENT = 'content';
+    const TRANSFERDETAILS = 'transferdetails';
+
+    protected static $validsent = array(self::SENT, self::RECEIVED);
+    protected static $validtransferdetails = array(self::CONTENT, self::TRANSFERDETAILS);
+
     /**
      * Construct a new connection
      * @param campusconnect_ecssettings $settings - the settings for connecting to the ECS server
@@ -211,21 +220,44 @@ class campusconnect_connect {
     /**
      * Get a list of available resources on the remote VLEs
      * @param string $type the type of resource to load (see campusconnect_event for list)
-     * @return mixed campusconnect_uri_list | bool - links to get further details about each resource (false if none)
+     * @param string $sent optional set to campusconnect_connect::SENT to get a list of resources sent out from this
+     *                              site (instead of imported).
+     * @param string $transferdetails optional set to campusconnect_connect::TRANSFERDETAILS to get the transfer details,
+     *                                         instead of the content
+     * @throws coding_exception
+     * @throws campusconnect_connect_exception
+     * @return object|campusconnect_uri_list transfer details OR links to get further details about each resource
      */
-    public function get_resource_list($type) {
+    public function get_resource_list($type, $sent = self::RECEIVED, $transferdetails = self::CONTENT) {
         if (!campusconnect_event::is_valid_resource($type)) {
             throw new coding_exception("get_resource_list: unknown resource type $type");
         }
-        $this->init_connection('/'.$type);
+        if (!in_array($sent, self::$validsent)) {
+            throw new coding_exception("get_resource_list: invalid value for sent: $sent");
+        }
+        if (!in_array($transferdetails, self::$validtransferdetails)) {
+            throw new coding_exception("get_resource_list: invalid value for transferdetails: $transferdetails");
+        }
+        $resourcepath = '/'.$type;
+        if ($transferdetails == self::TRANSFERDETAILS) {
+            $resourcepath .= '/details';
+        }
+        if ($sent == self::SENT) {
+            $resourcepath .= '?sender=true';
+        }
+        $this->init_connection($resourcepath);
 
         $result = $this->call();
         if (!$this->check_status(self::HTTP_CODE_OK)) {
             throw new campusconnect_connect_exception('get_resource_list - bad response: '.$this->get_status());
         }
 
-        $this->check_contenttype('text/uri-list');
+        if ($transferdetails == self::TRANSFERDETAILS) {
+            $this->check_contenttype('application/json');
+            return $this->parse_json($result);
+        }
 
+        $this->check_contenttype('text/uri-list');
         return $this->parse_uri_list($result);
     }
 
@@ -233,19 +265,22 @@ class campusconnect_connect {
      * Get an individual resource
      * @param int $id of the resource to retrieve
      * @param string $type the type of resource to load (see campusconnect_event for list)
-     * @param bool $transferdetails optional - if true then retrieves the delivery
-     *                           details for the resource, false for the contents
+     * @param string $transferdetails optional - if set to campusconnect_connect::TRANSFERDETAILS, then retrieves the
+     *                           delivery details for the resource
      * @return mixed object | campusconnect_details | false - the details retrieved
      */
-    public function get_resource($id, $type, $transferdetails = false) {
+    public function get_resource($id, $type, $transferdetails = self::CONTENT) {
         if (!campusconnect_event::is_valid_resource($type)) {
             throw new coding_exception("get_resource: unknown resource type $type");
+        }
+        if (!in_array($transferdetails, self::$validtransferdetails)) {
+            throw new coding_exception("get_resource_list: invalid value for transferdetails: $transferdetails");
         }
         $resourcepath = '/'.$type;
         if ($id) {
             $resourcepath .= "/$id";
         }
-        if ($transferdetails) {
+        if ($transferdetails == self::TRANSFERDETAILS) {
             $resourcepath .= '/details';
         }
 
@@ -262,7 +297,7 @@ class campusconnect_connect {
             return $this->get_from_uri_list($result);
         }
 
-        if ($transferdetails) {
+        if ($transferdetails == self::TRANSFERDETAILS) {
             return new campusconnect_details($this->parse_json($result));
         } else {
             return $this->parse_json($result);

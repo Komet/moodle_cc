@@ -315,8 +315,10 @@ class campusconnect_membership {
 
         // Go through all the links from the server and compare to what we have locally.
         foreach ($servermemberships->get_ids() as $resourceid) {
-            $details = $connect->get_resource($resourceid, campusconnect_event::RES_COURSE_MEMBERS, false);
-            $transferdetails = $connect->get_resource($resourceid, campusconnect_event::RES_COURSE_MEMBERS, true);
+            $details = $connect->get_resource($resourceid, campusconnect_event::RES_COURSE_MEMBERS,
+                                              campusconnect_connect::CONTENT);
+            $transferdetails = $connect->get_resource($resourceid, campusconnect_event::RES_COURSE_MEMBERS,
+                                                      campusconnect_connect::TRANSFERDETAILS);
 
             // Check if we already have this locally.
             if (isset($memberships[$resourceid])) {

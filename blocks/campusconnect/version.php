@@ -24,10 +24,10 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version = 2012062600;
+$plugin->version = 2014061800;
 $plugin->requires = 2010112400; // Moodle 2.0+
 $plugin->cron = 0; // Does not use cron
 $plugin->component = 'block_campusconnect';
-$plugin->maturity = MATURITY_ALPHA;
-$plugin->release = '2.x (Build: 2012062600)';
+$plugin->maturity = MATURITY_STABLE;
+$plugin->release = '2.x (Build: 2014061800)';
 $plugin->dependencies = array('local_campusconnect' => 2012062700);

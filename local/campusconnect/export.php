@@ -122,7 +122,7 @@ class campusconnect_export {
     /**
      * Returns a list of potential participants to export to. Use $part->display_name()
      * for the name to display and $part->is_exported() to see if it is currently exported
-     * @return array of ecsid_mid => campusconnect_participantsettings
+     * @return campusconnect_participantsettings[]  ecsid_mid => campusconnect_participantsettings
      */
     function list_participants() {
         return $this->exportparticipants;
@@ -420,18 +420,17 @@ class campusconnect_export {
      * Get list of exported courses from ECS - delete any that should not be there any more, create
      * any that should be there and update all others
      * @param campusconnect_connect $connect connection to the ECS to update
+     * @param bool $preview optional true to report the changes needed, but don't make them
      * @return object an object containing: ->created = array of resourceids created
      *                            ->updated = array of resourceids updated
      *                            ->deleted = array of resourceids deleted
      */
-    public static function refresh_ecs(campusconnect_connect $connect) {
+    public static function refresh_ecs(campusconnect_connect $connect, $preview = false) {
         global $DB;
 
         $ret = (object)array('created' => array(), 'updated' => array(), 'deleted' => array());
 
-        return $ret; // This function does not work, as pulling a list of courselinks from the ECS server does not include our links.
-
-/*        // Start by updating ECS with any recent changes.
+        // Start by updating ECS with any recent changes.
         self::update_ecs($connect);
 
         // Get a list of MIDs that this site is known by.
@@ -454,9 +453,10 @@ class campusconnect_export {
         $metadata = new campusconnect_metadata($connect->get_settings());
 
         // Check all the resources on the server against our local list.
-        $resources = $connect->get_resource_list(campusconnect_event::RES_COURSELINK);
+        $resources = $connect->get_resource_list(campusconnect_event::RES_COURSELINK, campusconnect_connect::SENT);
         foreach ($resources->get_ids() as $resourceid) {
-            $transferdetails = $connect->get_resource($resourceid, campusconnect_event::RES_COURSELINK, true);
+            $transferdetails = $connect->get_resource($resourceid, campusconnect_event::RES_COURSELINK,
+                                                      campusconnect_connect::TRANSFERDETAILS);
             if (!$transferdetails->sent_by_me($mymids)) {
                 continue; // Not one of this VLE's resources.
             }
@@ -464,7 +464,9 @@ class campusconnect_export {
             if (!in_array($resourceid, $exportedresourceids)) {
                 // This VLE does not have that course - need remove from ECS.
                 // (Not that this should ever happen).
-                $connect->delete_resource($resourceid, campusconnect_event::RES_COURSELINK);
+                if (!$preview) {
+                    $connect->delete_resource($resourceid, campusconnect_event::RES_COURSELINK);
+                }
                 $ret->deleted[] = $resourceid;
             } else {
                 // Course is present in VLE and on ECS - update with latest details.
@@ -482,8 +484,10 @@ class campusconnect_export {
                 if (!$mids) {
                     // None of the recipients are in the same community any more
                     // => delete the resource from ECS and local export list.
-                    $connect->delete_resource($resourceid, campusconnect_event::RES_COURSELINK);
-                    $DB->delete_records('local_campusconnect_export', array('id' => $exportedcourses[$resourceid]->id));
+                    if (!$preview) {
+                        $connect->delete_resource($resourceid, campusconnect_event::RES_COURSELINK);
+                        $DB->delete_records('local_campusconnect_export', array('id' => $exportedcourses[$resourceid]->id));
+                    }
                     unset($exportedcourses[$resourceid]);
                     $ret->deleted[] = $resourceid;
                 } else {
@@ -492,7 +496,9 @@ class campusconnect_export {
                     $url = new moodle_url('/local/campusconnect/viewcourse.php', array('id' => $course->id));
                     $data->url = $url->out();
 
-                    $connect->update_resource($resourceid, campusconnect_event::RES_COURSELINK, $data, null, $mids);
+                    if (!$preview) {
+                        $connect->update_resource($resourceid, campusconnect_event::RES_COURSELINK, $data, null, $mids);
+                    }
 
                     $exportedcourses[$resourceid]->updated = true;
                     $ret->updated[] = $resourceid;
@@ -515,16 +521,19 @@ class campusconnect_export {
             $url = new moodle_url('/local/campusconnect/viewcourse.php', array('id' => $course->id));
             $data->url = $url->out();
 
-            $resourceid = $connect->add_resource(campusconnect_event::RES_COURSELINK, $data, null, $mids);
+            $resourceid = 0;
+            if (!$preview) {
+                $resourceid = $connect->add_resource(campusconnect_event::RES_COURSELINK, $data, null, $mids);
 
-            $upd = new stdClass();
-            $upd->id = $exportedcourse->id;
-            $upd->resourceid = $resourceid;
-            $DB->update_record('local_campusconnect_export', $upd);
+                $upd = new stdClass();
+                $upd->id = $exportedcourse->id;
+                $upd->resourceid = $resourceid;
+                $DB->update_record('local_campusconnect_export', $upd);
+            }
             $ret->created[] = $resourceid;
         }
 
-        return $ret;*/
+        return $ret;
     }
 
     /**

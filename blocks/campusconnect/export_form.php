@@ -23,12 +23,16 @@
  */
 
 defined('MOODLE_INTERNAL') || die();
-
+global $CFG;
 require_once($CFG->dirroot.'/lib/formslib.php');
 
+/**
+ * Class block_campusconnect_export_form
+ */
 class block_campusconnect_export_form extends moodleform {
     function definition() {
         $mform = $this->_form;
+        /** @var campusconnect_export $export */
         $export = $this->_customdata;
 
         $parts = $export->list_participants();
@@ -47,6 +51,7 @@ class block_campusconnect_export_form extends moodleform {
             }
         }
         $mform->addElement('hidden', 'courseid', $export->get_courseid());
+        $mform->setType('courseid', PARAM_INT);
 
         $this->add_action_buttons();
     }

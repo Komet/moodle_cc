@@ -341,15 +341,18 @@ class campusconnect_courselink {
                     continue; // Skip links that don't match the MID we are interested in.
                 }
                 if (isset($importparticipants[$mid])) {
-                    $details = $connect->get_resource($resourceid, campusconnect_event::RES_COURSELINK, false);
+                    $details = $connect->get_resource($resourceid, campusconnect_event::RES_COURSELINK,
+                                                      campusconnect_connect::CONTENT);
                     self::update($resourceid, $ecssettings, $details, null, $mid);
                     $ret->updated[] = $resourceid;
                     unset($courselinks[$resourceid]); // So we can delete anything left in the list at the end.
                 }
             } else {
                 // We don't already have this link
-                $details = $connect->get_resource($resourceid, campusconnect_event::RES_COURSELINK, false);
-                $transferdetails = $connect->get_resource($resourceid, campusconnect_event::RES_COURSELINK, true);
+                $details = $connect->get_resource($resourceid, campusconnect_event::RES_COURSELINK,
+                                                  campusconnect_connect::CONTENT);
+                $transferdetails = $connect->get_resource($resourceid, campusconnect_event::RES_COURSELINK,
+                                                          campusconnect_connect::TRANSFERDETAILS);
 
                 if (empty($details)) {
                     continue; // This probably shouldn't occur, but we're just going to ignore it.

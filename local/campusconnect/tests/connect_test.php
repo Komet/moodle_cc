@@ -182,7 +182,8 @@ class local_campusconnect_connect_test extends advanced_testcase {
         $this->assertEquals($url, $result->url);
 
         // Get the resource details - should be sent / owned by mid[1] and received by mid[2] & mid[3]
-        $result = $this->connect[1]->get_resource($eid, campusconnect_event::RES_COURSELINK, true);
+        $result = $this->connect[1]->get_resource($eid, campusconnect_event::RES_COURSELINK,
+                                                  campusconnect_connect::TRANSFERDETAILS);
         $this->assertInstanceOf('campusconnect_details', $result);
         $this->assertTrue($result->sent_by_me(array($this->mid[1])));
         $recipientids = array($this->mid[2], $this->mid[3]);
@@ -194,7 +195,8 @@ class local_campusconnect_connect_test extends advanced_testcase {
         $this->connect[1]->delete_resource($eid, campusconnect_event::RES_COURSELINK);
 
         // Check the resource does not exist any more
-        $result = $this->connect[1]->get_resource($eid, campusconnect_event::RES_COURSELINK, false);
+        $result = $this->connect[1]->get_resource($eid, campusconnect_event::RES_COURSELINK,
+                                                  campusconnect_connect::CONTENT);
         $this->assertFalse($result);
     }
 
@@ -285,7 +287,8 @@ class local_campusconnect_connect_test extends advanced_testcase {
         $eid = $this->connect[1]->add_resource(campusconnect_event::RES_COURSELINK, $post, $community);
 
         // Get the resource - should match the details specified at the top of this function
-        $result = $this->connect[2]->get_resource($eid, campusconnect_event::RES_COURSELINK, false);
+        $result = $this->connect[2]->get_resource($eid, campusconnect_event::RES_COURSELINK,
+                                                  campusconnect_connect::CONTENT);
         $this->assertInstanceOf('stdClass', $result);
         $this->assertEquals($url, $result->url);
 
@@ -293,7 +296,8 @@ class local_campusconnect_connect_test extends advanced_testcase {
         $this->connect[1]->update_resource($eid, campusconnect_event::RES_COURSELINK, $post2, $community);
 
         // Get the resource - should match the second set of details
-        $result = $this->connect[2]->get_resource($eid, campusconnect_event::RES_COURSELINK, false);
+        $result = $this->connect[2]->get_resource($eid, campusconnect_event::RES_COURSELINK,
+                                                  campusconnect_connect::CONTENT);
         $this->assertInstanceOf('stdClass', $result);
         $this->assertEquals($url2, $result->url);
 

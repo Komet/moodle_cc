@@ -252,7 +252,8 @@ class campusconnect_receivequeue {
         // Retrieve the resource.
         $connect = new campusconnect_connect($settings);
         $resource = $connect->get_resource($event->get_resource_id(), campusconnect_event::RES_COURSELINK);
-        $details = $connect->get_resource($event->get_resource_id(), campusconnect_event::RES_COURSELINK, true);
+        $details = $connect->get_resource($event->get_resource_id(), campusconnect_event::RES_COURSELINK,
+                                          campusconnect_connect::TRANSFERDETAILS);
 
         // Process the create/update event.
         if ($status == campusconnect_event::STATUS_CREATED) {
@@ -319,7 +320,8 @@ class campusconnect_receivequeue {
         $connect = new campusconnect_connect($settings);
         $resource = $connect->get_resource($event->get_resource_id(), campusconnect_event::RES_DIRECTORYTREE);
         if ($resource) {
-            $details = $connect->get_resource($event->get_resource_id(), campusconnect_event::RES_DIRECTORYTREE, true);
+            $details = $connect->get_resource($event->get_resource_id(), campusconnect_event::RES_DIRECTORYTREE,
+                                              campusconnect_connect::TRANSFERDETAILS);
         } else {
             return true; // The resource no longer exists - assume we will process the 'delete' event in a moment.
         }
@@ -367,7 +369,8 @@ class campusconnect_receivequeue {
         $connect = new campusconnect_connect($settings);
         $resource = $connect->get_resource($event->get_resource_id(), campusconnect_event::RES_COURSE);
         if ($resource) {
-            $details = $connect->get_resource($event->get_resource_id(), campusconnect_event::RES_COURSE, true);
+            $details = $connect->get_resource($event->get_resource_id(), campusconnect_event::RES_COURSE,
+                                              campusconnect_connect::TRANSFERDETAILS);
         } else {
             return true; // The resource no longer exists - assume we will process the 'delete' event in a moment.
         }
@@ -413,7 +416,8 @@ class campusconnect_receivequeue {
         $connect = new campusconnect_connect($settings);
         $resource = $connect->get_resource($event->get_resource_id(), campusconnect_event::RES_COURSE_MEMBERS);
         if ($resource) {
-            $details = $connect->get_resource($event->get_resource_id(), campusconnect_event::RES_COURSE_MEMBERS, true);
+            $details = $connect->get_resource($event->get_resource_id(), campusconnect_event::RES_COURSE_MEMBERS,
+                                              campusconnect_connect::TRANSFERDETAILS);
         } else {
             return true; // The resource no longer exists - assume we will process the 'delete' event in a moment.
         }

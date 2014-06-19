@@ -36,7 +36,6 @@ defined('MOODLE_INTERNAL') || die();
 global $CFG;
 require_once($CFG->dirroot.'/local/campusconnect/connect.php');
 require_once($CFG->dirroot.'/local/campusconnect/event.php');
-require_once($CFG->dirroot.'/local/campusconnect/simpletest/enabledtests.php');
 
 /**
  * Class local_campusconnect_connect_test

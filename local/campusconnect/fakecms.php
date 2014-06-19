@@ -162,14 +162,14 @@ if ($dirid = optional_param('showdir', false, PARAM_INT)) {
 } else if ($crsid = optional_param('showcrs', false, PARAM_INT)) {
     $crs = $connect->get_resource($crsid, campusconnect_event::RES_COURSE);
 
-    $frmdata->crsorganisation = $crs->basicData->organisation;
-    $frmdata->crsid = $crs->basicData->id;
-    $frmdata->crsterm = !empty($crs->basicData->term) ? $crs->basicData->term : '';
-    $frmdata->crstitle = $crs->basicData->title;
-    $frmdata->crstype = !empty($crs->basicData->courseType) ? $crs->basicData->courseType : '';
-    $frmdata->crsmaxpart = !empty($crs->basicData->maxParticipants) ? $crs->basicData->maxParticipants : '';
-    if (isset($crs->basicData->parallelGroupScenario)) {
-        $frmdata->crsparallel = $crs->basicData->parallelGroupScenario;
+    $frmdata->crsorganisation = $crs->organisation;
+    $frmdata->crsid = $crs->lectureID;
+    $frmdata->crsterm = !empty($crs->term) ? $crs->term : '';
+    $frmdata->crstitle = $crs->title;
+    $frmdata->crstype = !empty($crs->courseType) ? $crs->courseType : '';
+    $frmdata->crsmaxpart = !empty($crs->maxParticipants) ? $crs->maxParticipants : '';
+    if (isset($crs->groupScenario)) {
+        $frmdata->crsparallel = $crs->groupScenario;
     }
 
     if (!empty($crs->lecturers)) {
@@ -190,9 +190,9 @@ if ($dirid = optional_param('showdir', false, PARAM_INT)) {
         }
     }
 
-    if (!empty($crs->parallelGroups)) {
+    if (!empty($crs->groups)) {
         $i = 1;
-        foreach ($crs->parallelGroups as $pgroup) {
+        foreach ($crs->groups as $pgroup) {
             $frmdata->crsptitle[$i] = $pgroup->title;
             $frmdata->crspid[$i] = $pgroup->id;
             $frmdata->crspcomment[$i] = $pgroup->comment;
@@ -292,20 +292,18 @@ if ($data = $form->get_data()) {
     } else if (!empty($data->crssubmit)) {
         if ($data->crsaction == 'create' || $data->crsaction == 'update') {
             $crs = (object)array(
-                'basicData' => (object)array(
-                    'organisation' => $data->crsorganisation,
-                    'id' => $data->crsid,
-                    'term' => $data->crsterm,
-                    'title' => $data->crstitle,
-                    'courseType' => $data->crstype,
-                    'maxParticipants' => $data->crsmaxpart,
-                ),
-                'lecturers' => array(),
+                'organisation' => $data->crsorganisation,
+                'lectureID' => $data->crsid,
+                'term' => $data->crsterm,
+                'title' => $data->crstitle,
+                'lectureType' => $data->crstype,
+                //'maxParticipants' => $data->crsmaxpart,
+                //'lecturers' => array(),
                 'allocations' => array(),
-                'parallelGroups' => array(),
+                'groups' => array(),
             );
             if ($data->crsparallel > 0) {
-                $crs->basicData->parallelGroupScenario = $data->crsparallel;
+                $crs->groupScenario = $data->crsparallel;
             }
             for ($i=1; $i<4; $i++) {
                 if (!empty($data->crslecturerfirst[$i]) && !empty($data->crslecturerlast[$i])) {

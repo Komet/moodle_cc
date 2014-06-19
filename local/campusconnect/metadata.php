@@ -601,18 +601,24 @@ class campusconnect_metadata {
                         if ($subname == 'lecturers') {
                             $lecturers = array();
                             foreach ($details[$basename] as $group) {
-                                foreach ($group->lecturers as $lecturer) {
-                                    $fakeuser = (object)array(
-                                        'firstname' => $lecturer->firstName,
-                                        'lastname' => $lecturer->lastName,
-                                    );
-                                    $lecturers[] = fullname($fakeuser);
+                                if (isset($group->lecturers)) {
+                                    foreach ($group->lecturers as $lecturer) {
+                                        $fakeuser = (object)array(
+                                            'firstname' => $lecturer->firstName,
+                                            'lastname' => $lecturer->lastName,
+                                        );
+                                        $lecturers[] = fullname($fakeuser);
+                                    }
                                 }
                             }
                             $details[$fieldname] = array_unique($lecturers);
                         } else {
                             foreach ($details[$basename] as $key => $group) {
-                                $details[$fieldname][$key] = $group->title;
+                                $title = '';
+                                if (isset($group->title)) {
+                                    $title = $group->title;
+                                }
+                                $details[$fieldname][$key] = $title;
                             }
                         }
                         if ($flattenarrays) {

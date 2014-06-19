@@ -31,7 +31,6 @@ require_once($CFG->dirroot.'/local/campusconnect/metadata.php');
 /**
  * Class local_campusconnect_coursemembers_test
  * @group local_campusconnect
- * @group current
  */
 class local_campusconnect_filtering_test extends advanced_testcase {
 
@@ -40,7 +39,6 @@ class local_campusconnect_filtering_test extends advanced_testcase {
     }
 
     public function test_check_filter_match() {
-        return;
 
         // Test a single 'allwords' filter match
         $filter = array(
@@ -134,7 +132,6 @@ class local_campusconnect_filtering_test extends advanced_testcase {
     }
 
     public function test_find_or_create_category() {
-        return;
 
         $basecategory = $this->getDataGenerator()->create_category(array('name' => 'Base category'));
 

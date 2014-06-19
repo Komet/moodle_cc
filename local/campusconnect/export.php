@@ -293,6 +293,13 @@ class campusconnect_export {
 
         require_once($CFG->dirroot.'/local/campusconnect/notify.php');
 
+        $activemids = array();
+        foreach (campusconnect_participantsettings::list_potential_export_participants() as $part) {
+            if ($part->get_ecs_id() == $connect->get_ecs_id()) {
+                $activemids[] = $part->get_mid();
+            }
+        }
+
         // Get a list of all the courses that need updating on the ECS server.
         $updated = $DB->get_records_select('local_campusconnect_export', 'ecsid = :ecsid AND status <> :uptodate',
                                            array('ecsid' => $connect->get_ecs_id(), 'uptodate' => self::STATUS_UPTODATE));
@@ -309,6 +316,14 @@ class campusconnect_export {
                 continue;
             }
 
+            // Make sure we only try to export to participants that existed, last time we checked.
+            $mids = explode(',', $export->mids);
+            $mids = array_intersect($mids, $activemids);
+            if (!$mids) {
+                continue; // Not exporting to any valid mids.
+            }
+            $mids = implode(',', $mids);
+
             // Get the course data & adjust using meta-data mapping rules.
             if (is_null($unittestdata)) {
                 $course = $DB->get_record('course', array('id' => $export->courseid), '*', MUST_EXIST);
@@ -322,7 +337,7 @@ class campusconnect_export {
 
             // Update ECS server.
             if ($export->status == self::STATUS_CREATED) {
-                $resourceid = $connect->add_resource(campusconnect_event::RES_COURSELINK, $data, null, $export->mids);
+                $resourceid = $connect->add_resource(campusconnect_event::RES_COURSELINK, $data, null, $mids);
 
                 campusconnect_notification::queue_message($connect->get_ecs_id(),
                                                           campusconnect_notification::MESSAGE_EXPORT_COURSELINK,
@@ -331,7 +346,7 @@ class campusconnect_export {
                 mtrace("Exported course id $course->id to mids {$export->mids} as resource $resourceid");
             }
             if ($export->status == self::STATUS_UPDATED) {
-                $connect->update_resource($export->resourceid, campusconnect_event::RES_COURSELINK, $data, null, $export->mids);
+                $connect->update_resource($export->resourceid, campusconnect_event::RES_COURSELINK, $data, null, $mids);
 
                 campusconnect_notification::queue_message($connect->get_ecs_id(),
                                                           campusconnect_notification::MESSAGE_EXPORT_COURSELINK,
@@ -448,7 +463,8 @@ class campusconnect_export {
         }
 
         // Get a list of the courses we have exported.
-        $exportedcourses = $DB->get_records('local_campusconnect_export', array('ecsid' => $connect->get_ecs_id()), '', 'resourceid, id, courseid, mids');
+        $exportedcourses = $DB->get_records('local_campusconnect_export', array('ecsid' => $connect->get_ecs_id()), '',
+                                            'resourceid, id, courseid, mids');
         $exportedresourceids = array_keys($exportedcourses);
         $metadata = new campusconnect_metadata($connect->get_settings());
 
@@ -475,11 +491,7 @@ class campusconnect_export {
 
                 // Check all the destination mids are still in the communities.
                 $mids = explode(',', $mids);
-                foreach ($mids as $key => $mid) {
-                    if (!in_array($mid, $knownmids)) {
-                        unset($mids[$key]);
-                    }
-                }
+                $mids = array_intersect($mids, $knownmids);
                 $mids = implode(',', $mids);
                 if (!$mids) {
                     // None of the recipients are in the same community any more
@@ -515,6 +527,15 @@ class campusconnect_export {
             // Course not found on ECS - add it (should not happen).
             $courseid = $exportedcourse->courseid;
             $mids = $exportedcourse->mids;
+
+            // Check all the destination mids are still in the communities.
+            $mids = explode(',', $mids);
+            $mids = array_intersect($mids, $knownmids);
+            $mids = implode(',', $mids);
+
+            if (!$mids) {
+                continue;
+            }
 
             $course = $DB->get_record('course', array('id' => $courseid));
             $data = $metadata->map_course_to_remote($course);

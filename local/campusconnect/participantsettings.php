@@ -44,6 +44,7 @@ class campusconnect_participantsettings {
     protected $importtype = self::IMPORT_LINK;
 
     protected $displayname = null; // Constructed from the community name + part name
+    protected $active = 1;
 
     // Settings loaded from the ECS server.
     protected $name = null;
@@ -179,6 +180,7 @@ class campusconnect_participantsettings {
             foreach (self::$validsettings as $setting) {
                 $ins->$setting = $this->$setting; // Set all the defaults from this class.
             }
+            $this->active = $ins->active = 1;
             $this->recordid = $DB->insert_record('local_campusconnect_part', $ins);
         }
     }
@@ -387,7 +389,7 @@ class campusconnect_participantsettings {
         if (isset($settings->id)) {
             // The settings came from the database.
             $this->recordid = $settings->id;
-            $dbsettings = array('mid', 'ecsid', 'displayname');
+            $dbsettings = array('mid', 'ecsid', 'displayname', 'active');
             foreach ($dbsettings as $fieldname) {
                 if (isset($settings->$fieldname)) {
                     $this->$fieldname = $settings->$fieldname;
@@ -415,6 +417,40 @@ class campusconnect_participantsettings {
     }
 
     /**
+     * Check the participant is part of an active ECS.
+     * @return bool
+     */
+    public function is_active() {
+        return campusconnect_ecssettings::is_active_ecs($this->ecsid) && $this->active;
+    }
+
+    /**
+     * Participant found during the last check of the ECS server, so mark as currently active (if not already).
+     */
+    public function set_active() {
+        global $DB;
+        if (!$this->active) {
+            $this->active = 1;
+            if ($this->recordid) {
+                $DB->set_field('local_campusconnect_part', 'active', 1, array('id' => $this->recordid));
+            }
+        }
+    }
+
+    /**
+     * Participant was NOT found during the last check of the ECS server, so mark as inactive.
+     */
+    public function set_inactive() {
+        global $DB;
+        if ($this->active) {
+            $this->active = 0;
+            if ($this->recordid) {
+                $DB->set_field('local_campusconnect_part', 'active', 0, array('id' => $this->recordid));
+            }
+        }
+    }
+
+    /**
      * Get a list of all the participants in all the ECS that we are able to
      * export courses to
      * @return campusconnect_participantsettings[] indexed by ecsid_mid
@@ -425,7 +461,9 @@ class campusconnect_participantsettings {
         $ret = array();
         foreach ($parts as $part) {
             $participant = new campusconnect_participantsettings($part);
-            $ret[$participant->get_identifier()] = $participant;
+            if ($participant->is_active()) {
+                $ret[$participant->get_identifier()] = $participant;
+            }
         }
         return $ret;
     }
@@ -437,10 +475,13 @@ class campusconnect_participantsettings {
      * @return array details of the communities
      */
     public static function load_communities(campusconnect_ecssettings $ecssettings) {
+        global $DB;
+
         $connect = new campusconnect_connect($ecssettings);
         $communities = $connect->get_memberships();
         $ecsid = $ecssettings->get_id();
 
+        $missingmids = $DB->get_records_menu('local_campusconnect_part', array('active' => 1, 'ecsid' => $ecsid), '', 'mid, id');
         $resp = array();
         foreach ($communities as $community) {
             $comm = new stdClass();
@@ -452,10 +493,18 @@ class campusconnect_participantsettings {
                 $mid = $participant->mid;
                 $participant->communityname = $comm->name;
                 $part = new campusconnect_participantsettings($ecsid, $mid, $participant);
+                $part->set_active();
                 $comm->participants[$part->get_identifier()] = $part;
+                unset($missingmids[$mid]);
             }
 
             $resp[$community->community->cid] = $comm;
+        }
+
+        // Deactivate any participants that were not found in the communities.
+        foreach ($missingmids as $mid => $recordid) {
+            $part = new campusconnect_participantsettings($ecsid, $mid);
+            $part->set_inactive();
         }
 
         return $resp;
@@ -492,7 +541,7 @@ class campusconnect_participantsettings {
             $sql = "SELECT p.*
                       FROM {local_campusconnect_part} p
                       JOIN {local_campusconnect_ecs} e ON p.ecsid = e.id
-                     WHERE e.enabled = 1 AND p.import = 1 AND p.importtype = :importtype";
+                     WHERE e.enabled = 1 AND p.active = 1 AND p.import = 1 AND p.importtype = :importtype";
             $participant = $DB->get_records_sql($sql, array('importtype' => self::IMPORT_CMS));
             if (count($participant) > 1) {
                 throw new coding_exception('There should only ever be one participant set to IMPORT_CMS');

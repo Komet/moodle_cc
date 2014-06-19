@@ -38,7 +38,6 @@ global $CFG;
 require_once($CFG->dirroot.'/local/campusconnect/course.php');
 require_once($CFG->dirroot.'/local/campusconnect/directorytree.php');
 require_once($CFG->dirroot.'/local/campusconnect/membership.php');
-require_once($CFG->dirroot.'/local/campusconnect/simpletest/enabledtests.php');
 
 /**
  * Class local_campusconnect_coursemembers_test
@@ -251,6 +250,7 @@ class local_campusconnect_coursemembers_test extends advanced_testcase {
             'importtype' => campusconnect_participantsettings::IMPORT_CMS,
         );
         $DB->insert_record('local_campusconnect_part', $part);
+        campusconnect_participantsettings::get_cms_participant(true); // Reset the cached 'cms participant' value.
 
         // Create the directories for the courses + map on to categories.
         $dirtree = new campusconnect_directorytree();

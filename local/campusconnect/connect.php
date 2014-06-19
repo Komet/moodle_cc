@@ -228,7 +228,8 @@ class campusconnect_connect {
      * @throws campusconnect_connect_exception
      * @return object|campusconnect_uri_list transfer details OR links to get further details about each resource
      */
-    public function get_resource_list($type, $sent = self::RECEIVED, $transferdetails = self::CONTENT) {
+    public function get_resource_list($type, $sent = campusconnect_connect::RECEIVED,
+                                      $transferdetails = campusconnect_connect::CONTENT) {
         if (!campusconnect_event::is_valid_resource($type)) {
             throw new coding_exception("get_resource_list: unknown resource type $type");
         }

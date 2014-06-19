@@ -79,6 +79,8 @@ class campusconnect_ecssettings {
                                      'notifycontent' => 'notifycontent',
                                      'notifycourses' => 'notifycourses');
 
+    protected static $activeecs = null;
+
     /**
      * Initialise a settings object
      * @param int $ecsid optional - the ID of the ECS to load settings for
@@ -97,6 +99,18 @@ class campusconnect_ecssettings {
             $params['enabled'] = 1;
         }
         return $DB->get_records_menu('local_campusconnect_ecs', $params, 'name, id', 'id, name');
+    }
+
+    /**
+     * Check if the given ECS is currently active.
+     * @param int $ecsid
+     * @return bool
+     */
+    public static function is_active_ecs($ecsid) {
+        if (self::$activeecs === null) {
+            self::$activeecs = array_keys(self::list_ecs(true));
+        }
+        return in_array($ecsid, self::$activeecs);
     }
 
     public function get_id() {

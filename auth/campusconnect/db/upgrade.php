@@ -86,5 +86,21 @@ function xmldb_auth_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2014012300, 'auth', 'campusconnect');
     }
 
+    if ($oldversion < 2014061900) {
+
+        // Define field pid to be added to auth_campusconnect.
+        $table = new xmldb_table('auth_campusconnect');
+        $field = new xmldb_field('pid', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'ecsid');
+
+        // Conditionally launch add field pid.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Campusconnect savepoint reached.
+        upgrade_plugin_savepoint(true, 2014061900, 'auth', 'campusconnect');
+    }
+
+
     return true;
 }

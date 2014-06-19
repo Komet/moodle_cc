@@ -105,9 +105,6 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         self::log("Destination URL: {$SESSION->wantsurl}");
 
         require_once($CFG->dirroot.'/local/campusconnect/connect.php');
-        $connecterrors = false;
-        $authenticated = false;
-        $ecslist = campusconnect_ecssettings::list_ecs();
         $authenticatingecs = null;
         if (!empty($paramassoc['ecs_hash_url'])) {
             self::log("ecs_hash_url found: {$paramassoc['ecs_hash_url']}");
@@ -122,36 +119,8 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             $baseurl = $matches[1];
             $hash = $matches[2];
 
-            $ecslist = campusconnect_ecssettings::list_ecs();
-            foreach ($ecslist as $ecsid => $ecsname) {
-                $settings = new campusconnect_ecssettings($ecsid);
-                self::log("Comparing hash URL: {$baseurl} with ECS server '$ecsname' ($ecsid): ".$settings->get_url());
-                if (self::strip_port($settings->get_url()) == self::strip_port($baseurl)) {
-                    // Found an ECS with matching URL - attempt to authenticate the hash.
-                    try {
-                        $connect = new campusconnect_connect($settings);
-                        $auth = $connect->get_auth($hash);
-                        self::log("Checking hash against ECS server:");
-                        self::log_print_r($auth);
-                        if (is_object($auth) && isset($auth->hash) && $auth->hash == $hash) {
-                            if (isset($auth->realm)) {
-                                $realm = campusconnect_connect::generate_realm($courseurl, $paramassoc);
-                                if ($realm != $auth->realm) {
-                                    self::log("Locally generated realm: {$realm} does not match auth realm: {$auth->realm}");
-                                    continue; // Params do not match those when the original hash was generated.
-                                }
-                            } else {
-                                self::log("Realm not included in auth response");
-                            }
-                            $authenticated = true;
-                            $authenticatingecs = $ecsid;
-                            break;
-                        }
-                    } catch (campusconnect_connect_exception $e) {
-                        $connecterrors = true;
-                    }
-                }
-            }
+            list($authenticatingecs, $pid, $connecterrors) =
+                self::check_authentication($baseurl, $hash, $courseurl, $paramassoc);
 
         } else {
 
@@ -163,36 +132,12 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             $hash = $paramassoc['ecs_hash'];
             self::log("ecs_hash found: {$hash}");
 
-            foreach ($ecslist as $ecsid => $ecsname) {
-                self::log("Attempting to authenticate hash against '{$ecsname}' ($ecsid)");
-                // Try each of the active ECS and see if the hash authenticates.
-                $settings = new campusconnect_ecssettings($ecsid);
-                try {
-                    $connect = new campusconnect_connect($settings);
-                    $auth = $connect->get_auth($hash);
-                    self::log_print_r($auth);
-                    if (is_object($auth) && isset($auth->hash) && ($auth->hash == $hash)) {
-                        if (isset($auth->realm)) {
-                            $realm = campusconnect_connect::generate_realm($courseurl, $paramassoc);
-                            if ($realm != $auth->realm) {
-                                self::log("Locally generated realm: {$realm} does not match auth realm: {$auth->realm}");
-                                continue;
-                            }
-                        } else {
-                            self::log("Realm not included in auth response");
-                        }
-                        $authenticated = true;
-                        $authenticatingecs = $ecsid;
-                        break;
-                    }
-                } catch (campusconnect_connect_exception $e) {
-                    $connecterrors = true;
-                }
-            }
+            list($authenticatingecs, $pid, $connecterrors) =
+                self::check_authentication(null, $hash, $courseurl, $paramassoc);
         }
 
         //Throw an error only if a connection exception was thrown and the user wasn't authenticated by any other ECS
-        if (!$authenticated) {
+        if (!$authenticatingecs) {
             if ($connecterrors) {
                 print_error('ecserror_subject', 'local_campusconnect');
             }
@@ -214,8 +159,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             self::log("ecs_login not found in destination URL");
             return;
         }
-        $username = $this->username_from_params($paramassoc['ecs_institution'], $paramassoc['ecs_login'], $uidhash,
-                                                $authenticatingecs);
+        $username = $this->username_from_params($paramassoc['ecs_institution'], $paramassoc['ecs_login'], $uidhash, $authenticatingecs, $pid);
         $basicuserfields = array('firstname', 'lastname', 'email');
 
         self::log("Authentication successful");
@@ -262,6 +206,75 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         $frm = (object)array('username' => $ccuser->username, 'password' => '');
         $user = clone($ccuser);
         auth_plugin_campusconnect::$authenticateduser = clone($ccuser);
+    }
+
+    /**
+     * Check against each ECS to see if any of them can authenticate the user.
+     *
+     * @param string|null $baseurl
+     * @param string $hash
+     * @param string $courseurl
+     * @param array $paramassoc
+     * @return array [$authenticatingecs, $pid, $connecterrors] - $authenticatingecs is null if not authenticated.
+     */
+    protected static function check_authentication($baseurl, $hash, $courseurl, $paramassoc) {
+        $authenticatingecs = null;
+        $pid = null;
+        $connecterrors = false;
+
+        $ecslist = campusconnect_ecssettings::list_ecs();
+        foreach ($ecslist as $ecsid => $ecsname) {
+            $settings = new campusconnect_ecssettings($ecsid);
+            if ($baseurl) {
+                self::log("Comparing hash URL: {$baseurl} with ECS server '$ecsname' ($ecsid): ".$settings->get_url());
+            } else {
+                self::log("Attempting to authenticate hash against '{$ecsname}' ($ecsid)");
+            }
+            if (!$baseurl || self::strip_port($settings->get_url()) == self::strip_port($baseurl)) {
+                // Found an ECS with matching URL - attempt to authenticate the hash.
+                try {
+                    $connect = new campusconnect_connect($settings);
+                    $auth = $connect->get_auth($hash);
+                    self::log("Checking hash against ECS server:");
+                    self::log_print_r($auth);
+                    if (is_object($auth) && isset($auth->hash) && $auth->hash == $hash) {
+                        if (isset($auth->realm)) {
+                            $realm = campusconnect_connect::generate_realm($courseurl, $paramassoc);
+                            if ($realm != $auth->realm) {
+                                self::log("Locally generated realm: {$realm} does not match auth realm: {$auth->realm}");
+                                continue; // Params do not match those when the original hash was generated.
+                            }
+                        } else {
+                            self::log("Realm not included in auth response");
+                        }
+                        $now = time();
+                        if (isset($auth->sov)) {
+                            $sov = strtotime($auth->sov);
+                            if ($sov && $sov > $now) {
+                                self::log("Start of validation timestamp ({$auth->sov} = {$sov}) is after the current time ({$now})");
+                                continue;
+                            }
+                        }
+                        if (isset($auth->eov)) {
+                            $eov = strtotime($auth->eov);
+                            if ($eov && $eov < $now) {
+                                self::log("End of validation timestamp ({$auth->eov} = {$eov}) is before the current time ({$now})");
+                                continue;
+                            }
+                        }
+                        if (isset($auth->pid)) {
+                            $pid = $auth->pid;
+                        }
+                        $authenticatingecs = $ecsid;
+                        break;
+                    }
+                } catch (campusconnect_connect_exception $e) {
+                    $connecterrors = true;
+                }
+            }
+        }
+
+        return array($authenticatingecs, $pid, $connecterrors);
     }
 
     /**
@@ -435,13 +448,18 @@ class auth_plugin_campusconnect extends auth_plugin_base {
      * @param string $username
      * @param string $uidhash - an 'ecs_uid_hash' from the url params
      * @param int $ecsid - the ECS that authenticated the user
+     * @param int $pid - the ID of the participant the user came from
      * @return string
      */
-    private function username_from_params($institution, $username, $uidhash, $ecsid) {
+    private function username_from_params($institution, $username, $uidhash, $ecsid, $pid) {
         global $DB;
 
         // See if we already know about this user.
-        if ($ecsuser = $DB->get_record('auth_campusconnect', array('ecsid' => $ecsid, 'ecs_uid' => $uidhash))) {
+        if ($ecsuser = $DB->get_record('auth_campusconnect', array('ecs_uid' => $uidhash))) {
+            if ($pid && $ecsuser->pid != $pid) {
+                // Update an old record that doesn't contain the user's PID.
+                $DB->set_field('auth_campusconnect', 'pid', $pid, array('id' => $ecsuser->id));
+            }
             return $ecsuser->username; // User has previously authenticated here - just return their previous username.
         }
 
@@ -459,6 +477,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         // Record the username for future reference.
         $ins = new stdClass();
         $ins->ecsid = $ecsid;
+        $ins->pid = $pid;
         $ins->ecs_uid = $uidhash;
         $ins->username = $finalusername;
         $ins->id = $DB->insert_record('auth_campusconnect', $ins);

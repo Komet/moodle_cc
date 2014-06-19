@@ -336,6 +336,11 @@ class campusconnect_export {
             $data->url = $url->out();
 
             // Update ECS server.
+            if ($export->status == self::STATUS_UPDATED) {
+                if (!$connect->get_resource($export->resourceid, campusconnect_event::RES_COURSELINK)) {
+                    $export->status = self::STATUS_CREATED; // Resource not found => create a new resource.
+                }
+            }
             if ($export->status == self::STATUS_CREATED) {
                 $resourceid = $connect->add_resource(campusconnect_event::RES_COURSELINK, $data, null, $mids);
 
@@ -532,7 +537,6 @@ class campusconnect_export {
             $mids = explode(',', $mids);
             $mids = array_intersect($mids, $knownmids);
             $mids = implode(',', $mids);
-
             if (!$mids) {
                 continue;
             }

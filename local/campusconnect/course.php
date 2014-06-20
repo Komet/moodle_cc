@@ -996,27 +996,9 @@ class campusconnect_course_url {
             return; // Not updating the ECS that the CMS is on.
         }
 
-        $allcourseids = array();
-        $courseurls = $DB->get_records_select('local_campusconnect_crs', 'ecsid = ? AND urlstatus <> ?',
-                                              array($connect->get_ecs_id(), self::STATUS_UPTODATE), 'resourceid');
-        // Loop throught he courseurls and combine together those that match a single resourceid
-        /** @var stdClass $lasturl */
-        $lasturl = null;
-        foreach ($courseurls as $key => $courseurl) {
-            $allcourseids[] = $courseurl->courseid;
-            if ($lasturl && $lasturl->resourceid == $courseurl->resourceid) {
-                $lasturl->courseids[] = $courseurl->courseid;
-                unset($courseurls[$key]);
-            } else {
-                $courseurl->courseids = array($courseurl->courseid);
-                $lasturl = $courseurl;
-            }
-        }
-        $courses = array();
-        if ($allcourseids) {
-            list($csql, $params) = $DB->get_in_or_equal($allcourseids);
-            $courses = $DB->get_records_select_menu('course', "id {$csql}", $params, '', 'id, fullname');
-        }
+        // Find all crs records which need the URL updating, then load all crs records with matching resourceids
+        // (as all alternative URLs need including in the course URL response).
+        $courseurls = self::get_urls_to_export($connect->get_ecs_id(), false);
 
         // Update/create all the courseurl resources on the ECS server.
         foreach ($courseurls as $courseurl) {
@@ -1032,18 +1014,7 @@ class campusconnect_course_url {
             }
 
             // Prepare the course_url data object
-            $moodleurls = array();
-            foreach ($courseurl->courseids as $courseid) {
-                $moodleurl = new moodle_url('/course/view.php', array('id' => $courseid));
-                $moodleurls[] = (object)array(
-                    'title' => isset($courses[$courseid]) ? $courses[$courseid] : '-',
-                    'url' => $moodleurl->out(),
-                );
-            }
-            $data = new stdClass();
-            $data->cms_course_id = $courseurl->cmsid.''; // Convert to string if 'NULL'
-            $data->ecs_course_url = $connect->get_resource_url($courseurl->resourceid, campusconnect_event::RES_COURSE);
-            $data->lms_course_urls = $moodleurls;
+            $data = self::prepare_courseurl_data($courseurl, $connect);
 
             if ($courseurl->urlstatus == self::STATUS_UPDATED) {
                 if (!$courseurl->resourceid) {
@@ -1060,14 +1031,17 @@ class campusconnect_course_url {
                 $connect->update_resource($courseurl->urlresourceid, campusconnect_event::RES_COURSE_URL, $data, null, $cms->get_mid());
             }
 
-            // Update local crs record.
+            // Update all local crs records associated with this courseurl.
             $upd = new stdClass();
-            $upd->id = $courseurl->id;
             $upd->urlstatus = self::STATUS_UPTODATE;
+            $upd->urlresourceid = $courseurl->urlresourceid;
             if (!empty($urlresourceid)) {
                 $upd->urlresourceid = $urlresourceid;
             }
-            $DB->update_record('local_campusconnect_crs', $upd);
+            foreach ($courseurl->ids as $id) {
+                $upd->id = $id;
+                $DB->update_record('local_campusconnect_crs', $upd);
+            }
         }
     }
 
@@ -1107,30 +1081,15 @@ class campusconnect_course_url {
             }
         }
 
-        // Get a list of the course urls we have exported.
-        $exportedcourseurls = $DB->get_records_select('local_campusconnect_crs', "ecsid = :ecsid AND urlresourceid <> 0",
-                                                      array('ecsid' => $connect->get_ecs_id()), 'resourceid',
-                                                      'urlresourceid, id, courseid, cmsid, resourceid');
-        $exportedresourceids = array_keys($exportedcourseurls);
+        // Get a list of the course URLS, as they all should all be exported.
+        $exportedcourseurls = self::get_urls_to_export($connect->get_ecs_id(), false);
 
-        $allcourseids = array();
-        // Loop throught he courseurls and combine together those that match a single resourceid
-        /** @var stdClass $lasturl */
-        $lasturl = null;
-        foreach ($exportedcourseurls as $key => $courseurl) {
-            $allcourseids[] = $courseurl->courseid;
-            if ($lasturl && $lasturl->resourceid == $courseurl->resourceid) {
-                $lasturl->courseids[] = $courseurl->courseid;
-                unset($exportedcourseurls[$key]);
-            } else {
-                $courseurl->courseids = array($courseurl->courseid);
-                $lasturl = $courseurl;
+        // Index the exported URLs by resourceid, so they can be looked up below.
+        $mapping = array();
+        foreach ($exportedcourseurls as $courseurl) {
+            if ($courseurl->urlresourceid) {
+                $mapping[$courseurl->urlresourceid] = $courseurl->id;
             }
-        }
-        $courses = array();
-        if ($allcourseids) {
-            list($csql, $params) = $DB->get_in_or_equal($allcourseids);
-            $courses = $DB->get_records_select_menu('course', "id {$csql}", $params, '', 'id, fullname');
         }
 
         // Check all the resources on the server against our local list.
@@ -1141,73 +1100,143 @@ class campusconnect_course_url {
                 continue; // Not one of this VLE's resources.
             }
 
-            if (!in_array($resourceid, $exportedresourceids)) {
+            if (!isset($mapping[$resourceid])) {
                 // This VLE does not have that course url - need remove from ECS.
                 // (Not that this should ever happen).
                 $connect->delete_resource($resourceid, campusconnect_event::RES_COURSE_URL);
                 $ret->deleted[] = $resourceid;
             } else {
                 // Course url is present in VLE and on ECS - update with latest details.
-                $courseids = $exportedcourseurls[$resourceid]->courseids;
-                $cmsid = $exportedcourseurls[$resourceid]->cmsid;
-                $courseresourceid = $exportedcourseurls[$resourceid]->resourceid;
+                $courseurl = $exportedcourseurls[$mapping[$resourceid]];
 
                 // Prepare the course_url data object
-                $moodleurls = array();
-                foreach ($courseids as $courseid) {
-                    $moodleurl = new moodle_url('/course/view.php', array('id' => $courseid));
-                    $moodleurls[] = (object)array(
-                        'title' => isset($courses[$courseid]) ? $courses[$courseid] : '-',
-                        'url' => $moodleurl->out(),
-                    );
-                }
-                $data = new stdClass();
-                $data->cms_course_id = $cmsid.''; // Convert to string if 'NULL'
-                $data->ecs_course_url = $connect->get_resource_url($courseresourceid, campusconnect_event::RES_COURSE);
-                $data->lms_course_url = $moodleurls;
+                $data = self::prepare_courseurl_data($courseurl, $connect);
 
                 $connect->update_resource($resourceid, campusconnect_event::RES_COURSE_URL, $data, null, $cms->get_mid());
 
-                $exportedcourseurls[$resourceid]->updated = true;
+                $courseurl->updated = true;
                 $ret->updated[] = $resourceid;
             }
         }
 
         // Check for any course urls that were not found on the ECS.
-        foreach ($exportedcourseurls as $exportedcourseurl) {
-            if (!empty($exportedcourseurl->updated)) {
+        foreach ($exportedcourseurls as $courseurl) {
+            if (!empty($courseurl->updated)) {
                 continue; // Already updated.
             }
 
             // Course not found on ECS - add it (should not happen).
-            $courseids = $exportedcourseurl->courseids;
-            $cmsid = $exportedcourseurl->cmsid;
-            $courseresourceid = $exportedcourseurl->resourceid;
 
             // Prepare the course_url data object
-            $moodleurls = array();
-            foreach ($courseids as $courseid) {
-                $moodleurl = new moodle_url('/course/view.php', array('id' => $courseid));
-                $moodleurls[] = (object)array(
-                    'title' => isset($courses[$courseid]) ? $courses[$courseid] : '-',
-                    'url' => $moodleurl->out(),
-                );
-            }
-            $data = new stdClass();
-            $data->cms_course_id = $cmsid.''; // Convert to string if 'NULL'
-            $data->ecs_course_url = $connect->get_resource_url($courseresourceid, campusconnect_event::RES_COURSE);
-            $data->lms_course_url = $moodleurls;
-
+            $data = self::prepare_courseurl_data($courseurl, $connect);
             $resourceid = $connect->add_resource(campusconnect_event::RES_COURSE_URL, $data, null, $cms->get_mid());
 
+            // Update all local crs records associated with this url resource.
             $upd = new stdClass();
-            $upd->id = $exportedcourseurl->id;
             $upd->urlresourceid = $resourceid;
-            $DB->update_record('local_campusconnect_crs', $upd);
+            foreach ($courseurl->ids as $id) {
+                $upd->id = $id;
+                $DB->update_record('local_campusconnect_crs', $upd);
+            }
             $ret->created[] = $resourceid;
         }
 
         return $ret;
+    }
+
+    /**
+     * Gets the details of the course urls that need exporting
+     *
+     * @param int $ecsid
+     * @param bool $onlyupdated (optional) set to false to retrieve all course URLs
+     * @return object[]
+     */
+    protected static function get_urls_to_export($ecsid, $onlyupdated = true) {
+        global $DB;
+
+        $select = 'ecsid = :ecsid';
+        $params = array('ecsid' => $ecsid);
+        if ($onlyupdated) {
+            $select .= ' AND urlstatus <> :uptodate';
+            $params['uptodate'] = self::STATUS_UPTODATE;
+        }
+
+        $allcourseids = array();
+        $updatedresourceids = $DB->get_fieldset_select('local_campusconnect_crs', 'resourceid', $select, $params);
+        if (!$updatedresourceids) {
+            return array(); // Nothing to export.
+        }
+
+        // Note, internal links are not exported, as they are not separate courses, from the point of view of the external CMS.
+        list($rsql, $params) = $DB->get_in_or_equal($updatedresourceids, SQL_PARAMS_NAMED);
+        $courseurls = $DB->get_records_select('local_campusconnect_crs', "resourceid $rsql AND internallink = 0", $params, 'resourceid');
+
+        // Loop throught he courseurls and combine together those that match a single resourceid
+        /** @var stdClass $lasturl */
+        $lasturl = null;
+        foreach ($courseurls as $key => $courseurl) {
+            $allcourseids[] = $courseurl->courseid;
+            if ($lasturl && $lasturl->resourceid == $courseurl->resourceid) {
+                // Sorted by 'resourceid', so they can be easily grouped by that value.
+                $lasturl->courses[] = (object)array('id' => $courseurl->courseid);
+                $lasturl->ids[] = $courseurl->id;
+                if (!$lasturl->urlresourceid) {
+                    // Make sure we keep the existing urlresourceid record.
+                    $lasturl->urlresourceid = $courseurl->urlresourceid;
+                } else {
+                    if ($courseurl->urlresourceid && $lasturl->urlresourceid != $courseurl->urlresourceid) {
+                        debugging('Mulitple urlresourceids found for a set of parallel groups - these will be combined');
+                    }
+                }
+                unset($courseurls[$key]);
+            } else {
+                $courseurl->courses = array((object)array('id' => $courseurl->courseid));
+                $courseurl->ids = array($courseurl->id);
+                $lasturl = $courseurl;
+            }
+        }
+        $courses = array();
+        if ($allcourseids) {
+            list($csql, $params) = $DB->get_in_or_equal($allcourseids);
+            $courses = $DB->get_records_select_menu('course', "id {$csql}", $params, '', 'id, fullname');
+        }
+
+        // Match up the course ids with their names.
+        foreach ($courseurls as $courseurl) {
+            foreach ($courseurl->courses as $course) {
+                if (isset($courses[$course->id])) {
+                    $course->fullname = $courses[$course->id]->fullname;
+                } else {
+                    $course->fullname = '-';
+                }
+            }
+        }
+
+        return $courseurls;
+    }
+
+    /**
+     * Convert the courseurl data into an object that can be sent to the ECS
+     *
+     * @param object $courseurl
+     * @param campusconnect_connect $connect
+     * @return stdClass
+     */
+    protected static function prepare_courseurl_data($courseurl, campusconnect_connect $connect) {
+        $moodleurls = array();
+        foreach ($courseurl->courses as $course) {
+            $moodleurl = new moodle_url('/course/view.php', array('id' => $course->id));
+            $moodleurls[] = (object)array(
+                'title' => $course->fullname,
+                'url' => $moodleurl->out(),
+            );
+        }
+        $data = new stdClass();
+        $data->cms_course_id = $courseurl->cmsid.''; // Convert to string if 'NULL'
+        $data->ecs_course_url = $connect->get_resource_url($courseurl->resourceid, campusconnect_event::RES_COURSE);
+        $data->lms_course_urls = $moodleurls;
+
+        return $data;
     }
 
     /**

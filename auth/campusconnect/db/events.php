@@ -38,4 +38,11 @@ $handlers = array(
         'schedule' => 'instant',
         'internal' => 1
     ),
+
+    'user_updated' => array(
+        'handlerfile' => '/auth/campusconnect/lib.php',
+        'handlerfunction' => 'auth_campusconnect_user_updated',
+        'schedule' => 'instant',
+        'internal' => 1
+    ),
 );

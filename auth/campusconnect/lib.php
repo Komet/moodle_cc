@@ -86,4 +86,34 @@ function auth_campusconnect_user_unenrolled($eventdata) {
     return true;
 }
 
-// TODO davo - handle user update events: check for user's 'suspended' status changing and send message about all enroled courses.
+/**
+ * Handle user updated events and check for users becoming suspended (or unsuspended).
+ *
+ * @param object $user
+ * @return bool
+ */
+function auth_campusconnect_user_updated($user) {
+    global $CFG, $DB;
+
+    if ($user->auth != 'campusconnect') {
+        return true;  // Only interested in users who authenticated via Campus Connect.
+    }
+
+    require_once($CFG->dirroot.'/local/campusconnect/enrolment.php');
+    $oldsuspended = $DB->get_field('auth_campusconnect', 'suspended', array('username' => $user->username));
+    if ($oldsuspended && !$user->suspended) {
+        $status = campusconnect_enrolment::STATUS_ACTIVE; // User no longer suspended - mark all enrolments as active.
+    } else if (!$oldsuspended && $user->suspended) {
+        $status = campusconnect_enrolment::STATUS_INACTIVE; // User is now suspended - mark all enrolments as inactive.
+    } else {
+        return true; // No change in suspended status.
+    }
+    $DB->set_field('auth_campusconnect', 'suspended', $user->suspended, array('username' => $user->username));
+
+    // Update status for all courses the user is enroled in.
+    foreach (enrol_get_all_users_courses($user->id) as $course) {
+        campusconnect_enrolment::set_status($course->id, $user, $status);
+    }
+
+    return true;
+}

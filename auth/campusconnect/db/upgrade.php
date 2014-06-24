@@ -147,6 +147,20 @@ function xmldb_auth_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2014062001, 'auth', 'campusconnect');
     }
 
+    if ($oldversion < 2014062400) {
+
+        // Define field suspended to be added to auth_campusconnect.
+        $table = new xmldb_table('auth_campusconnect');
+        $field = new xmldb_field('suspended', XMLDB_TYPE_INTEGER, '2', null, null, null, '0', 'personidtype');
+
+        // Conditionally launch add field suspended.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Campusconnect savepoint reached.
+        upgrade_plugin_savepoint(true, 2014062400, 'auth', 'campusconnect');
+    }
 
     return true;
 }

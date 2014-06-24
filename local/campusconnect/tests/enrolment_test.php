@@ -40,7 +40,6 @@ require_once($CFG->dirroot.'/local/campusconnect/enrolment.php');
 /**
  * Class local_campusconnect_enrolment_test
  * @group local_campusconnect
- * @group current
  */
 class local_campusconnect_enrolment_test extends advanced_testcase {
     /** @var campusconnect_connect[] */

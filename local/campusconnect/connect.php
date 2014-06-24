@@ -816,6 +816,6 @@ class campusconnect_connect {
             return;
         }
         require_once($CFG->dirroot.'/local/campusconnect/log.php');
-        campusconnect_log::add($msg, false, false);
+        campusconnect_log::add($msg, false, false, false);
     }
 }

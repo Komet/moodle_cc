@@ -105,6 +105,8 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         self::log("Destination URL: {$SESSION->wantsurl}");
 
         require_once($CFG->dirroot.'/local/campusconnect/connect.php');
+        require_once($CFG->dirroot.'/local/campusconnect/enrolment.php');
+
         $authenticatingecs = null;
         if (!empty($paramassoc['ecs_hash_url'])) {
             self::log("ecs_hash_url found: {$paramassoc['ecs_hash_url']}");
@@ -119,7 +121,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             $baseurl = $matches[1];
             $hash = $matches[2];
 
-            list($authenticatingecs, $pid, $connecterrors) =
+            list($authenticatingecs, $participantid, $connecterrors) =
                 self::check_authentication($baseurl, $hash, $courseurl, $paramassoc);
 
         } else {
@@ -132,7 +134,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             $hash = $paramassoc['ecs_hash'];
             self::log("ecs_hash found: {$hash}");
 
-            list($authenticatingecs, $pid, $connecterrors) =
+            list($authenticatingecs, $participantid, $connecterrors) =
                 self::check_authentication(null, $hash, $courseurl, $paramassoc);
         }
 
@@ -159,7 +161,8 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             self::log("ecs_login not found in destination URL");
             return;
         }
-        $username = $this->username_from_params($paramassoc['ecs_institution'], $paramassoc['ecs_login'], $uidhash, $authenticatingecs, $pid);
+        $username = $this->username_from_params($paramassoc['ecs_institution'], $paramassoc['ecs_login'], $uidhash,
+                                                campusconnect_enrolment::PERSON_UID, $authenticatingecs, $participantid);
         $basicuserfields = array('firstname', 'lastname', 'email');
 
         self::log("Authentication successful");
@@ -219,7 +222,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
      */
     protected static function check_authentication($baseurl, $hash, $courseurl, $paramassoc) {
         $authenticatingecs = null;
-        $pid = null;
+        $participantid = null;
         $connecterrors = false;
 
         $ecslist = campusconnect_ecssettings::list_ecs();
@@ -263,7 +266,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
                             }
                         }
                         if (isset($auth->pid)) {
-                            $pid = $auth->pid;
+                            $participantid = $auth->pid;
                         }
                         $authenticatingecs = $ecsid;
                         break;
@@ -274,7 +277,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             }
         }
 
-        return array($authenticatingecs, $pid, $connecterrors);
+        return array($authenticatingecs, $participantid, $connecterrors);
     }
 
     /**
@@ -391,6 +394,11 @@ class auth_plugin_campusconnect extends auth_plugin_base {
                 $DB->execute("UPDATE {user}
                                  SET suspended = 1
                                WHERE id $usql", $params);
+                // Trigger an event for all users.
+                foreach ($DB->get_recordset_list('user', 'id', $userids) as $user) {
+                    session_kill_user($user->id); // Just in case the user is currently logged in.
+                    events_trigger('user_updated', $user);
+                }
             }
 
             //For later:
@@ -446,16 +454,17 @@ class auth_plugin_campusconnect extends auth_plugin_base {
      * Generate Moodle username from an array of query parameters and ECS id
      * @param string $institution
      * @param string $username
-     * @param string $uidhash - an 'ecs_uid_hash' from the url params
+     * @param string $personid - the unique identifier from the URL params
+     * @param string $personidtype - the type of unique identifier used
      * @param int $ecsid - the ECS that authenticated the user
      * @param int $pid - the ID of the participant the user came from
      * @return string
      */
-    private function username_from_params($institution, $username, $uidhash, $ecsid, $pid) {
+    private function username_from_params($institution, $username, $personid, $personidtype, $ecsid, $pid) {
         global $DB;
 
         // See if we already know about this user.
-        if ($ecsuser = $DB->get_record('auth_campusconnect', array('ecs_uid' => $uidhash))) {
+        if ($ecsuser = $DB->get_record('auth_campusconnect', array('personid' => $personid, 'personidtype' => $personidtype))) {
             if ($pid && $ecsuser->pid != $pid) {
                 // Update an old record that doesn't contain the user's PID.
                 $DB->set_field('auth_campusconnect', 'pid', $pid, array('id' => $ecsuser->id));
@@ -478,7 +487,8 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         $ins = new stdClass();
         $ins->ecsid = $ecsid;
         $ins->pid = $pid;
-        $ins->ecs_uid = $uidhash;
+        $ins->personid = $personid;
+        $ins->personidtype = $personidtype;
         $ins->username = $finalusername;
         $ins->id = $DB->insert_record('auth_campusconnect', $ins);
 
@@ -513,18 +523,14 @@ class auth_plugin_campusconnect extends auth_plugin_base {
     protected static function log($msg) {
         global $CFG;
 
-        if ($CFG->debug == DEBUG_DEVELOPER) {
-            require_once($CFG->dirroot.'/local/campusconnect/log.php');
-            campusconnect_log::add($msg, false, false);
-        }
+        require_once($CFG->dirroot.'/local/campusconnect/log.php');
+        campusconnect_log::add($msg, true, false, false);
     }
 
     protected static function log_print_r($obj) {
         global $CFG;
 
-        if ($CFG->debug == DEBUG_DEVELOPER) {
-            require_once($CFG->dirroot.'/local/campusconnect/log.php');
-            campusconnect_log::add_object($obj, false, false);
-        }
+        require_once($CFG->dirroot.'/local/campusconnect/log.php');
+        campusconnect_log::add_object($obj, true, false);
     }
 }

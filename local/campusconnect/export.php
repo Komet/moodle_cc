@@ -106,6 +106,27 @@ class campusconnect_export {
     }
 
     /**
+     * Check if the course is exported to the given participant.
+     *
+     * @param int $ecsid
+     * @param int|int[] $mid
+     * @return bool
+     */
+    function is_exported_to($ecsid, $mid) {
+        if (!is_array($mid)) {
+            $mid = array($mid);
+        }
+        foreach ($this->exportparticipants as $part) {
+            if ($part->get_ecs_id() == $ecsid && in_array($part->get_mid(), $mid)) {
+                if ($part->is_exported()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
      * List all the participants this course is currently exported to.
      * @return array of ecsid_mid => campusconnect_participantsettings
      */
@@ -332,8 +353,7 @@ class campusconnect_export {
             }
             $metadata = new campusconnect_metadata($connect->get_settings());
             $data = $metadata->map_course_to_remote($course);
-            $url = new moodle_url('/local/campusconnect/viewcourse.php', array('id' => $course->id));
-            $data->url = $url->out();
+            $data->url = self::get_course_url($course);
 
             // Update ECS server.
             if ($export->status == self::STATUS_UPDATED) {
@@ -510,8 +530,7 @@ class campusconnect_export {
                 } else {
                     $course = $DB->get_record('course', array('id' => $courseid));
                     $data = $metadata->map_course_to_remote($course);
-                    $url = new moodle_url('/local/campusconnect/viewcourse.php', array('id' => $course->id));
-                    $data->url = $url->out();
+                    $data->url = self::get_course_url($course);
 
                     if (!$preview) {
                         $connect->update_resource($resourceid, campusconnect_event::RES_COURSELINK, $data, null, $mids);
@@ -543,8 +562,7 @@ class campusconnect_export {
 
             $course = $DB->get_record('course', array('id' => $courseid));
             $data = $metadata->map_course_to_remote($course);
-            $url = new moodle_url('/local/campusconnect/viewcourse.php', array('id' => $course->id));
-            $data->url = $url->out();
+            $data->url = self::get_course_url($course);
 
             $resourceid = 0;
             if (!$preview) {
@@ -627,5 +645,26 @@ class campusconnect_export {
             $exports[] = new campusconnect_export($courseid);
         }
         return $exports;
+    }
+
+    /**
+     * Return the course url to use in the exported course_link + enrolment_status resources.
+     * @param $course
+     * @return \moodle_url
+     */
+    public static function get_course_url($course) {
+        $url = new moodle_url('/local/campusconnect/viewcourse.php', array('id' => $course->id));
+        return $url->out();
+    }
+
+    /**
+     * Return the courseID for use in the enrolment_status resource.
+     * @param object $course
+     * @param campusconnect_connect $connect
+     */
+    public static function get_course_id($course, $connect) {
+        $metadata = new campusconnect_metadata($connect->get_settings());
+        $data = $metadata->map_course_to_remote($course);
+        return $data->id;
     }
 }

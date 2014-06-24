@@ -39,6 +39,7 @@ class campusconnect_participantsettings {
     protected $ecsid = null;
     /** @var int $mid */
     protected $mid = null;
+    protected $pid = null;
     protected $export = false;
     protected $import = false;
     protected $importtype = self::IMPORT_LINK;
@@ -62,6 +63,8 @@ class campusconnect_participantsettings {
     protected static $validsettings = array('export', 'import', 'importtype');
     protected static $ecssettings = array('name', 'description', 'dns', 'email', 'org', 'orgabbr', 'communityname', 'itsyou');
 
+    protected static $pidtomid = null;
+
     /**
      * @param mixed $ecsidordata either the ID of the ECS or an object containing
      *                           the settings record loaded from the database
@@ -69,6 +72,8 @@ class campusconnect_participantsettings {
      * @param object $extradetails details about the participant loaded from the ECS
      */
     public function __construct($ecsidordata, $mid = null, $extradetails = null) {
+        global $DB;
+
         if (is_object($ecsidordata)) {
             // Data already loaded from database - store it.
             $this->set_settings($ecsidordata);
@@ -90,6 +95,11 @@ class campusconnect_participantsettings {
                     $this->$name = $value;
                 }
             }
+            // Save the PID, if not already recorded.
+            if (!empty($extradetails->pid) && $extradetails->pid != $this->pid) {
+                $this->pid = $extradetails->pid;
+                $DB->set_field('local_campusconnect_part', 'pid', $this->pid, array('id' => $this->recordid));
+            }
 
             $this->set_display_name();
         }
@@ -101,6 +111,10 @@ class campusconnect_participantsettings {
 
     public function get_mid() {
         return $this->mid;
+    }
+
+    public function get_pid() {
+        return $this->pid;
     }
 
     public function get_identifier() {
@@ -211,7 +225,7 @@ class campusconnect_participantsettings {
     }
 
     public function save_settings($settings) {
-        global $DB;
+        global $DB, $CFG;
 
         $settings = (array)$settings; // Avoid updating passed-in objects
         $settings = (object)$settings;
@@ -285,6 +299,7 @@ class campusconnect_participantsettings {
 
             // Import state changed - need to update all course links
             if (isset($settings->import)) {
+                require_once($CFG->dirroot.'/local/campusconnect/courselink.php');
                 if ($settings->import) {
                     campusconnect_courselink::refresh_from_participant($this->ecsid, $this->mid);
                 } else {
@@ -294,6 +309,7 @@ class campusconnect_participantsettings {
             }
 
             if (isset($settings->export)) {
+                require_once($CFG->dirroot.'/local/campusconnect/export.php');
                 if ($settings->export) {
                     // Nothing to do here - will be updated at next cron.
                 } else {
@@ -389,7 +405,7 @@ class campusconnect_participantsettings {
         if (isset($settings->id)) {
             // The settings came from the database.
             $this->recordid = $settings->id;
-            $dbsettings = array('mid', 'ecsid', 'displayname', 'active');
+            $dbsettings = array('mid', 'ecsid', 'pid', 'displayname', 'active');
             foreach ($dbsettings as $fieldname) {
                 if (isset($settings->$fieldname)) {
                     $this->$fieldname = $settings->$fieldname;
@@ -554,5 +570,37 @@ class campusconnect_participantsettings {
         }
 
         return $participant;
+    }
+
+    /**
+     * Given an ECSID and PID, returns the MID[s] that participant is known by from the point of view of this VLE (if any).
+     *
+     * @param int $ecsid
+     * @param int $pid
+     * @return int[]
+     */
+    public static function get_mids_from_pid($ecsid, $pid) {
+        global $DB;
+
+        if (self::$pidtomid === null) {
+            self::$pidtomid = array();
+            foreach ($DB->get_records('local_campusconnect_part', null, '', 'id, ecsid, mid, pid') as $part) {
+                if (!$part->pid) {
+                    continue;
+                }
+                if (!isset(self::$pidtomid[$part->ecsid])) {
+                    self::$pidtomid[$part->ecsid] = array();
+                }
+                if (!isset(self::$pidtomid[$part->ecsid][$part->pid])) {
+                    self::$pidtomid[$part->ecsid][$part->pid] = array();
+                }
+                self::$pidtomid[$part->ecsid][$part->pid][] = $part->mid;
+            }
+        }
+
+        if (isset(self::$pidtomid[$ecsid][$pid])) {
+            return self::$pidtomid[$ecsid][$pid];
+        }
+        return array();
     }
 }

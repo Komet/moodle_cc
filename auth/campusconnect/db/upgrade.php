@@ -101,6 +101,52 @@ function xmldb_auth_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2014061900, 'auth', 'campusconnect');
     }
 
+    if ($oldversion < 2014062000) {
+
+        // Define field personidtype to be added to auth_campusconnect.
+        $table = new xmldb_table('auth_campusconnect');
+        $field = new xmldb_field('personidtype', XMLDB_TYPE_CHAR, '40', null, XMLDB_NOTNULL, null, 'ecs_uid', 'lastenroled');
+
+        // Conditionally launch add field personidtype.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Campusconnect savepoint reached.
+        upgrade_plugin_savepoint(true, 2014062000, 'auth', 'campusconnect');
+    }
+
+    if ($oldversion < 2014062001) {
+
+        // Remove the index on ecs_uid.
+        $table = new xmldb_table('auth_campusconnect');
+        $index = new xmldb_index('ecs_uid', XMLDB_INDEX_UNIQUE, array('ecs_uid'));
+
+        // Conditionally launch drop index ecs_uid.
+        if ($dbman->index_exists($table, $index)) {
+            $dbman->drop_index($table, $index);
+        }
+
+        // Rename field ecs_uid to personid.
+        $field = new xmldb_field('ecs_uid', XMLDB_TYPE_CHAR, '60', null, null, null, null, 'pid');
+
+        // Launch rename field ecs_uid.
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->rename_field($table, $field, 'personid');
+        }
+
+        // Create a new index on personid + personidtype.
+        $index = new xmldb_index('personid', XMLDB_INDEX_UNIQUE, array('personid', 'personidtype'));
+
+        // Conditionally launch add index ecs_uid.
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Campusconnect savepoint reached.
+        upgrade_plugin_savepoint(true, 2014062001, 'auth', 'campusconnect');
+    }
+
 
     return true;
 }

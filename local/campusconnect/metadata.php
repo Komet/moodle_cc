@@ -721,7 +721,7 @@ class campusconnect_metadata {
                             $val = '';
                         }
                         if (is_array($val)) {
-                            campusconnect_log::add("Unexpected array in field $remotefield", true, true);
+                            campusconnect_log::add("Unexpected array in field $remotefield", false, true, true);
                             $field = implode(',', $field);
                         }
                         $course->$localfield = str_replace('{'.$field.'}', $val, $course->$localfield);

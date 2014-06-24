@@ -484,10 +484,10 @@ class campusconnect_courselink {
      * @return array
      */
     protected static function get_user_data($user) {
-        global $CFG, $SITE;
+        global $SITE, $CFG;
+        require_once($CFG->dirroot.'/local/campusconnect/enrolment.php');
 
-        $siteid = substr(sha1($CFG->wwwroot), 0, 8); // Generate a unique ID from the site URL
-        $uid_hash = 'moodle_'.$siteid.'_usr_'.$user->id;
+        $uid_hash = self::get_user_personid($user, campusconnect_enrolment::PERSON_UID);
         $userdata = array('ecs_login' => $user->username,
                           'ecs_firstname' => $user->firstname,
                           'ecs_lastname' => $user->lastname,
@@ -499,6 +499,60 @@ class campusconnect_courselink {
         }
 
         return $userdata;
+    }
+
+    /**
+     * Generate the personid from the user and personid type.
+     *
+     * @param object $user
+     * @param string $personidtype
+     * @return string
+     * @throws coding_exception
+     */
+    public static function get_user_personid($user, $personidtype) {
+        global $CFG;
+        require_once($CFG->dirroot.'/local/campusconnect/enrolment.php');
+
+        switch ($personidtype) {
+            case campusconnect_enrolment::PERSON_UID:
+                $siteid = substr(sha1($CFG->wwwroot), 0, 8); // Generate a unique ID from the site URL
+                $personid = 'moodle_'.$siteid.'_usr_'.$user->id;
+                break;
+            default:
+                throw new coding_exception("Unsupported personidtype: {$personidtype}");
+        }
+
+        return $personid;
+    }
+
+    /**
+     * Get the user object from the personid
+     *
+     * @param string $personid
+     * @param string $personidtype
+     * @return null|object the user object, or null if not found
+     */
+    public static function get_user_from_personid($personid, $personidtype) {
+        global $CFG, $DB;
+
+        $user = null;
+        switch ($personidtype) {
+            case campusconnect_enrolment::PERSON_UID:
+                $siteid = substr(sha1($CFG->wwwroot), 0, 8); // Generate a unique ID from the site URL
+                $personidprefix = 'moodle_'.$siteid.'_usr_';
+                if (substr($personid, 0, strlen($personidprefix)) == $personidprefix) {
+                    if ($userid = intval(substr($personid, strlen($personidprefix)))) {
+                        if (!$user = $DB->get_record('user', array('id' => $userid))) {
+                            $user = null;
+                        }
+                    }
+                }
+                break;
+            default:
+                debugging("Unsupported personidtype: {$personidtype}");
+        }
+
+        return $user;
     }
 
     /**
@@ -610,9 +664,7 @@ class campusconnect_courselink {
     protected static function log($msg) {
         global $CFG;
 
-        if ($CFG->debug == DEBUG_DEVELOPER) {
-            require_once($CFG->dirroot.'/local/campusconnect/log.php');
-            campusconnect_log::add($msg, false, false);
-        }
+        require_once($CFG->dirroot.'/local/campusconnect/log.php');
+        campusconnect_log::add($msg, true, false, false);
     }
 }

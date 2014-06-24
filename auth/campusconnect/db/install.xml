@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="auth/campusconnect/db" VERSION="20140619" COMMENT="XMLDB file for Moodle auth/campusconnect"
+<XMLDB PATH="auth/campusconnect/db" VERSION="20140620" COMMENT="XMLDB file for Moodle auth/campusconnect"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -9,16 +9,17 @@
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="ecsid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="pid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Participant ID of the participant the user came from"/>
-        <FIELD NAME="ecs_uid" TYPE="char" LENGTH="60" NOTNULL="false" SEQUENCE="false" COMMENT="The UID by which the user is known on the remote system"/>
+        <FIELD NAME="personid" TYPE="char" LENGTH="60" NOTNULL="false" SEQUENCE="false" COMMENT="The UID by which the user is known on the remote system"/>
         <FIELD NAME="username" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="The generated username for this user"/>
         <FIELD NAME="lastenroled" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="The timestamp for when the user last enroled in a course"/>
+        <FIELD NAME="personidtype" TYPE="char" LENGTH="40" NOTNULL="true" DEFAULT="ecs_uid" SEQUENCE="false" COMMENT="The type of personid that was sent when the user was first authenticated."/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
         <KEY NAME="ecsid" TYPE="foreign" FIELDS="ecsid" REFTABLE="local_campusconnect_ecs" REFFIELDS="id"/>
       </KEYS>
       <INDEXES>
-        <INDEX NAME="ecs_uid" UNIQUE="true" FIELDS="ecs_uid"/>
+        <INDEX NAME="personid" UNIQUE="true" FIELDS="personid, personidtype"/>
         <INDEX NAME="username" UNIQUE="true" FIELDS="username"/>
       </INDEXES>
     </TABLE>

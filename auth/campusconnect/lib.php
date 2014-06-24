@@ -55,7 +55,8 @@ function auth_campusconnect_user_enrolled($eventdata) {
     );
     $DB->update_record('auth_campusconnect', $upd);
 
-    // TODO davo - update ECS.
+    require_once($CFG->dirroot.'/local/campusconnect/enrolment.php');
+    campusconnect_enrolment::set_status($eventdata->courseid, $user, campusconnect_enrolment::STATUS_ACTIVE);
 
     return true;
 }
@@ -66,7 +67,23 @@ function auth_campusconnect_user_enrolled($eventdata) {
  * @param $eventdata
  * @return bool
  */
-function auth_campusconnect_user_unernolled($eventdata) {
-    // Don't want to do anything with this yet - but may be wanted in the future.
+function auth_campusconnect_user_unenrolled($eventdata) {
+    global $CFG, $USER, $DB;
+
+    if ($eventdata->userid == $USER->id) {
+        $user = $USER;
+    } else {
+        $user = $DB->get_record('user', array('id' => $eventdata->userid));
+    }
+
+    if ($user->auth != 'campusconnect') {
+        return true; // Only interested in users who authenticated via Campus Connect.
+    }
+
+    require_once($CFG->dirroot.'/local/campusconnect/enrolment.php');
+    campusconnect_enrolment::set_status($eventdata->courseid, $user, campusconnect_enrolment::STATUS_UNSUBSCRIBED);
+
     return true;
 }
+
+// TODO davo - handle user update events: check for user's 'suspended' status changing and send message about all enroled courses.

@@ -1205,7 +1205,7 @@ class campusconnect_course_url {
         foreach ($courseurls as $courseurl) {
             foreach ($courseurl->courses as $course) {
                 if (isset($courses[$course->id])) {
-                    $course->fullname = $courses[$course->id]->fullname;
+                    $course->fullname = $courses[$course->id];
                 } else {
                     $course->fullname = '-';
                 }

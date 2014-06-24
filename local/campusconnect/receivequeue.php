@@ -203,6 +203,9 @@ class campusconnect_receivequeue {
                 $this->process_members_event($event);
                 $enrolusers = true;
                 break;
+            case campusconnect_event::RES_ENROLMENT:
+                $this->process_enrolment_event($event);
+                break;
             case campusconnect_event::RES_COURSE_URL:
             default:
                 debugging("Unexpected incoming event of type: ".$event->get_resource_type());
@@ -430,5 +433,38 @@ class campusconnect_receivequeue {
 
         mtrace("CampusConnect: update course: ".$event->get_resource_id()."\n");
         return campusconnect_membership::update($event->get_resource_id(), $settings, $resource, $details);
+    }
+
+    /**
+     * Process events related to enrolment status changes.
+     * @param campusconnect_event $event
+     * @return bool true if successful
+     */
+    protected function process_enrolment_event(campusconnect_event $event) {
+        $settings = new campusconnect_ecssettings($event->get_ecs_id());
+        $status = $event->get_status();
+
+        if ($status != campusconnect_event::STATUS_CREATED) {
+            debugging("Unexpected status for enrolment event: {$status}");
+            return true; // Remove it.
+        }
+
+        // Retrieve the resource.
+        $connect = new campusconnect_connect($settings);
+        $resource = $connect->get_resource($event->get_resource_id(), campusconnect_event::RES_ENROLMENT);
+        if (!$resource) {
+            return true; // Resource not found - assume it has been deleted and move on.
+        }
+        $details = $connect->get_resource($event->get_resource_id(), campusconnect_event::RES_ENROLMENT,
+                                          campusconnect_connect::TRANSFERDETAILS);
+
+        mtrace("CampusConnect: update enrolment status: ".$event->get_resource_id()."\n");
+
+        if (campusconnect_enrolment::update_status_from_ecs($settings, $resource, $details)) {
+            // Delete the resource once it has been processed.
+            $connect->delete_resource($event->get_resource_id(), campusconnect_event::RES_ENROLMENT);
+            return true;
+        }
+        return false;
     }
 }

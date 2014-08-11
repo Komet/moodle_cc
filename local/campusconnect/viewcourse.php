@@ -54,7 +54,7 @@ $SESSION->wantsurl = $url->out(false);
 
 // Make sure the 'wantsurl' param is not overridden by require_login => this will redirect to the course + test
 // authentication, if not already logged in.
-require_login($course, true, null, false);
+require_login($course, false, null, false);
 
 // If we get this far, then it means we were already logged in - just do a straight redirect.
 $url = new moodle_url('/course/view.php', array('id' => $course->id));

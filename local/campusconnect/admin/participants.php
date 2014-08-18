@@ -224,12 +224,12 @@ foreach ($allcommunities as $ecsname => $communities) {
     }  else {
         $refreshlink = '';
     }
-    print "<h3>{$ecsname}{$refreshlink}</h3>";
-    print '<hr>';
-    print '<form action="" method="POST">';
+    echo "<h3>{$ecsname}{$refreshlink}</h3>";
+    echo '<hr>';
+    echo '<form action="" method="POST">';
     foreach ($communities as $community) {
-        print "<h4>{$community->name}</h4>";
-        print '<table class="generaltable" width="100%">
+        echo "<h4>{$community->name}</h4>";
+        echo '<table class="generaltable" width="100%">
         <thead>
             <tr>
                 <th class="header c0">'.$strparticipants.'</th>
@@ -247,29 +247,29 @@ foreach ($allcommunities as $ecsname => $communities) {
         } else {
             foreach ($community->participants as $participant) {
                 $name = s($participant->get_name());
-                print '<tr><td><h4';
+                echo '<tr><td><h4';
                 if ($participant->is_me()) {
-                    print ' class="itsme"';
+                    echo ' class="itsme"';
                     $name .= " ({$strthisvle})";
                 }
-                print '>';
-                print $name;
-                print '</h4></td><td>';
-                print "<strong>{$strprovider}:</strong> ".$participant->get_organisation()."<br />";
-                print "<strong>{$strdomain}:</strong> ".$participant->get_domain()."<br />";
-                print "<strong>{$stremail}:</strong> ".$participant->get_email()."<br />";
-                print "<strong>{$strabbr}:</strong> ".$participant->get_organisation_abbr()."<br />";
-                print "<strong>{$strpartid}:</strong> ".$participant->get_identifier();
-                print '</td>';
-                print "<td style='text-align: center'>";
+                echo '>';
+                echo $name;
+                echo '</h4></td><td>';
+                echo "<strong>{$strprovider}:</strong> ".$participant->get_organisation()."<br />";
+                echo "<strong>{$strdomain}:</strong> ".$participant->get_domain()."<br />";
+                echo "<strong>{$stremail}:</strong> ".$participant->get_email()."<br />";
+                echo "<strong>{$strabbr}:</strong> ".$participant->get_organisation_abbr()."<br />";
+                echo "<strong>{$strpartid}:</strong> ".$participant->get_identifier();
+                echo '</td>';
+                echo "<td style='text-align: center'>";
                 echo html_writer::checkbox('export[]', $participant->get_identifier(),
                                            $participant->is_export_enabled());
                 echo '</td>';
-                print "<td style='text-align: center'>";
+                echo "<td style='text-align: center'>";
                 echo html_writer::checkbox('import[]', $participant->get_identifier(),
                                            $participant->is_import_enabled());
                 echo '</td>';
-                print "<td style='text-align: center'>";
+                echo "<td style='text-align: center'>";
                 echo html_writer::select($importopts, 'importtype['.$participant->get_identifier().']',
                                          $participant->get_import_type(), '');
 
@@ -279,17 +279,17 @@ foreach ($allcommunities as $ecsname => $communities) {
                 echo html_writer::empty_tag('input', array('type' => 'hidden',
                                                            'name' => 'sesskey',
                                                            'value' => sesskey()));
-                print '</td>';
-                print '</tr>';
+                echo '</td>';
+                echo '</tr>';
             }
         }
-        print '</tbody></table>';
+        echo '</tbody></table>';
     }
-    print '<div style="float: right;">
+    echo '<div style="float: right;">
         <input type="submit" name="saveparticipants" value="'.$strsavechanges.'" />
         <input onclick="window.location.reload( true );" type="button" value="'.$strcancel.'" />
     </div>';
-    print '</form>';
+    echo '</form>';
     echo '<br style="clear:both;" /><br />';
 }
 

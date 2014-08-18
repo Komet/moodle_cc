@@ -123,8 +123,10 @@ class campusconnect_enrolment {
                         'status' => $enrol->status,
                     );
                     foreach ($mids as $mid) {
-                        $connect->add_resource(campusconnect_event::RES_ENROLMENT, $data, null, $mid);
-                        campusconnect_log::add("Sending status update for user {$user->id} in course {$enrol->courseid} to ECS {$user->ecsid} MID {$mid} PID {$user->pid} - new status = {$enrol->status}", true, false, false);
+                        if ($export->should_send_enrolment_status($connect->get_ecs_id(), $mid)) {
+                            $connect->add_resource(campusconnect_event::RES_ENROLMENT, $data, null, $mid);
+                            campusconnect_log::add("Sending status update for user {$user->id} in course {$enrol->courseid} to ECS {$user->ecsid} MID {$mid} PID {$user->pid} - new status = {$enrol->status}", true, false, false);
+                        }
                     }
                 } else {
                     campusconnect_log::add("NOT sending status update for user {$user->id} in course {$enrol->courseid} - this course is not exported to the participant the user came from (ECS {$user->ecsid} PID {$user->pid})", true, false, false);
@@ -156,6 +158,11 @@ class campusconnect_enrolment {
         $ecsid = $settings->get_id();
         $mid = $details->get_sender_mid();
         $url = $resource->url;
+
+        $participantsettings = new campusconnect_participantsettings($ecsid, $mid);
+        if (!$participantsettings->is_import_enrolment_enabled()) {
+            return true; // Ignoring enrolment status updates from this participant.
+        }
 
         $courselink = $DB->get_record('local_campusconnect_clink', array('ecsid' => $ecsid, 'mid' => $mid, 'url' => $url));
         if (!$courselink) {

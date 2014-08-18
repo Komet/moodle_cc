@@ -64,13 +64,17 @@ if (optional_param('saveparticipants', false, PARAM_TEXT)) {
     require_sesskey();
 
     // Array of participant identifiers that were included in this update.
-    $updateparticipants = required_param_array('updateparticipants', PARAM_TEXT);
+    $updateparticipants = required_param_array('updateparticipants', PARAM_ALPHANUMEXT);
     // Array of participant identifiers to export to.
-    $export = optional_param_array('export', array(), PARAM_TEXT);
+    $export = optional_param_array('export', array(), PARAM_ALPHANUMEXT);
+    $exportenrolment = optional_param_array('exportenrolment', array(), PARAM_ALPHANUMEXT);
+    $exporttoken = optional_param_array('exporttoken', array(), PARAM_ALPHANUMEXT);
     // Array of participant identifiers to import from.
-    $import = optional_param_array('import', array(), PARAM_TEXT);
+    $import = optional_param_array('import', array(), PARAM_ALPHANUMEXT);
+    $importenrolment = optional_param_array('importenrolment', array(), PARAM_ALPHANUMEXT);
+    $importtoken = optional_param_array('importtoken', array(), PARAM_ALPHANUMEXT);
     // Array of import types (indexed by participant identifiers).
-    $importtypes = required_param_array('importtype', PARAM_TEXT);
+    $importtypes = required_param_array('importtype', PARAM_INT);
 
     // User has confirmed the change (only needed if the change would remove data).
     $confirm = optional_param('confirm', false, PARAM_BOOL);
@@ -85,7 +89,11 @@ if (optional_param('saveparticipants', false, PARAM_TEXT)) {
 
                 $tosave = new stdClass;
                 $tosave->import = in_array($identifier, $import);
+                $tosave->importenrolment = in_array($identifier, $importenrolment);
+                $tosave->importtoken = in_array($identifier, $importtoken);
                 $tosave->export = in_array($identifier, $export);
+                $tosave->exportenrolment = in_array($identifier, $exportenrolment);
+                $tosave->exporttoken = in_array($identifier, $exporttoken);
                 $tosave->importtype = $importtypes[$identifier];
 
                 if ($err = $participant->check_settings($tosave)) {
@@ -114,6 +122,8 @@ if (optional_param('saveparticipants', false, PARAM_TEXT)) {
         }
     }
 }
+
+$PAGE->requires->yui_module('moodle-local_campusconnect-participantsettings', 'M.local_campusconnect.participantsettings.init');
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('pluginname', 'local_campusconnect'));
@@ -229,7 +239,7 @@ foreach ($allcommunities as $ecsname => $communities) {
     echo '<form action="" method="POST">';
     foreach ($communities as $community) {
         echo "<h4>{$community->name}</h4>";
-        echo '<table class="generaltable" width="100%">
+        echo '<table class="generaltable participantsettings" width="100%">
         <thead>
             <tr>
                 <th class="header c0">'.$strparticipants.'</th>
@@ -246,6 +256,7 @@ foreach ($allcommunities as $ecsname => $communities) {
             echo '</tr>';
         } else {
             foreach ($community->participants as $participant) {
+                $partid = $participant->get_identifier();
                 $name = s($participant->get_name());
                 echo '<tr><td><h4';
                 if ($participant->is_me()) {
@@ -259,23 +270,49 @@ foreach ($allcommunities as $ecsname => $communities) {
                 echo "<strong>{$strdomain}:</strong> ".$participant->get_domain()."<br />";
                 echo "<strong>{$stremail}:</strong> ".$participant->get_email()."<br />";
                 echo "<strong>{$strabbr}:</strong> ".$participant->get_organisation_abbr()."<br />";
-                echo "<strong>{$strpartid}:</strong> ".$participant->get_identifier();
+                echo "<strong>{$strpartid}:</strong> ".$partid;
+                echo '</td>';
+                echo "<td>";
+                echo html_writer::checkbox('export[]', $partid,
+                                           $participant->is_export_enabled(),
+                                           get_string('externalcourse', 'local_campusconnect'),
+                                           array('id' => 'export_'.$partid));
+                echo '<br/>';
+                echo html_writer::checkbox('exportenrolment[]', $partid,
+                                           $participant->is_export_enrolment_enabled(),
+                                           get_string('enrolmentstatus', 'local_campusconnect'),
+                                           array('id' => 'exportenrolment_'.$partid));
+                echo '<br/>';
+                echo html_writer::checkbox('exporttoken[]', $partid,
+                                           $participant->is_export_token_enabled(),
+                                           get_string('authenticationtoken', 'local_campusconnect'),
+                                           array('id' => 'exporttoken_'.$partid));
+                echo '</td>';
+                echo "<td>";
+                echo html_writer::checkbox('import[]', $partid,
+                                           $participant->is_import_enabled(),
+                                           get_string('enabled', 'local_campusconnect'),
+                                           array('id' => 'import_'.$partid));
+                echo '<br/>';
+                echo html_writer::checkbox('importenrolment[]', $partid,
+                                           $participant->is_import_enrolment_enabled(),
+                                           get_string('enrolmentstatus', 'local_campusconnect'),
+                                           array('id' => 'importenrolment_'.$partid));
+                echo '<br/>';
+                echo html_writer::checkbox('importtoken[]', $partid,
+                                           $participant->is_import_token_enabled(),
+                                           get_string('authenticationtoken', 'local_campusconnect'),
+                                           array('id' => 'importtoken_'.$partid));
+                echo '<br/>';
                 echo '</td>';
                 echo "<td style='text-align: center'>";
-                echo html_writer::checkbox('export[]', $participant->get_identifier(),
-                                           $participant->is_export_enabled());
-                echo '</td>';
-                echo "<td style='text-align: center'>";
-                echo html_writer::checkbox('import[]', $participant->get_identifier(),
-                                           $participant->is_import_enabled());
-                echo '</td>';
-                echo "<td style='text-align: center'>";
-                echo html_writer::select($importopts, 'importtype['.$participant->get_identifier().']',
+                echo html_writer::select($importopts, 'importtype['.$partid.']',
                                          $participant->get_import_type(), '');
 
                 echo html_writer::empty_tag('input', array('type' => 'hidden',
                                                            'name' => 'updateparticipants[]',
-                                                           'value' => $participant->get_identifier()));
+                                                           'value' => $partid,
+                                                           'class' => 'participantidentifier'));
                 echo html_writer::empty_tag('input', array('type' => 'hidden',
                                                            'name' => 'sesskey',
                                                            'value' => sesskey()));

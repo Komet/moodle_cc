@@ -808,5 +808,36 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2014062400, 'local', 'campusconnect');
     }
 
+    if ($oldversion < 2014081800) {
+        $table = new xmldb_table('local_campusconnect_part');
+
+        // Define field exportenrolment to be added to local_campusconnect_part.
+        $field = new xmldb_field('exportenrolment', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '1', 'active');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Define field exporttoken to be added to local_campusconnect_part.
+        $field = new xmldb_field('exporttoken', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '1', 'exportenrolment');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Define field importenrolment to be added to local_campusconnect_part.
+        $field = new xmldb_field('importenrolment', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '1', 'exporttoken');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Define field importtoken to be added to local_campusconnect_part.
+        $field = new xmldb_field('importtoken', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '1', 'importenrolment');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Campusconnect savepoint reached.
+        upgrade_plugin_savepoint(true, 2014081800, 'local', 'campusconnect');
+    }
+
     return true;
 }

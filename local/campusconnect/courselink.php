@@ -421,7 +421,7 @@ class campusconnect_courselink {
         $url = $courselink->url;
         self::log("Link to external url: {$url}");
 
-        if (!isguestuser()) {
+        if (!isguestuser() && self::should_include_token($courselink)) {
             // Add the auth token.
             if (strpos($url, '?') !== false) {
                 $url .= '&';
@@ -442,6 +442,20 @@ class campusconnect_courselink {
         self::log("Redirecting to: {$url}");
 
         return $url;
+    }
+
+    /**
+     * Check if authentication tokens should be included when visiting the
+     * participant that this course link is from.
+     *
+     * @param $courselink
+     * @return bool
+     */
+    protected static function should_include_token($courselink) {
+        global $CFG;
+        require_once($CFG->dirroot.'/local/campusconnect/participantsettings.php');
+        $participantsettings = new campusconnect_participantsettings($courselink->ecsid, $courselink->mid);
+        return $participantsettings->is_import_token_enabled();
     }
 
     /**

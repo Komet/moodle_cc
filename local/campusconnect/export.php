@@ -112,7 +112,7 @@ class campusconnect_export {
      * @param int|int[] $mid
      * @return bool
      */
-    function is_exported_to($ecsid, $mid) {
+    public function is_exported_to($ecsid, $mid) {
         if (!is_array($mid)) {
             $mid = array($mid);
         }
@@ -126,9 +126,28 @@ class campusconnect_export {
         return false;
     }
 
+    protected function get_participant($ecsid, $mid) {
+        foreach ($this->exportparticipants as $part) {
+            if ($part->get_ecs_id() == $ecsid && $part->get_mid() == $mid) {
+                return $part;
+            }
+        }
+        return null;
+    }
+
+    public function should_handle_auth_token($ecsid, $mid) {
+        $part = $this->get_participant($ecsid, $mid);
+        return ($part->is_exported() && $part->is_export_token_enabled());
+    }
+
+    public function should_send_enrolment_status($ecsid, $mid) {
+        $part = $this->get_participant($ecsid, $mid);
+        return ($part->is_exported() && $part->is_export_enrolment_enabled());
+    }
+
     /**
      * List all the participants this course is currently exported to.
-     * @return array of ecsid_mid => campusconnect_participantsettings
+     * @return campusconnect_participantsettings[] ecsid_mid => campusconnect_participantsettings
      */
     function list_current_exports() {
         $ret = array();

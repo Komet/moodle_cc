@@ -265,9 +265,12 @@ class auth_plugin_campusconnect extends auth_plugin_base {
                                 continue;
                             }
                         }
-                        if (isset($auth->pid)) {
-                            $participantid = $auth->pid;
+                        if (!self::use_authentication_token($ecsid, $auth->pid, $paramassoc['id'])) {
+                            $connecterrors = false;
+                            self::log("Authentication token is valid, but is from a participant we are not accepting tokens from");
+                            break; // Do not check against any other ECS.
                         }
+                        $participantid = $auth->pid;
                         $authenticatingecs = $ecsid;
                         break;
                     }
@@ -278,6 +281,23 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         }
 
         return array($authenticatingecs, $participantid, $connecterrors);
+    }
+
+    protected static function use_authentication_token($ecsid, $pid, $courseid) {
+        global $CFG;
+        require_once($CFG->dirroot.'/local/campusconnect/participantsettings.php');
+        require_once($CFG->dirroot.'/local/campusconnect/export.php');
+        // Check the participant settings to see if we should be handling tokens from this participant.
+        $mids = campusconnect_participantsettings::get_mids_from_pid($ecsid, $pid);
+        $export = new campusconnect_export($courseid);
+        foreach ($mids as $mid) {
+            if ($export->should_handle_auth_token($ecsid, $mid)) {
+                return true; // We are accepting authentication tokens from this participant.
+            }
+        }
+
+        // Ignore the token, as we're not handling authentication from that participant.
+        return false;
     }
 
     /**

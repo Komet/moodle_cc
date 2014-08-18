@@ -83,3 +83,8 @@ table.campusconnect_imported {
 .coursefiltertable .mform .fitem .fitemtitle {
     width: 35%;
 }
+
+.participantsettings label.disabled {
+    color: #aaa;
+    font-style: italic;
+}

@@ -41,7 +41,11 @@ class campusconnect_participantsettings {
     protected $mid = null;
     protected $pid = null;
     protected $export = false;
+    protected $exportenrolment = false;
+    protected $exporttoken = false;
     protected $import = false;
+    protected $importenrolment = false;
+    protected $importtoken = false;
     protected $importtype = self::IMPORT_LINK;
 
     protected $displayname = null; // Constructed from the community name + part name
@@ -60,7 +64,8 @@ class campusconnect_participantsettings {
     // Flagged as being exported in the current course.
     protected $exported = null;
 
-    protected static $validsettings = array('export', 'import', 'importtype');
+    protected static $validsettings = array('export', 'exportenrolment', 'exporttoken',
+                                            'import', 'importenrolment', 'importtoken', 'importtype');
     protected static $ecssettings = array('name', 'description', 'dns', 'email', 'org', 'orgabbr', 'communityname', 'itsyou');
 
     protected static $pidtomid = null;
@@ -122,11 +127,27 @@ class campusconnect_participantsettings {
     }
 
     public function is_export_enabled() {
-        return $this->export;
+        return (bool)$this->export;
+    }
+
+    public function is_export_token_enabled() {
+        return ($this->export && $this->exporttoken);
+    }
+
+    public function is_export_enrolment_enabled() {
+        return ($this->export && $this->exportenrolment);
     }
 
     public function is_import_enabled() {
-        return $this->import;
+        return (bool)$this->import;
+    }
+
+    public function is_import_token_enabled() {
+        return ($this->import && $this->importtoken);
+    }
+
+    public function is_import_enrolment_enabled() {
+        return ($this->import && $this->importenrolment);
     }
 
     public function get_import_type() {
@@ -386,7 +407,7 @@ class campusconnect_participantsettings {
         }
 
         if ($disablecmsimport) {
-            // TODO davo - list the changes that would result from disabling the CMS import type
+            // TODO davo - list the changes that would result from disabling the CMS import type.
         }
 
         if (empty($ret)) {

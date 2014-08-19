@@ -593,6 +593,23 @@ class campusconnect_participantsettings {
         return $participant;
     }
 
+    protected static function update_pidtomid() {
+        global $DB;
+        self::$pidtomid = array();
+        foreach ($DB->get_records('local_campusconnect_part', null, '', 'id, ecsid, mid, pid') as $part) {
+            if (!$part->pid) {
+                continue;
+            }
+            if (!isset(self::$pidtomid[$part->ecsid])) {
+                self::$pidtomid[$part->ecsid] = array();
+            }
+            if (!isset(self::$pidtomid[$part->ecsid][$part->pid])) {
+                self::$pidtomid[$part->ecsid][$part->pid] = array();
+            }
+            self::$pidtomid[$part->ecsid][$part->pid][] = $part->mid;
+        }
+    }
+
     /**
      * Given an ECSID and PID, returns the MID[s] that participant is known by from the point of view of this VLE (if any).
      *
@@ -601,27 +618,30 @@ class campusconnect_participantsettings {
      * @return int[]
      */
     public static function get_mids_from_pid($ecsid, $pid) {
-        global $DB;
-
         if (self::$pidtomid === null) {
-            self::$pidtomid = array();
-            foreach ($DB->get_records('local_campusconnect_part', null, '', 'id, ecsid, mid, pid') as $part) {
-                if (!$part->pid) {
-                    continue;
-                }
-                if (!isset(self::$pidtomid[$part->ecsid])) {
-                    self::$pidtomid[$part->ecsid] = array();
-                }
-                if (!isset(self::$pidtomid[$part->ecsid][$part->pid])) {
-                    self::$pidtomid[$part->ecsid][$part->pid] = array();
-                }
-                self::$pidtomid[$part->ecsid][$part->pid][] = $part->mid;
-            }
+            self::update_pidtomid();
         }
-
         if (isset(self::$pidtomid[$ecsid][$pid])) {
             return self::$pidtomid[$ecsid][$pid];
         }
         return array();
+    }
+
+    public static function get_mids_from_pids($ecsid, $pids) {
+        if (self::$pidtomid === null) {
+            self::update_pidtomid();
+        }
+        $mids = array();
+        $pids = explode(',', $pids);
+        foreach ($pids as $pid) {
+            $pid = explode('_', $pid);
+            if ($pid[0] != $ecsid) {
+                continue; // This PID is for a different ECS.
+            }
+            if (!empty(self::$pidtomid[$ecsid][$pid[1]])) {
+                $mids = array_merge(self::$pidtomid[$ecsid][$pid[1]], $mids);
+            }
+        }
+        return array_unique($mids);
     }
 }

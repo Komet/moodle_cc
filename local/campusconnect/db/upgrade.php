@@ -839,5 +839,20 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2014081800, 'local', 'campusconnect');
     }
 
+    if ($oldversion < 2014081900) {
+
+        // Define field notifiedecsids to be added to local_campusconnect_enrex.
+        $table = new xmldb_table('local_campusconnect_enrex');
+        $field = new xmldb_field('notifiedecsids', XMLDB_TYPE_TEXT, null, null, null, null, null, 'status');
+
+        // Conditionally launch add field notifiedecsids.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Campusconnect savepoint reached.
+        upgrade_plugin_savepoint(true, 2014081900, 'local', 'campusconnect');
+    }
+
     return true;
 }

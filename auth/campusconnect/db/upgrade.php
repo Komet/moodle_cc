@@ -162,5 +162,61 @@ function xmldb_auth_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2014062400, 'auth', 'campusconnect');
     }
 
+    // Transition from ecsid + pid => pids.
+
+    if ($oldversion < 2014081900) {
+
+        // Define field pids to be added to auth_campusconnect.
+        $table = new xmldb_table('auth_campusconnect');
+        $field = new xmldb_field('pids', XMLDB_TYPE_TEXT, null, null, null, null, null, 'ecsid');
+
+        // Conditionally launch add field pids.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Campusconnect savepoint reached.
+        upgrade_plugin_savepoint(true, 2014081900, 'auth', 'campusconnect');
+    }
+    if ($oldversion < 2014081901) {
+
+        // Copy the old data from ecsid + pid into pids.
+        mtrace("Converting user pid records - this may take a while to complete");
+        $rs = $DB->get_recordset_select('auth_campusconnect', "pids IS NULL AND pid IS NOT NULL AND pid <> ''", null,
+                                        '', 'id, ecsid, pid');
+        foreach ($rs as $authcc) {
+            $pids = "{$authcc->ecsid}_{$authcc->pid}";
+            $DB->set_field('auth_campusconnect', 'pids', $pids, array('id' => $authcc->id));
+        }
+
+        // Campusconnect savepoint reached.
+        upgrade_plugin_savepoint(true, 2014081901, 'auth', 'campusconnect');
+    }
+    if ($oldversion < 2014081902) {
+
+        // Remove the old fields.
+        $table = new xmldb_table('auth_campusconnect');
+
+        // Define key ecsid (foreign) to be dropped form auth_campusconnect.
+        $key = new xmldb_key('ecsid', XMLDB_KEY_FOREIGN, array('ecsid'), 'local_campusconnect_ecs', array('id'));
+        $dbman->drop_key($table, $key);
+
+        // Define field ecsid to be dropped from auth_campusconnect.
+        $field = new xmldb_field('ecsid');
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->drop_field($table, $field);
+        }
+
+        // Define field pid to be dropped from auth_campusconnect.
+        $field = new xmldb_field('pid');
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->drop_field($table, $field);
+        }
+
+        // Campusconnect savepoint reached.
+        upgrade_plugin_savepoint(true, 2014081902, 'auth', 'campusconnect');
+    }
+
+
     return true;
 }

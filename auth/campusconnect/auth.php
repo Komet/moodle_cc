@@ -450,13 +450,19 @@ class auth_plugin_campusconnect extends auth_plugin_base {
                 $month = $month % 12 + 12;
             }
             $cutoff = mktime(date('H'), date('i'), date('s'), $month, $day, $year);
-            $sql = "SELECT u.id
+            $sql = "SELECT u.id, ac.pids
                       FROM {user} u
-                      JOIN {auth_campusconnect} ac ON u.username = ac.username AND ac.ecsid = :ecsid
+                      JOIN {auth_campusconnect} ac ON u.username = ac.username
                      WHERE u.suspended = 0 AND u.deleted = 0 AND ac.lastenroled IS NOT NULL AND ac.lastenroled < :cutoff
                    ";
-            $params = array('ecsid' => $ecsid, 'cutoff' => $cutoff);
-            $userids = $DB->get_fieldset_sql($sql, $params);
+            $params = array('cutoff' => $cutoff);
+            $users = $DB->get_records_sql($sql, $params);
+            $userids = array();
+            foreach ($users as $user) {
+                if (self::matches_ecsid($user->pids, $ecsid)) {
+                    $userids[] = $user->id;
+                }
+            }
             if (!empty($userids)) {
                 list($usql, $params) = $DB->get_in_or_equal($userids);
                 $DB->execute("UPDATE {user}
@@ -464,7 +470,11 @@ class auth_plugin_campusconnect extends auth_plugin_base {
                                WHERE id $usql", $params);
                 // Trigger an event for all users.
                 foreach ($DB->get_recordset_list('user', 'id', $userids) as $user) {
-                    session_kill_user($user->id); // Just in case the user is currently logged in.
+                    if ($CFG->version >= 2013111800) {
+                        \core\session\manager::kill_user_sessions($user->id);
+                    } else {
+                        session_kill_user($user->id); // Just in case the user is currently logged in.
+                    }
                     events_trigger('user_updated', $user);
                 }
             }
@@ -484,7 +494,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             'sendupto' => $sendupto
         );
         $sql = "
-        SELECT u.*, ac.ecsid
+        SELECT u.*, ac.pids
           FROM {user} u
           JOIN {auth_campusconnect} ac ON ac.username = u.username
          WHERE deleted = 0
@@ -497,23 +507,42 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         foreach ($newusers as $newuser) {
             $subject = get_string('newusernotifysubject', 'auth_campusconnect');
             $messagetext = get_string('newusernotifybody', 'auth_campusconnect', $newuser);
-            $ecsid = $newuser->ecsid;
-            if (!isset($ecslist[$ecsid])) {
-                mtrace(get_string('usernamecantfindecs', 'auth_campusconnect'). ': ' . $newuser->username);
-                continue;
-            }
-            if (!isset($notified[$ecsid])) {
-                list($in, $params) = $DB->get_in_or_equal($ecsemails[$ecsid]);
-                $notified[$ecsid] = $DB->get_records_select('user', "username $in", $params);
-            }
-            foreach ($notified[$ecsid] as $recepient) {
-                email_to_user($recepient, $adminuser, $subject, $messagetext);
+            $ecsids = self::get_ecsids($newuser->pids);
+            foreach ($ecsids as $ecsid) {
+                if (!isset($ecslist[$ecsid])) {
+                    mtrace(get_string('usernamecantfindecs', 'auth_campusconnect'). ': ' . $newuser->username);
+                    continue;
+                }
+                if (!isset($notified[$ecsid])) {
+                    list($in, $params) = $DB->get_in_or_equal($ecsemails[$ecsid]);
+                    $notified[$ecsid] = $DB->get_records_select('user', "username $in", $params);
+                }
+                foreach ($notified[$ecsid] as $recepient) {
+                    email_to_user($recepient, $adminuser, $subject, $messagetext);
+                }
             }
         }
 
         set_config('lastnewusersemailsent', $sendupto, 'auth_campusconnect');
 
         return true;
+    }
+
+    protected static function matches_ecsid($pids, $ecsid) {
+        return in_array($ecsid, self::get_ecsids($pids));
+    }
+
+    protected static function get_ecsids($pids) {
+        $pids = explode(',', $pids);
+        $ecsids = array();
+        foreach ($pids as $pid) {
+            $pid = explode('_', $pid);
+            $ecsid = intval($pid[0]);
+            if ($ecsid && !in_array($ecsid, $ecsids)) {
+                $ecsids[] = $ecsid;
+            }
+        }
+        return $ecsids;
     }
 
     //Local functions
@@ -533,10 +562,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
 
         // See if we already know about this user.
         if ($ecsuser = $DB->get_record('auth_campusconnect', array('personid' => $personid, 'personidtype' => $personidtype))) {
-            if ($pid && $ecsuser->pid != $pid) {
-                // Update an old record that doesn't contain the user's PID.
-                $DB->set_field('auth_campusconnect', 'pid', $pid, array('id' => $ecsuser->id));
-            }
+            self::update_user_pid($ecsuser, $ecsid, $pid);
             return $ecsuser->username; // User has previously authenticated here - just return their previous username.
         }
 
@@ -554,7 +580,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         // Record the username for future reference.
         $ins = new stdClass();
         $ins->ecsid = $ecsid;
-        $ins->pid = $pid;
+        $ins->pids = "{$ecsid}_{$pid}";
         $ins->personid = $personid;
         $ins->personidtype = $personidtype;
         $ins->username = $finalusername;
@@ -562,6 +588,23 @@ class auth_plugin_campusconnect extends auth_plugin_base {
 
         // Return the generated username.
         return $finalusername;
+    }
+
+    protected static function update_user_pid($ecsuser, $ecsid, $pid) {
+        global $DB;
+
+        $ins = "{$ecsid}_{$pid}";
+        if (!$ecsuser->pids) {
+            $pids = $ins;
+        } else {
+            $pids = explode(',', $ecsuser->pids);
+            if (in_array($ins, $pids)) {
+                return; // Nothing to do here.
+            }
+            $pids[] = $ins;
+            $pids = implode(',', $pids);
+        }
+        $DB->set_field('auth_campusconnect', 'pids', $pids, array('id' => $ecsuser->id));
     }
 
     /**

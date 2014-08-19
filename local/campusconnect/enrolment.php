@@ -97,23 +97,33 @@ class campusconnect_enrolment {
 
         // Get all records.
         $enrolments = $DB->get_recordset('local_campusconnect_enrex', null, 'id');
+        $ecsid = $connect->get_ecs_id();
 
         foreach ($enrolments as $enrol) {
+            $notifiedecsids = array();
+            $ecsids = array();
+            if ($enrol->notifiedecsids) {
+                $notifiedecsids = explode(',', $enrol->notifiedecsids);
+                if (in_array($ecsid, $notifiedecsids)) {
+                    continue; // This ECS has already been notified about this enrolment update.
+                }
+            }
             // Generate the data to send to the server.
-            $sql = "SELECT u.*, ac.ecsid, ac.pid, ac.personid, ac.personidtype
+            $sql = "SELECT u.*, ac.pids, ac.personid, ac.personidtype
                       FROM {user} u
                       JOIN {auth_campusconnect} ac ON ac.username = u.username
                      WHERE u.id = :id";
             if ($user = $DB->get_record_sql($sql, array('id' => $enrol->userid))) {
-                if ($user->ecsid != $connect->get_ecs_id()) {
+                $ecsids = self::get_ecsids_from_pids($user->pids);
+                if (!in_array($ecsid, $ecsids)) {
                     continue; // User came from a different ECS - wait until we are processing that ECS.
                     // Note, we don't filter by ECS id in the SQL query, as we need to distinguish between records that
                     // don't relate to any auth_campusconnect users (which should be deleted) and those that relate to
                     // users from a different ECS (as most sites only have a few ECS, this should be a minimal overhead).
                 }
-                $mids = campusconnect_participantsettings::get_mids_from_pid($user->ecsid, $user->pid);
+                $mids = campusconnect_participantsettings::get_mids_from_pids($ecsid, $user->pids);
                 $export = new campusconnect_export($enrol->courseid);
-                if ($export->is_exported_to($user->ecsid, $mids)) {
+                if ($export->is_exported_to($ecsid, $mids)) {
                     $course = $DB->get_record('course', array('id' => $enrol->courseid));
                     $data = (object)array(
                         'url' => campusconnect_export::get_course_url($course),
@@ -125,16 +135,37 @@ class campusconnect_enrolment {
                     foreach ($mids as $mid) {
                         if ($export->should_send_enrolment_status($connect->get_ecs_id(), $mid)) {
                             $connect->add_resource(campusconnect_event::RES_ENROLMENT, $data, null, $mid);
-                            campusconnect_log::add("Sending status update for user {$user->id} in course {$enrol->courseid} to ECS {$user->ecsid} MID {$mid} PID {$user->pid} - new status = {$enrol->status}", true, false, false);
+                            campusconnect_log::add("Sending status update for user {$user->id} in course {$enrol->courseid} to ECS {$ecsid} MID {$mid} PID {$user->pids} - new status = {$enrol->status}", true, false, false);
                         }
                     }
                 } else {
-                    campusconnect_log::add("NOT sending status update for user {$user->id} in course {$enrol->courseid} - this course is not exported to the participant the user came from (ECS {$user->ecsid} PID {$user->pid})", true, false, false);
+                    campusconnect_log::add("NOT sending status update for user {$user->id} in course {$enrol->courseid} - this course is not exported to the participant the user came from (ECS {$ecsid} PID {$user->pids})", true, false, false);
                 }
+                $notifiedecsids[] = $connect->get_ecs_id(); // Finished notifying this ECS.
             }
 
-            $DB->delete_records('local_campusconnect_enrex', array('id' => $enrol->id));
+            if (array_diff($ecsids, $notifiedecsids)) {
+                // Still ECS to send notifications to.
+                $DB->set_field('local_campusconnect_enrex', 'notifiedecsids', implode(',', $notifiedecsids),
+                               array('id' => $enrol->id));
+            } else {
+                // All relevant ECS have been updated => delete the record.
+                $DB->delete_records('local_campusconnect_enrex', array('id' => $enrol->id));
+            }
         }
+    }
+
+    protected static function get_ecsids_from_pids($pids) {
+        $ecsids = array();
+        $pids = explode(',', $pids);
+        foreach ($pids as $pid) {
+            $pid = explode('_', $pid);
+            $ecsid = intval($pid[0]);
+            if ($ecsid && !in_array($ecsid, $ecsids)) {
+                $ecsids[] = $ecsid;
+            }
+        }
+        return $ecsids;
     }
 
     /**

@@ -71,7 +71,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             return;
         }
 
-        if (!$userdetails = $this->authenticate_from_url($SESSION->wantsurl)) {
+        if (!$userdetails = self::authenticate_from_url($SESSION->wantsurl)) {
             return;
         }
 
@@ -127,7 +127,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
      * @param string $url
      * @return null|object null if the authentication failed, otherwise the user details
      */
-    public function authenticate_from_url($url) {
+    public static function authenticate_from_url($url) {
         if (!$params = self::extract_url_params($url)) {
             return null; // No params to process.
         }
@@ -231,6 +231,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         $authenticatingecs = null;
         $pid = null;
         $connecterrors = false;
+        $now = time(); // In case of slow connections / debugging, note the time at the start of the loop.
 
         $ecslist = campusconnect_ecssettings::list_ecs();
         foreach ($ecslist as $ecsid => $ecsname) {
@@ -257,7 +258,6 @@ class auth_plugin_campusconnect extends auth_plugin_base {
                         } else {
                             self::log("Realm not included in auth response");
                         }
-                        $now = time();
                         if (isset($auth->sov)) {
                             $sov = strtotime($auth->sov);
                             if ($sov && $sov > $now) {

@@ -40,7 +40,6 @@ require_once($CFG->dirroot.'/local/campusconnect/courselink.php');
 /**
  * Class local_campusconnect_courselink_test
  * @group local_campusconnect
- * @group current
  */
 class local_campusconnect_courselink_test extends advanced_testcase {
     /**

@@ -70,110 +70,19 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             self::log("No destination URL");
             return;
         }
-        $urlparse = parse_url($SESSION->wantsurl);
-        if (!is_array($urlparse) || !isset($urlparse['query'])) {
-            self::log("Destination URL lacks query string");
+
+        if (!$userdetails = $this->authenticate_from_url($SESSION->wantsurl)) {
             return;
         }
-        $urlquery = str_replace('&amp;', '&', $urlparse['query']);
-        $queryparams = explode('&', $urlquery);
-        $paramassoc = array();
-        foreach ($queryparams as $paramval) {
-            $split = explode('=', $paramval);
-            if (count($split)<2) {
-                continue;
-            }
-            $paramassoc[$split[0]] = urldecode($split[1]);
-        }
-
-        // Check the incoming URL matches a valid Moodle course URL
-        if (!isset($paramassoc['id'])) {
-            self::log("No courseid in the destination URL");
-            return; // URL didn't include a course ID
-        }
-        $courseurl = new moodle_url('/course/view.php', array('id' => $paramassoc['id']));
-        $courseurl = $courseurl->out();
-        $courseviewurl = new moodle_url('/local/campusconnect/viewcourse.php', array('id' => $paramassoc['id']));
-        $courseviewurl = $courseviewurl->out();
-        if (substr_compare($SESSION->wantsurl, $courseurl, 0, strlen($courseurl)) !== 0) {
-            $courseurl = $courseviewurl;
-            if (substr_compare($SESSION->wantsurl, $courseurl, 0, strlen($courseurl)) !== 0) {
-                self::log("Destination URL is not a Moodle course");
-                return; // URL didn't match a Moodle course URL
-            }
-        }
-        self::log("Destination URL: {$SESSION->wantsurl}");
-
-        require_once($CFG->dirroot.'/local/campusconnect/connect.php');
-        require_once($CFG->dirroot.'/local/campusconnect/enrolment.php');
-
-        $authenticatingecs = null;
-        if (!empty($paramassoc['ecs_hash_url'])) {
-            self::log("ecs_hash_url found: {$paramassoc['ecs_hash_url']}");
-
-            // Newer 'ecs_hash_url' param included => use this to determine the ECS to authenticate against.
-            $hashurl = $paramassoc['ecs_hash_url'];
-            $matches = array();
-            if (!preg_match('|(.*)/sys/auths/(.*)|', $hashurl, $matches)) {
-                self::log("Unable to parse ecs_hash_url");
-                return; // Not able to parse the 'ecs_hash_url' successfully.
-            }
-            $baseurl = $matches[1];
-            $hash = $matches[2];
-
-            list($authenticatingecs, $participantid, $connecterrors) =
-                self::check_authentication($baseurl, $hash, $courseurl, $paramassoc);
-
-        } else {
-
-            // Fall back to the legacy 'ecs_hash' param
-            if (empty($paramassoc['ecs_hash'])) {
-                self::log("Neither ecs_hash nor ecs_hash_url included in destination URL");
-                return;
-            }
-            $hash = $paramassoc['ecs_hash'];
-            self::log("ecs_hash found: {$hash}");
-
-            list($authenticatingecs, $participantid, $connecterrors) =
-                self::check_authentication(null, $hash, $courseurl, $paramassoc);
-        }
-
-        //Throw an error only if a connection exception was thrown and the user wasn't authenticated by any other ECS
-        if (!$authenticatingecs) {
-            if ($connecterrors) {
-                print_error('ecserror_subject', 'local_campusconnect');
-            }
-            self::log("No ECS servers have authenticated the ECS hash");
-            return;
-        }
-
-        //We've now confirmed authentication! Let's create/find the user:
-        if (isset($paramassoc['ecs_uid'])) {
-            $uidhash = $paramassoc['ecs_uid']; // New name for the parameter.
-        } else {
-            if (!isset($paramassoc['ecs_uid_hash'])) {
-                self::log("Neither ecs_uid nor ecs_uid_hash found in destination URL");
-                return;
-            }
-            $uidhash = $paramassoc['ecs_uid_hash']; // Legacy name for the parameter.
-        }
-        if (!isset($paramassoc['ecs_login'])) {
-            self::log("ecs_login not found in destination URL");
-            return;
-        }
-        $username = $this->username_from_params($paramassoc['ecs_institution'], $paramassoc['ecs_login'], $uidhash,
-                                                campusconnect_enrolment::PERSON_UID, $authenticatingecs, $participantid);
-        $basicuserfields = array('firstname', 'lastname', 'email');
 
         self::log("Authentication successful");
 
-        //If user does not exist, create:
-        if (!$ccuser = get_complete_user_data('username', $username)){
-            self::log("Creating a new user account with username {$username}");
+        // If user does not exist, create them.
+        if (!$ccuser = get_complete_user_data('username', $userdetails->username)){
+            self::log("Creating a new user account with username {$userdetails->username}");
             $ccuser = new stdClass();
-            $ccuser->username = $username;
-            foreach ($basicuserfields as $field) {
-                $ccuser->{$field} = isset($paramassoc['ecs_'.$field]) ? $paramassoc['ecs_'.$field] : '';
+            foreach ($userdetails as $field => $value) {
+                $ccuser->$field = $value;
             }
             $ccuser->modified = time();
             $ccuser->confirmed = 1;
@@ -190,11 +99,11 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         self::log("User account details:");
         self::log_print_r($ccuser);
 
-        //Do we need to update details?
+        // Do we need to update details?
         $needupdate = false;
-        foreach ($basicuserfields as $field) {
-            if (isset($paramassoc['ecs_'.$field]) && $paramassoc['ecs_'.$field] != $ccuser->{$field}) {
-                $ccuser->{$field} = $paramassoc['ecs_'.$field];
+        foreach ($userdetails as $field => $value) {
+            if ($ccuser->$field != $value) {
+                $ccuser->$field = $value;
                 $needupdate = true;
             }
         }
@@ -204,25 +113,123 @@ class auth_plugin_campusconnect extends auth_plugin_base {
             $DB->update_record('user', $ccuser);
         }
 
-        //Let index.php know that user is authenticated:
+        // Let index.php know that user is authenticated.
         global $frm, $user;
         $frm = (object)array('username' => $ccuser->username, 'password' => '');
-        $user = clone($ccuser);
-        auth_plugin_campusconnect::$authenticateduser = clone($ccuser);
+        $user = clone $ccuser;
+        self::$authenticateduser = clone $ccuser;
+    }
+
+    /**
+     * Given the URL that was called, authenticate the user and return the details of the
+     * user to create / update.
+     *
+     * @param string $url
+     * @return null|object null if the authentication failed, otherwise the user details
+     */
+    public function authenticate_from_url($url) {
+        if (!$params = self::extract_url_params($url)) {
+            return null; // No params to process.
+        }
+
+        if (!$courseurl = self::check_course_url($url, $params)) {
+            return null; // URL does not match that for a Moodle course.
+        }
+
+        self::log("Destination URL: {$url}");
+
+        if (!$authinfo = self::authenticate_from_params($params, $courseurl)) {
+            return null; // Authentication failed.
+        }
+
+        return self::get_user_details($authinfo->ecsid, $authinfo->pid, $params);
+    }
+
+    protected static function extract_url_params($url) {
+        $urlparse = parse_url($url);
+        if (!is_array($urlparse) || !isset($urlparse['query'])) {
+            self::log("Destination URL lacks query string");
+            return null;
+        }
+        $urlquery = str_replace('&amp;', '&', $urlparse['query']);
+        $queryparams = explode('&', $urlquery);
+        $paramassoc = array();
+        foreach ($queryparams as $paramval) {
+            $split = explode('=', $paramval);
+            if (count($split) < 2) {
+                continue;
+            }
+            $paramassoc[$split[0]] = urldecode($split[1]);
+        }
+        return $paramassoc;
+    }
+
+    protected static function check_course_url($url, $params) {
+        if (!isset($params['id'])) {
+            self::log("No courseid in the destination URL");
+            return null; // URL didn't include a course ID.
+        }
+        $courseurl = new moodle_url('/course/view.php', array('id' => $params['id']));
+        $courseurl = $courseurl->out(); // Legacy direct course URL.
+        $courseviewurl = new moodle_url('/local/campusconnect/viewcourse.php', array('id' => $params['id']));
+        $courseviewurl = $courseviewurl->out(); // Newer courselink destination URL.
+        if (substr_compare($url, $courseurl, 0, strlen($courseurl)) !== 0) {
+            $courseurl = $courseviewurl;
+            if (substr_compare($url, $courseurl, 0, strlen($courseurl)) !== 0) {
+                self::log("Destination URL is not a Moodle course");
+                return null; // URL didn't match a Moodle course URL.
+            }
+        }
+        return $courseurl;
+    }
+
+    protected static function authenticate_from_params($params, $courseurl) {
+        // Extract the hash from the params.
+        $hash = null;
+        $baseurl = null;
+        if (!empty($params['ecs_hash'])) {
+            // Prefer the use of 'ecs_hash'.
+            $hash = $params['ecs_hash'];
+            self::log("ecs_hash found: {$hash}");
+        } else if (!empty($params['ecs_hash_url'])) {
+            // Fall back on the use of 'ecs_hash_url'.
+            $hashurl = $params['ecs_hash_url'];
+            self::log("ecs_hash_url found: {$params['ecs_hash_url']}");
+
+            $matches = array();
+            if (!preg_match('|(.*)/sys/auths/(.*)|', $hashurl, $matches)) {
+                self::log("Unable to parse ecs_hash_url");
+                return null; // Not able to parse the 'ecs_hash_url' successfully.
+            }
+            $baseurl = $matches[1];
+            $hash = $matches[2];
+        } else {
+            self::log("Neither ecs_hash nor ecs_hash_url included in destination URL");
+            return null;
+        }
+
+        // Check the authentication.
+        return self::check_authentication($baseurl, $hash, $courseurl, $params);
     }
 
     /**
      * Check against each ECS to see if any of them can authenticate the user.
      *
-     * @param string|null $baseurl
-     * @param string $hash
-     * @param string $courseurl
-     * @param array $paramassoc
-     * @return array [$authenticatingecs, $pid, $connecterrors] - $authenticatingecs is null if not authenticated.
+     * @param string|null $baseurl the URL from ecs_hash_url (or null, if using ecs_hash instead)
+     * @param string $hash the authentication hash value
+     * @param string $courseurl the courselink URL that was exported
+     * @param array $params the full set of params from the URL
+     * @return object|null null if the authentication failed, otherwise it contains:
+     *                ecsid: the ECS that authenticated the user,
+     *                  pid: the participant the user came from
      */
-    protected static function check_authentication($baseurl, $hash, $courseurl, $paramassoc) {
+    protected static function check_authentication($baseurl, $hash, $courseurl, $params) {
+        global $CFG;
+        require_once($CFG->dirroot.'/local/campusconnect/connect.php');
+        require_once($CFG->dirroot.'/local/campusconnect/enrolment.php');
+
         $authenticatingecs = null;
-        $participantid = null;
+        $pid = null;
         $connecterrors = false;
 
         $ecslist = campusconnect_ecssettings::list_ecs();
@@ -242,7 +249,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
                     self::log_print_r($auth);
                     if (is_object($auth) && isset($auth->hash) && $auth->hash == $hash) {
                         if (isset($auth->realm)) {
-                            $realm = campusconnect_connect::generate_realm($courseurl, $paramassoc);
+                            $realm = campusconnect_connect::generate_realm($courseurl, $params);
                             if ($realm != $auth->realm) {
                                 self::log("Locally generated realm: {$realm} does not match auth realm: {$auth->realm}");
                                 continue; // Params do not match those when the original hash was generated.
@@ -265,28 +272,39 @@ class auth_plugin_campusconnect extends auth_plugin_base {
                                 continue;
                             }
                         }
-                        if (!self::use_authentication_token($ecsid, $auth->pid, $paramassoc['id'])) {
-                            $connecterrors = false;
+                        if (!self::use_authentication_token($ecsid, $auth->pid, $params['id'])) {
+                            $connecterrors = false; // Ignore connection errors in this case.
                             self::log("Authentication token is valid, but is from a participant we are not accepting tokens from");
                             break; // Do not check against any other ECS.
                         }
-                        $participantid = $auth->pid;
+                        $pid = $auth->pid;
                         $authenticatingecs = $ecsid;
                         break;
                     }
                 } catch (campusconnect_connect_exception $e) {
                     $connecterrors = true;
+                    self::log("Connection error during authentication: ".$e->getMessage());
                 }
             }
         }
 
-        return array($authenticatingecs, $participantid, $connecterrors);
+        // Throw an error only if a connection exception was thrown and the user wasn't authenticated by any (other) ECS.
+        if (!$authenticatingecs) {
+            self::log("No ECS servers have authenticated the ECS hash");
+            if ($connecterrors) {
+                throw new moodle_exception('ecserror_subject', 'local_campusconnect');
+            }
+            return null;
+        }
+
+        return (object)array('ecsid' => $authenticatingecs, 'pid' => $pid);
     }
 
     protected static function use_authentication_token($ecsid, $pid, $courseid) {
         global $CFG;
         require_once($CFG->dirroot.'/local/campusconnect/participantsettings.php');
         require_once($CFG->dirroot.'/local/campusconnect/export.php');
+
         // Check the participant settings to see if we should be handling tokens from this participant.
         $mids = campusconnect_participantsettings::get_mids_from_pid($ecsid, $pid);
         $export = new campusconnect_export($courseid);
@@ -295,9 +313,39 @@ class auth_plugin_campusconnect extends auth_plugin_base {
                 return true; // We are accepting authentication tokens from this participant.
             }
         }
-
         // Ignore the token, as we're not handling authentication from that participant.
         return false;
+    }
+
+    protected static function get_user_details($ecsid, $pid, $params) {
+        if (!empty($params['ecs_uid'])) {
+            $uidhash = $params['ecs_uid']; // New name for the parameter.
+        } else {
+            if (empty($params['ecs_uid_hash'])) {
+                self::log("Neither ecs_uid nor ecs_uid_hash found in destination URL");
+                return null;
+            }
+            $uidhash = $params['ecs_uid_hash']; // Legacy name for the parameter.
+        }
+        if (empty($params['ecs_login'])) {
+            self::log("ecs_login not found in destination URL");
+            return null;
+        }
+
+        $userdetails = self::map_user_fields($params);
+        $userdetails->username = self::username_from_params($params['ecs_institution'], $params['ecs_login'], $uidhash,
+                                                            campusconnect_enrolment::PERSON_UID, $ecsid, $pid);
+
+        return $userdetails;
+    }
+
+    protected static function map_user_fields($params) {
+        $userdetails = new stdClass();
+        $basicuserfields = array('firstname', 'lastname', 'email');
+        foreach ($basicuserfields as $field) {
+            $userdetails->$field = isset($params['ecs_'.$field]) ? $params['ecs_'.$field] : '';
+        }
+        return $userdetails;
     }
 
     /**
@@ -480,7 +528,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
      * @param int $pid - the ID of the participant the user came from
      * @return string
      */
-    private function username_from_params($institution, $username, $personid, $personidtype, $ecsid, $pid) {
+    protected static function username_from_params($institution, $username, $personid, $personidtype, $ecsid, $pid) {
         global $DB;
 
         // See if we already know about this user.

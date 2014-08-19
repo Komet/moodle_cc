@@ -36,7 +36,7 @@ $PAGE->set_context(context_system::instance());
 admin_externalpage_setup('campusconnectcategoryassignment');
 
 require_login();
-require_capability('moodle/site:config', get_context_instance(CONTEXT_SYSTEM));
+require_capability('moodle/site:config', context_system::instance());
 
 class campusconnect_category_form extends moodleform {
 

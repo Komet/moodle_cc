@@ -35,7 +35,7 @@ $ecsid = optional_param('id', $deleteid, PARAM_INT);
 $confirm = optional_param('confirm', null, PARAM_INT);
 
 require_login();
-require_capability('moodle/site:config', get_context_instance(CONTEXT_SYSTEM));
+require_capability('moodle/site:config', context_system::instance());
 
 if ($ecsid) {
     admin_externalpage_setup('ecs'.$ecsid);

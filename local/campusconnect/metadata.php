@@ -582,7 +582,7 @@ class campusconnect_metadata {
                                 $fakeuser = new stdClass();
                                 $fakeuser->firstname = $person->firstName;
                                 $fakeuser->lastname = $person->lastName;
-                                $details[$fieldname][$key] = fullname($fakeuser);
+                                $details[$fieldname][$key] = self::fullname($fakeuser);
                             }
                         }
                         if ($flattenarrays) {
@@ -607,7 +607,7 @@ class campusconnect_metadata {
                                             'firstname' => $lecturer->firstName,
                                             'lastname' => $lecturer->lastName,
                                         );
-                                        $lecturers[] = fullname($fakeuser);
+                                        $lecturers[] = self::fullname($fakeuser);
                                     }
                                 }
                             }
@@ -676,6 +676,10 @@ class campusconnect_metadata {
             }
         }
         return $details;
+    }
+
+    protected static function fullname($user) {
+        return "{$user->firstname} {$user->lastname}";
     }
 
     /**

@@ -35,7 +35,7 @@ $PAGE->set_context(context_system::instance());
 admin_externalpage_setup('campusconnectreleasedcourses');
 
 require_login();
-require_capability('moodle/site:config', get_context_instance(CONTEXT_SYSTEM));
+require_capability('moodle/site:config', context_system::instance());
 
 if (optional_param('refreshall', false, PARAM_BOOL)) {
     // Refresh all the exports (if requested).

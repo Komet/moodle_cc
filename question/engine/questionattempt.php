@@ -87,14 +87,24 @@ class question_attempt {
     /** @var int which variant of the question to use. */
     protected $variant;
 
-    /** @var number the maximum mark that can be scored at this question. */
+    /**
+     * @var float the maximum mark that can be scored at this question.
+     * Actually, this is only really a nominal maximum. It might be better thought
+     * of as the question weight.
+     */
     protected $maxmark;
 
     /**
-     * @var number the minimum fraction that can be scored at this question, so
+     * @var float the minimum fraction that can be scored at this question, so
      * the minimum mark is $this->minfraction * $this->maxmark.
      */
     protected $minfraction = null;
+
+    /**
+     * @var float the maximum fraction that can be scored at this question, so
+     * the maximum mark is $this->maxfraction * $this->maxmark.
+     */
+    protected $maxfraction = null;
 
     /**
      * @var string plain text summary of the variant of the question the
@@ -649,17 +659,30 @@ class question_attempt {
         return $fraction * $this->maxmark;
     }
 
-    /** @return number the maximum mark possible for this question attempt. */
+    /**
+     * @return float the maximum mark possible for this question attempt.
+     * In fact, this is not strictly the maximum, becuase get_max_fraction may
+     * return a number greater than 1. It might be better to think of this as a
+     * question weight.
+     */
     public function get_max_mark() {
         return $this->maxmark;
     }
 
-    /** @return number the maximum mark possible for this question attempt. */
+    /** @return float the maximum mark possible for this question attempt. */
     public function get_min_fraction() {
         if (is_null($this->minfraction)) {
-            throw new coding_exception('This question_attempt has not been started yet, the min fraction is not yet konwn.');
+            throw new coding_exception('This question_attempt has not been started yet, the min fraction is not yet known.');
         }
         return $this->minfraction;
+    }
+
+    /** @return float the maximum mark possible for this question attempt. */
+    public function get_max_fraction() {
+        if (is_null($this->maxfraction)) {
+            throw new coding_exception('This question_attempt has not been started yet, the max fraction is not yet known.');
+        }
+        return $this->maxfraction;
     }
 
     /**
@@ -903,8 +926,9 @@ class question_attempt {
             $this->behaviour = new $class($this, $preferredbehaviour);
         }
 
-        // Record the minimum fraction.
+        // Record the minimum and maximum fractions.
         $this->minfraction = $this->behaviour->get_min_fraction();
+        $this->maxfraction = $this->behaviour->get_max_fraction();
 
         // Initialise the first step.
         $firststep = new question_attempt_step($submitteddata, $timestamp, $userid, $existingstepid);
@@ -994,7 +1018,7 @@ class question_attempt {
      * @param array $postdata (optional, only inteded for testing use) take the
      *      data from this array, instead of from $_POST. At the moment, this
      *      behaves as if there were no files.
-     * @param string $text optional response text.
+     * @param string $text optional reponse text.
      * @return question_file_saver that can be used to save the files later.
      */
     protected function process_response_files($name, $draftidname, $postdata = null, $text = null) {
@@ -1282,11 +1306,11 @@ class question_attempt {
     }
 
     /**
-     * @return array subpartid => object with fields
-     *      ->responseclassid matches one of the values returned from quetion_type::get_possible_responses.
-     *      ->response the actual response the student gave to this part, as a string.
-     *      ->fraction the credit awarded for this subpart, may be null.
-     *      returns an empty array if no analysis is possible.
+     * Break down a student response by sub part and classification.
+     * See also {@link question_type::get_possible_responses()}
+     * Used for response analysis.
+     *
+     * @return question_possible_response[] where keys are subpartid.
      */
     public function classify_response() {
         return $this->behaviour->classify_response();
@@ -1327,6 +1351,7 @@ class question_attempt {
         $qa->set_slot($record->slot);
         $qa->variant = $record->variant + 0;
         $qa->minfraction = $record->minfraction + 0;
+        $qa->maxfraction = $record->maxfraction + 0;
         $qa->set_flagged($record->flagged);
         $qa->questionsummary = $record->questionsummary;
         $qa->rightanswer = $record->rightanswer;
@@ -1429,6 +1454,7 @@ class question_attempt_with_restricted_history extends question_attempt {
         $this->question = $this->baseqa->question;
         $this->maxmark = $this->baseqa->maxmark;
         $this->minfraction = $this->baseqa->minfraction;
+        $this->maxfraction = $this->baseqa->maxfraction;
         $this->questionsummary = $this->baseqa->questionsummary;
         $this->responsesummary = $this->baseqa->responsesummary;
         $this->rightanswer = $this->baseqa->rightanswer;

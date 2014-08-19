@@ -194,6 +194,13 @@ class qtype_multichoice_single_question extends qtype_multichoice_base {
         return array();
     }
 
+
+    public function prepare_simulated_post_data($simulatedresponse) {
+        $ansnumbertoanswerid = array_keys($this->answers);
+        $ansid = $ansnumbertoanswerid[$simulatedresponse['answer']];
+        return array('answer' => array_search($ansid, $this->order));
+    }
+
     public function is_same_response(array $prevresponse, array $newresponse) {
         return question_utils::arrays_same_at_key($prevresponse, $newresponse, 'answer');
     }
@@ -335,6 +342,17 @@ class qtype_multichoice_multi_question extends qtype_multichoice_base {
         return $response;
     }
 
+    public function prepare_simulated_post_data($simulatedresponse) {
+        $postdata = array();
+        $ansidtochoiceno = array_flip($this->order);
+        ksort($ansidtochoiceno, SORT_NUMERIC);
+        $ansnotochoiceno = array_values($ansidtochoiceno);
+        foreach ($simulatedresponse as $ansno => $checked) {
+            $postdata[$this->field($ansnotochoiceno[$ansno])] = $checked;
+        }
+        return $postdata;
+    }
+
     public function is_same_response(array $prevresponse, array $newresponse) {
         foreach ($this->order as $key => $notused) {
             $fieldname = $this->field($key);
@@ -366,7 +384,8 @@ class qtype_multichoice_multi_question extends qtype_multichoice_base {
     public function get_num_selected_choices(array $response) {
         $numselected = 0;
         foreach ($response as $key => $value) {
-            if (!empty($value)) {
+            // Response keys starting with _ are internal values like _order, so ignore them.
+            if (!empty($value) && $key[0] != '_') {
                 $numselected += 1;
             }
         }

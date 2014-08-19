@@ -38,7 +38,7 @@ $CFG = new stdClass();
 // will be stored.  This database must already have been created         //
 // and a username/password created to access it.                         //
 
-$CFG->dbtype    = 'pgsql';      // 'pgsql', 'mysqli', 'mssql', 'sqlsrv' or 'oci'
+$CFG->dbtype    = 'pgsql';      // 'pgsql', 'mariadb', 'mysqli', 'mssql', 'sqlsrv' or 'oci'
 $CFG->dblibrary = 'native';     // 'native' only at the moment
 $CFG->dbhost    = 'localhost';  // eg 'localhost' or 'db.isp.com' or IP
 $CFG->dbname    = 'moodle';     // database name, eg moodle
@@ -201,7 +201,7 @@ $CFG->admin = 'admin';
 //
 // Seconds for files to remain in caches. Decrease this if you are worried
 // about students being served outdated versions of uploaded files.
-//     $CFG->filelifetime = 86400;
+//     $CFG->filelifetime = 60*60*6;
 //
 // Some web servers can offload the file serving from PHP process,
 // comment out one the following options to enable it in Moodle:
@@ -213,6 +213,7 @@ $CFG->admin = 'admin';
 //     $CFG->xsendfilealiases = array(
 //         '/dataroot/' => $CFG->dataroot,
 //         '/cachedir/' => '/var/www/moodle/cache',    // for custom $CFG->cachedir locations
+//         '/localcachedir/' => '/var/local/cache',    // for custom $CFG->localcachedir locations
 //         '/tempdir/'  => '/var/www/moodle/temp',     // for custom $CFG->tempdir locations
 //         '/filedir'   => '/var/www/moodle/filedir',  // for custom $CFG->filedir locations
 //     );
@@ -223,10 +224,29 @@ $CFG->admin = 'admin';
 // RewriteRule (^.*/theme/yui_combo\.php)(/.*) $1?file=$2
 //
 //
-// By default all user sessions should be using locking, uncomment
-// the following setting to prevent locking for guests and not-logged-in
-// accounts. This may improve performance significantly.
-//     $CFG->sessionlockloggedinonly = 1;
+// Following settings may be used to select session driver, uncomment only one of the handlers.
+//   Database session handler (not compatible with MyISAM):
+//      $CFG->session_handler_class = '\core\session\database';
+//      $CFG->session_database_acquire_lock_timeout = 120;
+//
+//   File session handler (file system locking required):
+//      $CFG->session_handler_class = '\core\session\file';
+//      $CFG->session_file_save_path = $CFG->dataroot.'/sessions';
+//
+//   Memcached session handler (requires memcached server and extension):
+//      $CFG->session_handler_class = '\core\session\memcached';
+//      $CFG->session_memcached_save_path = '127.0.0.1:11211';
+//      $CFG->session_memcached_prefix = 'memc.sess.key.';
+//      $CFG->session_memcached_acquire_lock_timeout = 120;
+//      $CFG->session_memcached_lock_expire = 7200;       // Ignored if memcached extension <= 2.1.0
+//
+// Please be aware that when selecting either Memcached or Memcache for sessions that it is advised to use a dedicated
+// memcache server. The memcache and memcached extensions do not provide isolated environments for individual uses.
+// Using the same server for other purposes (MUC for example) can lead to sessions being prematurely removed should
+// the other uses of the server purge the cache.
+//
+// Following setting allows you to alter how frequently is timemodified updated in sessions table.
+//      $CFG->session_update_timemodified_frequency = 20; // In seconds.
 //
 // If this setting is set to true, then Moodle will track the IP of the
 // current user to make sure it hasn't changed during a session.  This
@@ -353,33 +373,16 @@ $CFG->admin = 'admin';
 //
 // It is possible to specify different cache and temp directories, use local fast filesystem
 // for normal web servers. Server clusters MUST use shared filesystem for cachedir!
+// Localcachedir is intended for server clusters, it does not have to be shared by cluster nodes.
 // The directories must not be accessible via web.
 //
-//     $CFG->tempdir = '/var/www/moodle/temp';
-//     $CFG->cachedir = '/var/www/moodle/cache';
+//     $CFG->tempdir = '/var/www/moodle/temp';        // Files used during one HTTP request only.
+//     $CFG->cachedir = '/var/www/moodle/cache';      // Directory MUST BE SHARED by all cluster nodes, locking required.
+//     $CFG->localcachedir = '/var/local/cache';      // Intended for local node caching.
 //
 // Some filesystems such as NFS may not support file locking operations.
 // Locking resolves race conditions and is strongly recommended for production servers.
 //     $CFG->preventfilelocking = false;
-//
-// If $CFG->langstringcache is enabled (which should always be in production
-// environment), Moodle keeps aggregated strings in its own internal format
-// optimised for performance. By default, this on-disk cache is created in
-// $CFG->cachedir/lang. In cluster environment, you may wish to specify
-// an alternative location of this cache so that each web server in the cluster
-// uses its own local cache and does not need to access the shared dataroot.
-// Make sure that the web server process has write permission to this location
-// and that it has permission to remove the folder, too (so that the cache can
-// be pruned).
-//
-//     $CFG->langcacheroot = '/var/www/moodle/htdocs/altcache/lang';
-//
-// If $CFG->langcache is enabled (which should always be in production
-// environment), Moodle stores the list of available languages in a cache file.
-// By default, the file $CFG->dataroot/languages is used. You may wish to
-// specify an alternative location of this cache file.
-//
-//     $CFG->langmenucachefile = '/var/www/moodle/htdocs/altcache/languages';
 //
 // Site default language can be set via standard administration interface. If you
 // want to have initial error messages for eventual database connection problems
@@ -392,7 +395,7 @@ $CFG->admin = 'admin';
 // memory limit to something higher.
 // The value for the settings should be a valid PHP memory value. e.g. 512M, 1G
 //
-//     $CFG->extramemorylimit = '1G';
+//     $CFG->extramemorylimit = '1024M';
 //
 // Moodle 2.4 introduced a new cache API.
 // The cache API stores a configuration file within the Moodle data directory and
@@ -464,6 +467,14 @@ $CFG->admin = 'admin';
 // config.php file
 //      $CFG->preventexecpath = true;
 //
+// Use the following flag to set userid for noreply user. If not set then moodle will
+// create dummy user and use -ve value as user id.
+//      $CFG->noreplyuserid = -10;
+//
+// As of version 2.6 Moodle supports admin to set support user. If not set, all mails
+// will be sent to supportemail.
+//      $CFG->supportuserid = -20;
+//
 //=========================================================================
 // 7. SETTINGS FOR DEVELOPMENT SERVERS - not intended for production use!!!
 //=========================================================================
@@ -485,7 +496,25 @@ $CFG->admin = 'admin';
 // Prevent JS caching
 // $CFG->cachejs = false; // NOT FOR PRODUCTION SERVERS!
 //
-// Prevent core_string_manager on-disk cache
+// Restrict which YUI logging statements are shown in the browser console.
+// For details see the upstream documentation:
+//   http://yuilibrary.com/yui/docs/api/classes/config.html#property_logInclude
+//   http://yuilibrary.com/yui/docs/api/classes/config.html#property_logExclude
+// $CFG->yuiloginclude = array(
+//     'moodle-core-dock-loader' => true,
+//     'moodle-course-categoryexpander' => true,
+// );
+// $CFG->yuilogexclude = array(
+//     'moodle-core-dock' => true,
+//     'moodle-core-notification' => true,
+// );
+//
+// Set the minimum log level for YUI logging statements.
+// For details see the upstream documentation:
+//   http://yuilibrary.com/yui/docs/api/classes/config.html#property_logLevel
+// $CFG->yuiloglevel = 'debug';
+//
+// Prevent core_string_manager application caching
 // $CFG->langstringcache = false; // NOT FOR PRODUCTION SERVERS!
 //
 // When working with production data on test servers, no emails or other messages
@@ -522,6 +551,10 @@ $CFG->admin = 'admin';
 // Example:
 //   $CFG->forced_plugin_settings = array('pluginname'  => array('settingname' => 'value', 'secondsetting' => 'othervalue'),
 //                                        'otherplugin' => array('mysetting' => 'myvalue', 'thesetting' => 'thevalue'));
+// Module default settings with advanced/locked checkboxes can be set too. To do this, add
+// an extra config with '_adv' or '_locked' as a suffix and set the value to true or false.
+// Example:
+//   $CFG->forced_plugin_settings = array('pluginname'  => array('settingname' => 'value', 'settingname_locked' => true, 'settingname_adv' => true));
 //
 //=========================================================================
 // 9. PHPUNIT SUPPORT
@@ -632,6 +665,18 @@ $CFG->admin = 'admin';
 // seconds. Is not recommended to use this setting if you don't explicitly need it.
 // Example:
 //   $CFG->behat_restart_browser_after = 7200;     // Restarts the browser session after 2 hours
+//
+// All this page's extra Moodle settings are compared against a white list of allowed settings
+// (the basic and behat_* ones) to avoid problems with production environments. This setting can be
+// used to expand the default white list with an array of extra settings.
+// Example:
+//   $CFG->behat_extraallowedsettings = array('logsql', 'dblogerror');
+//
+// You can make behat save several dumps when a scenario fails. The dumps currently saved are:
+// * a dump of the DOM in it's state at the time of failure; and
+// * a screenshot (JavaScript is required for the screenshot functionality, so not all browsers support this option)
+// Example:
+//   $CFG->behat_faildump_path = '/my/path/to/save/failure/dumps';
 //
 //=========================================================================
 // 12. DEVELOPER DATA GENERATOR

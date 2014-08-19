@@ -121,6 +121,12 @@ abstract class moodle_database {
     /** @var string MD5 of settings used for connection. Used by MUC as an identifier. */
     private $settingshash;
 
+    /** @var cache_application for column info */
+    protected $metacache;
+
+    /** @var bool flag marking database instance as disposed */
+    protected $disposed;
+
     /**
      * @var int internal temporary variable used to fix params. Its used by {@link _fix_sql_params_dollar_callback()}.
      */
@@ -187,6 +193,15 @@ abstract class moodle_database {
     }
 
     /**
+     * Returns the database vendor.
+     * Note: can be used before connect()
+     * @return string The db vendor name, usually the same as db family name.
+     */
+    public function get_dbvendor() {
+        return $this->get_dbfamily();
+    }
+
+    /**
      * Returns the database family type. (This sort of describes the SQL 'dialect')
      * Note: can be used before connect()
      * @return string The db family name (mysql, postgres, mssql, oracle, etc.)
@@ -224,9 +239,13 @@ abstract class moodle_database {
     /**
      * Returns the localised database description
      * Note: can be used before connect()
+     * @deprecated since 2.6
      * @return string
      */
-    public abstract function get_configuration_hints();
+    public function get_configuration_hints() {
+        debugging('$DB->get_configuration_hints() method is deprecated, use $DB->get_configuration_help() instead');
+        return $this->get_configuration_help();
+    }
 
     /**
      * Returns the db related part of config.php
@@ -320,33 +339,32 @@ abstract class moodle_database {
     }
 
     /**
+     * Returns transaction trace for debugging purposes.
+     * @private to be used by core only
+     * @return array or null if not in transaction.
+     */
+    public function get_transaction_start_backtrace() {
+        if (!$this->transactions) {
+            return null;
+        }
+        $lowesttransaction = end($this->transactions);
+        return $lowesttransaction->get_backtrace();
+    }
+
+    /**
      * Closes the database connection and releases all resources
      * and memory (especially circular memory references).
      * Do NOT use connect() again, create a new instance if needed.
      * @return void
      */
     public function dispose() {
+        if ($this->disposed) {
+            return;
+        }
+        $this->disposed = true;
         if ($this->transactions) {
-            // this should not happen, it usually indicates wrong catching of exceptions,
-            // because all transactions should be finished manually or in default exception handler.
-            // unfortunately we can not access global $CFG any more and can not print debug,
-            // the diagnostic info should be printed in footer instead
-            $lowesttransaction = end($this->transactions);
-            $backtrace = $lowesttransaction->get_backtrace();
-
-            if (defined('PHPUNIT_TEST') and PHPUNIT_TEST) {
-                //no need to log sudden exits in our PHPUnit test cases
-            } else {
-                error_log('Potential coding error - active database transaction detected when disposing database:'."\n".format_backtrace($backtrace, true));
-            }
             $this->force_transaction_rollback();
         }
-        // Always terminate sessions here to make it consistent,
-        // this is needed because we need to save session to db before closing it.
-        if (function_exists('session_get_instance')) {
-            session_get_instance()->write_close();
-        }
-        $this->used_for_db_sessions = false;
 
         if ($this->temptables) {
             $this->temptables->dispose();
@@ -955,7 +973,7 @@ abstract class moodle_database {
      * @return void
      */
     public function reset_caches() {
-        $this->tables  = null;
+        $this->tables = null;
         // Purge MUC as well
         $identifiers = array('dbfamily' => $this->get_dbfamily(), 'settings' => $this->get_settings_hash());
         cache_helper::purge_by_definition('core', 'databasemeta', $identifiers);
@@ -2122,6 +2140,52 @@ abstract class moodle_database {
     }
 
     /**
+     * Does this driver support tool_replace?
+     *
+     * @since 2.6.1
+     * @return bool
+     */
+    public function replace_all_text_supported() {
+        return false;
+    }
+
+    /**
+     * Replace given text in all rows of column.
+     *
+     * @since 2.6.1
+     * @param string $table name of the table
+     * @param database_column_info $column
+     * @param string $search
+     * @param string $replace
+     */
+    public function replace_all_text($table, database_column_info $column, $search, $replace) {
+        if (!$this->replace_all_text_supported()) {
+            return;
+        }
+
+        // NOTE: override this methods if following standard compliant SQL
+        //       does not work for your driver.
+
+        $columnname = $column->name;
+        $sql = "UPDATE {".$table."}
+                       SET $columnname = REPLACE($columnname, ?, ?)
+                     WHERE $columnname IS NOT NULL";
+
+        if ($column->meta_type === 'X') {
+            $this->execute($sql, array($search, $replace));
+
+        } else if ($column->meta_type === 'C') {
+            if (core_text::strlen($search) < core_text::strlen($replace)) {
+                $colsize = $column->max_length;
+                $sql = "UPDATE {".$table."}
+                       SET $columnname = SUBSTRING(REPLACE($columnname, ?, ?), 1, $colsize)
+                     WHERE $columnname IS NOT NULL";
+            }
+            $this->execute($sql, array($search, $replace));
+        }
+    }
+
+    /**
      * Analyze the data in temporary tables to force statistics collection after bulk data loads.
      *
      * @return void
@@ -2232,6 +2296,10 @@ abstract class moodle_database {
             $this->commit_transaction();
         }
         array_pop($this->transactions);
+
+        if (empty($this->transactions)) {
+            \core\event\manager::database_transaction_commited();
+        }
     }
 
     /**
@@ -2277,6 +2345,7 @@ abstract class moodle_database {
         if (empty($this->transactions)) {
             // finally top most level rolled back
             $this->force_rollback = false;
+            \core\event\manager::database_transaction_rolledback();
         }
         throw $e;
     }
@@ -2307,7 +2376,7 @@ abstract class moodle_database {
         }
 
         // now enable transactions again
-        $this->transactions = array(); // unfortunately all unfinished exceptions are kept in memory
+        $this->transactions = array();
         $this->force_rollback = false;
     }
 

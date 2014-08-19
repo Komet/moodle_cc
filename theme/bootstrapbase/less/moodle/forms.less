@@ -72,6 +72,16 @@ form {
         display: inline-block;
     }
 }
+.mform label {
+    display: inline-block;
+}
+
+.mform .iconhelp {
+    margin-left: 4px;
+}
+.dir-rtl .mform .iconhelp {
+    margin-right: 4px;
+}
 .mform .ftextarea #id_alltext {
     width: 100%;
 }
@@ -216,7 +226,7 @@ div.backup-section + form,
     display: inline-block; // So above style sticks.
 }
 
-#adminsettings h3.main {
+#adminsettings h3 {
     // Copied from bootstrap/forms.less tag legend.
     display: block;
     width: 100%;
@@ -371,6 +381,92 @@ div#dateselector-calendar-panel {
 
 fieldset.coursesearchbox label {
     display: inline;
+}
+
+/**
+ * Show the labels above text editors and file managers except on wide screens.
+ */
+#region-main .mform:not(.unresponsive) .fitem .fitemtitle label {
+    font-weight: bold;
+}
+
+.makeFormsVertical() {
+    #region-main .mform:not(.unresponsive) .fitem .fitemtitle {
+        display: block;
+        margin-top: 4px;
+        margin-bottom: 4px;
+        text-align: left;
+        width: 100%;
+    }
+    #region-main .mform:not(.unresponsive) .femptylabel .fitemtitle {
+        display: inline-block;
+        width: auto;
+        margin-right: 8px;
+    }
+    &.dir-rtl #region-main .mform:not(.unresponsive) .femptylabel .fitemtitle {
+        margin-right: 0px;
+        margin-left: 8px;
+    }
+    &.dir-rtl #region-main .mform:not(.unresponsive) .fitem .fitemtitle {
+        text-align: right;
+    }
+
+    #region-main .mform:not(.unresponsive) .fitem .felement {
+        margin-left: 0;
+        width: 100%;
+        float: left;
+        padding-left: 0;
+        padding-right: 0;
+    }
+    #region-main .mform:not(.unresponsive) .fitem .fstatic:empty {
+        display: none;
+    }
+    #region-main .mform:not(.unresponsive) .femptylabel .felement {
+        display: inline-block;
+        margin-top: 4px;
+        padding-top: 5px;
+        width: auto;
+    }
+    &.dir-rtl #region-main .mform:not(.unresponsive) .fitem .felement {
+        margin-right: 0;
+        float: right;
+        padding-right: 0;
+        padding-left: 0;
+    }
+    #region-main .mform:not(.unresponsive) .fitem_fcheckbox .fitemtitle,
+    #region-main .mform:not(.unresponsive) .fitem_fcheckbox .felement {
+        display: inline-block;
+        width: auto;
+    }
+    &.dir-rtl #region-main .mform:not(.unresponsive) .fitem_fcheckbox .felement {
+        float: right;
+    }
+    #region-main .mform:not(.unresponsive) .fitem_fcheckbox .felement {
+        padding: 6px;
+    }
+}
+
+/**
+ * Make forms vertical when the screen is less than 1200px;
+ */
+@media (max-width: 1199px) {
+    body {
+        .makeFormsVertical;
+    }
+}
+
+/**
+ * Make forms vertical when the screen is less than 1474px AND both side-pre and side-post contain blocks.
+ * This is an extra special media rule.
+ * It causes forms to show vertically when the screen size is calculated as:
+ *    1199px + (1199px * 23%)
+ * Where 23% is the width of span3
+ */
+@maxWidthForVerticalForms: 1199px * (unit(((@fluidGridColumnWidth1200 * 3) + (@fluidGridGutterWidth * (3 - 1)))) / 100) + 1199px;
+@media (max-width: @maxWidthForVerticalForms) {
+    .used-region-side-pre.used-region-side-post {
+        .makeFormsVertical;
+    }
 }
 
 /* Revert to the non-fixed width where a textarea has the number of columns

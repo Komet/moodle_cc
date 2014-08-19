@@ -84,6 +84,7 @@ $strfeedback  = get_string("modulename", "feedback");
 $PAGE->set_heading($course->fullname);
 $PAGE->set_title($feedback->name);
 echo $OUTPUT->header();
+echo $OUTPUT->heading(format_string($feedback->name));
 
 require('tabs.php');
 

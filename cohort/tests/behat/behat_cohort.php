@@ -54,7 +54,7 @@ class behat_cohort extends behat_base {
         $userid = $DB->get_field('user', 'id', array('username' => $username));
 
         $steps = array(
-            new Given('I click on "' . get_string('assign', 'cohort') . '" "link" in the "' . $this->escape($cohortidnumber) . '" table row'),
+            new Given('I click on "' . get_string('assign', 'cohort') . '" "link" in the "' . $this->escape($cohortidnumber) . '" "table_row"'),
             new Given('I select "' . $userid . '" from "' . get_string('potusers', 'cohort') . '"'),
             new Given('I press "' . get_string('add') . '"'),
             new Given('I press "' . get_string('backtocohorts', 'cohort') . '"')
@@ -62,14 +62,15 @@ class behat_cohort extends behat_base {
 
         // If we are not in the cohorts management we should move there before anything else.
         if (!$this->getSession()->getPage()->find('css', 'input#cohort_search_q')) {
+
+            $parentnodes = get_string('administrationsite') .
+                ' > ' . get_string('users', 'admin') .
+                ' > ' . get_string('accounts', 'admin');
+
             $steps = array_merge(
                 array(
                     new Given('I am on homepage'),
-                    new Given('I collapse "' . get_string('frontpagesettings', 'admin') . '" node'),
-                    new Given('I expand "' . get_string('administrationsite') . '" node'),
-                    new Given('I expand "' . get_string('users', 'admin') . '" node'),
-                    new Given('I expand "' . get_string('accounts', 'admin') . '" node'),
-                    new Given('I follow "' . get_string('cohorts', 'cohort') . '"')
+                    new Given('I navigate to "' . get_string('cohorts', 'cohort') . '" node in "' . $parentnodes . '"')
                 ),
                 $steps
             );

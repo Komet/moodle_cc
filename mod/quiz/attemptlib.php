@@ -746,6 +746,26 @@ class quiz_attempt {
     }
 
     /**
+     * Get extra summary information about this attempt.
+     *
+     * Some behaviours may be able to provide interesting summary information
+     * about the attempt as a whole, and this method provides access to that data.
+     * To see how this works, try setting a quiz to one of the CBM behaviours,
+     * and then look at the extra information displayed at the top of the quiz
+     * review page once you have sumitted an attempt.
+     *
+     * In the return value, the array keys are identifiers of the form
+     * qbehaviour_behaviourname_meaningfullkey. For qbehaviour_deferredcbm_highsummary.
+     * The values are arrays with two items, title and content. Each of these
+     * will be either a string, or a renderable.
+     *
+     * @return array as described above.
+     */
+    public function get_additional_summary_data(question_display_options $options) {
+        return $this->quba->get_summary_information($options);
+    }
+
+    /**
      * Get the overall feedback corresponding to a particular mark.
      * @param $grade a particular grade.
      */
@@ -1348,15 +1368,26 @@ class quiz_attempt {
     /**
      * Process all the actions that were submitted as part of the current request.
      *
-     * @param int $timestamp the timestamp that should be stored as the modifed
-     * time in the database for these actions. If null, will use the current time.
+     * @param int  $timestamp  the timestamp that should be stored as the modifed
+     *                         time in the database for these actions. If null, will use the current time.
+     * @param bool $becomingoverdue
+     * @param array|null $simulatedresponses If not null, then we are testing, and this is an array of simulated data, keys are slot
+     *                                          nos and values are arrays representing student responses which will be passed to
+     *                                          question_definition::prepare_simulated_post_data method and then have the
+     *                                          appropriate prefix added.
      */
-    public function process_submitted_actions($timestamp, $becomingoverdue = false) {
+    public function process_submitted_actions($timestamp, $becomingoverdue = false, $simulatedresponses = null) {
         global $DB;
 
         $transaction = $DB->start_delegated_transaction();
 
-        $this->quba->process_all_actions($timestamp);
+        if ($simulatedresponses !== null) {
+            $simulatedpostdata = $this->quba->prepare_simulated_post_data($simulatedresponses);
+        } else {
+            $simulatedpostdata = null;
+        }
+
+        $this->quba->process_all_actions($timestamp, $simulatedpostdata);
         question_engine::save_questions_usage_by_activity($this->quba);
 
         $this->attempt->timemodified = $timestamp;
@@ -1429,7 +1460,7 @@ class quiz_attempt {
             quiz_save_best_grade($this->get_quiz(), $this->attempt->userid);
 
             // Trigger event.
-            $this->fire_state_transition_event('quiz_attempt_submitted', $timestamp);
+            $this->fire_state_transition_event('\mod_quiz\event\attempt_submitted', $timestamp);
 
             // Tell any access rules that care that the attempt is over.
             $this->get_access_manager($timestamp)->current_attempt_finished();
@@ -1466,7 +1497,7 @@ class quiz_attempt {
         $this->attempt->timecheckstate = $timestamp;
         $DB->update_record('quiz_attempts', $this->attempt);
 
-        $this->fire_state_transition_event('quiz_attempt_overdue', $timestamp);
+        $this->fire_state_transition_event('\mod_quiz\event\attempt_becameoverdue', $timestamp);
 
         $transaction->allow_commit();
     }
@@ -1485,45 +1516,35 @@ class quiz_attempt {
         $this->attempt->timecheckstate = null;
         $DB->update_record('quiz_attempts', $this->attempt);
 
-        $this->fire_state_transition_event('quiz_attempt_abandoned', $timestamp);
+        $this->fire_state_transition_event('\mod_quiz\event\attempt_abandoned', $timestamp);
 
         $transaction->allow_commit();
     }
 
     /**
      * Fire a state transition event.
-     * @param string $event the type of event. Should be listed in db/events.php.
+     * the same event information.
+     * @param string $eventclass the event class name.
      * @param int $timestamp the timestamp to include in the event.
+     * @return void
      */
-    protected function fire_state_transition_event($event, $timestamp) {
+    protected function fire_state_transition_event($eventclass, $timestamp) {
         global $USER;
 
-        // Trigger event.
-        $eventdata = new stdClass();
-        $eventdata->component   = 'mod_quiz';
-        $eventdata->attemptid   = $this->attempt->id;
-        $eventdata->timestamp   = $timestamp;
-        $eventdata->userid      = $this->attempt->userid;
-        $eventdata->quizid      = $this->get_quizid();
-        $eventdata->cmid        = $this->get_cmid();
-        $eventdata->courseid    = $this->get_courseid();
+        $params = array(
+            'context' => $this->get_quizobj()->get_context(),
+            'courseid' => $this->get_courseid(),
+            'objectid' => $this->attempt->id,
+            'relateduserid' => $this->attempt->userid,
+            'other' => array(
+                'submitterid' => CLI_SCRIPT ? null : $USER->id
+            )
+        );
 
-        // I don't think if (CLI_SCRIPT) is really the right logic here. The
-        // question is really 'is $USER currently set to a real user', but I cannot
-        // see standard Moodle function to answer that question. For example,
-        // cron fakes $USER.
-        if (CLI_SCRIPT) {
-            $eventdata->submitterid = null;
-        } else {
-            $eventdata->submitterid = $USER->id;
-        }
-
-        if ($event == 'quiz_attempt_submitted') {
-            // Backwards compatibility for this event type. $eventdata->timestamp is now preferred.
-            $eventdata->timefinish = $timestamp;
-        }
-
-        events_trigger($event, $eventdata);
+        $event = $eventclass::create($params);
+        $event->add_record_snapshot('quiz', $this->get_quiz());
+        $event->add_record_snapshot('quiz_attempts', $this->get_attempt());
+        $event->trigger();
     }
 
     /**
@@ -1701,14 +1722,15 @@ abstract class quiz_nav_panel_base {
 
     public function user_picture() {
         global $DB;
-
-        if (!$this->attemptobj->get_quiz()->showuserpicture) {
+        if ($this->attemptobj->get_quiz()->showuserpicture == QUIZ_SHOWIMAGE_NONE) {
             return null;
         }
-
         $user = $DB->get_record('user', array('id' => $this->attemptobj->get_userid()));
         $userpicture = new user_picture($user);
         $userpicture->courseid = $this->attemptobj->get_courseid();
+        if ($this->attemptobj->get_quiz()->showuserpicture == QUIZ_SHOWIMAGE_LARGE) {
+            $userpicture->size = true;
+        }
         return $userpicture;
     }
 

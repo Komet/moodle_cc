@@ -130,8 +130,8 @@ a:active {
     overflow: auto;
 }
 
-.block_recent_activity h2,main,
-.block_recent_activity h3.main {
+.block_recent_activity h2,
+.block_recent_activity h3 {
     font-size: 1em;
     margin: 0.5em 0;
 }
@@ -263,9 +263,13 @@ td.eventskey {
 }
 
 /* Course */
-
-h2.headingblock {
+#site-news-forum h2,
+#frontpage-course-list h2,
+#frontpage-category-names h2,
+#frontpage-category-combo h2 {
     font-weight: normal;
+    border-bottom: 1px solid #eee;
+    font-size: 1.5em;
 }
 
 .coursebox {
@@ -284,18 +288,13 @@ h2.headingblock {
     width: 61%;
 }
 
-.coursebox > .info > h3.name {
+.coursebox > .info > h3.coursename {
     font-size: 1.2em;
     line-height: 1.4;
 }
 
 .coursebox .content .teachers {
     font-size: 0.95em;
-}
-
-h2.headingblock {
-    border-bottom: 1px solid #eee;
-    font-size: 1.5em;
 }
 
 #page-course-index-category .categorypicker {
@@ -370,7 +369,7 @@ h2.headingblock {
     display: inline;
 }
 
-#page-user-index h3.main {
+#page-user-index h3 {
     margin: 1em 0;
 }
 
@@ -774,7 +773,7 @@ h2.headingblock {
     margin: 0 auto;
 }
 
-#page-mod-choice-view h2.main {
+#page-mod-choice-view h2 {
     font-size: 1.5em;
     margin: 1em 0;
 }
@@ -789,7 +788,7 @@ h2.headingblock {
 
 /* Feedback */
 
-.path-mod-feedback h4.main {
+.path-mod-feedback h4 {
     margin-top: 1em;
 }
 
@@ -842,7 +841,7 @@ h2.headingblock {
     border-bottom: 1px solid #e5e5e5;
 }
 
-.path-mod-glossary .entrybox .glossarycategoryheader th h2.main {
+.path-mod-glossary .entrybox .glossarycategoryheader th h2 {
     font-size: 1.2em;
     line-height: 1.5;
     margin: 0;

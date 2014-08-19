@@ -22,6 +22,6 @@ Feature: Login from a block
     And I am on homepage
     When I set the field "Username" to "testuser"
     And I set the field "Password" to "testpass"
-    And I click on "Login" "button" in the "Login" "block"
+    And I click on "Log in" "button" in the "Login" "block"
     Then I should see "You are logged in as Test User"
     And "Login" "block" should not exist

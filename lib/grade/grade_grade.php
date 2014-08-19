@@ -572,7 +572,10 @@ class grade_grade extends grade_object {
      *
      * @param array $grade_grades all course grades of one user, & used for better internal caching
      * @param array $grade_items array of grade items, & used for better internal caching
-     * @return array
+     * @return array This is an array of 3 arrays:
+     *      unknown => list of item ids that may be affected by hiding (with the calculated grade as the value)
+     *      altered => list of item ids that are definitely affected by hiding (with the calculated grade as the value)
+     *      alteredgrademax => for each item in altered or unknown, the new value of the grademax
      */
     public static function get_hiding_affected(&$grade_grades, &$grade_items) {
         global $CFG;
@@ -585,6 +588,8 @@ class grade_grade extends grade_object {
         $todo = array();
         $unknown = array();  // can not find altered
         $altered = array();  // altered grades
+        $alteredgrademax = array();  // Altered grade max values.
+        $alteredgrademin = array();  // Altered grade min values.
 
         $hiddenfound = false;
         foreach($grade_grades as $itemid=>$unused) {
@@ -604,7 +609,10 @@ class grade_grade extends grade_object {
             }
         }
         if (!$hiddenfound) {
-            return array('unknown'=>array(), 'altered'=>array());
+            return array('unknown' => array(),
+                         'altered' => array(),
+                         'alteredgrademax' => array(),
+                         'alteredgrademin' => array());
         }
 
         $max = count($todo);
@@ -646,6 +654,7 @@ class grade_grade extends grade_object {
                                 if (array_key_exists($itemid, $altered)) {
                                     //nulling an altered precursor
                                     $values[$itemid] = $altered[$itemid];
+                                    unset($values[$itemid]);
                                 } elseif (empty($values[$itemid])) {
                                     $values[$itemid] = $grade_grades[$itemid]->finalgrade;
                                 }
@@ -686,12 +695,18 @@ class grade_grade extends grade_object {
                                 continue;
                             }
 
-                            $agg_grade = $grade_category->aggregate_values($values, $grade_items);
+                            $adjustedgrade = $grade_category->aggregate_values_and_adjust_bounds($values, $grade_items);
 
                             // recalculate the rawgrade back to requested range
-                            $finalgrade = grade_grade::standardise_score($agg_grade, 0, 1, $grade_items[$do]->grademin, $grade_items[$do]->grademax);
+                            $finalgrade = grade_grade::standardise_score($adjustedgrade['grade'],
+                                                                         0,
+                                                                         1,
+                                                                         $adjustedgrade['grademin'],
+                                                                         $adjustedgrade['grademax']);
 
                             $finalgrade = $grade_items[$do]->bounded_grade($finalgrade);
+                            $alteredgrademin[$do] = $adjustedgrade['grademin'];
+                            $alteredgrademax[$do] = $adjustedgrade['grademax'];
 
                             $altered[$do] = $finalgrade;
                             unset($todo[$key]);
@@ -706,7 +721,10 @@ class grade_grade extends grade_object {
             }
         }
 
-        return array('unknown'=>$unknown, 'altered'=>$altered);
+        return array('unknown' => $unknown,
+                     'altered' => $altered,
+                     'alteredgrademax' => $alteredgrademax,
+                     'alteredgrademin' => $alteredgrademin);
     }
 
     /**
@@ -772,11 +790,12 @@ class grade_grade extends grade_object {
      * @param bool $deleted True if grade was actually deleted
      */
     function notify_changed($deleted) {
-        global $USER, $SESSION, $CFG,$COURSE, $DB;
+        global $CFG;
 
-        // Grades may be cached in user session
-        if ($USER->id == $this->userid) {
-            unset($SESSION->gradescorecache[$this->itemid]);
+        // Inform conditionlib since it may cache the grades for conditional availability of modules or sections.
+        if (!empty($CFG->enableavailability)) {
+            require_once($CFG->libdir.'/conditionlib.php');
+            condition_info_base::inform_grade_changed($this, $deleted);
         }
 
         require_once($CFG->libdir.'/completionlib.php');
@@ -803,11 +822,7 @@ class grade_grade extends grade_object {
         }
 
         // Use $COURSE if available otherwise get it via item fields
-        if(!empty($COURSE) && $COURSE->id == $this->grade_item->courseid) {
-            $course = $COURSE;
-        } else {
-            $course = $DB->get_record('course', array('id'=>$this->grade_item->courseid));
-        }
+        $course = get_course($this->grade_item->courseid, false);
 
         // Bail out if completion is not enabled for course
         $completion = new completion_info($course);

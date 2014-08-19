@@ -102,13 +102,9 @@ class mod_workshop_renderer extends plugin_renderer_base {
         $o .= $this->output->heading($title, 3, 'title');
 
         if (!$anonymous) {
-            $author             = new stdclass();
-            $author->id         = $submission->authorid;
-            $author->firstname  = $submission->authorfirstname;
-            $author->lastname   = $submission->authorlastname;
-            $author->picture    = $submission->authorpicture;
-            $author->imagealt   = $submission->authorimagealt;
-            $author->email      = $submission->authoremail;
+            $author = new stdclass();
+            $additionalfields = explode(',', user_picture::fields());
+            $author = username_load_fields_from_object($author, $submission, 'author', $additionalfields);
             $userpic            = $this->output->user_picture($author, array('courseid' => $this->page->course->id, 'size' => 64));
             $userurl            = new moodle_url('/user/view.php',
                                             array('id' => $author->id, 'course' => $this->page->course->id));
@@ -185,12 +181,8 @@ class mod_workshop_renderer extends plugin_renderer_base {
 
         if (!$anonymous) {
             $author             = new stdClass();
-            $author->id         = $summary->authorid;
-            $author->firstname  = $summary->authorfirstname;
-            $author->lastname   = $summary->authorlastname;
-            $author->picture    = $summary->authorpicture;
-            $author->imagealt   = $summary->authorimagealt;
-            $author->email      = $summary->authoremail;
+            $additionalfields = explode(',', user_picture::fields());
+            $author = username_load_fields_from_object($author, $summary, 'author', $additionalfields);
             $userpic            = $this->output->user_picture($author, array('courseid' => $this->page->course->id, 'size' => 35));
             $userurl            = new moodle_url('/user/view.php',
                                             array('id' => $author->id, 'course' => $this->page->course->id));
@@ -229,7 +221,7 @@ class mod_workshop_renderer extends plugin_renderer_base {
         $classes = 'submission-full example';
         $o .= $this->output->container_start($classes);
         $o .= $this->output->container_start('header');
-        $o .= $this->output->heading(format_string($example->title), 3, 'title');
+        $o .= $this->output->container(format_string($example->title), array('class' => 'title'));
         $o .= $this->output->container_end(); // end of header
 
         $content = file_rewrite_pluginfile_urls($example->content, 'pluginfile.php', $this->page->context->id,
@@ -339,6 +331,7 @@ class mod_workshop_renderer extends plugin_renderer_base {
      * @return string HTML to be echoed
      */
     protected function render_workshop_allocation_result(workshop_allocation_result $result) {
+        global $CFG;
 
         $status = $result->get_status();
 
@@ -384,7 +377,7 @@ class mod_workshop_renderer extends plugin_renderer_base {
         if (is_array($logs) and !empty($logs)) {
             $o .= html_writer::start_tag('ul', array('class' => 'allocation-init-results'));
             foreach ($logs as $log) {
-                if ($log->type == 'debug' and !debugging('', DEBUG_DEVELOPER)) {
+                if ($log->type == 'debug' and !$CFG->debugdeveloper) {
                     // display allocation debugging messages for developers only
                     continue;
                 }

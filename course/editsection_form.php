@@ -73,7 +73,7 @@ class editsection_form extends moodleform {
                                 $grouping->name, true, array('context' => $context));
                     }
                 }
-                collatorlib::asort($options);
+                core_collator::asort($options);
                 $options = array(0 => get_string('none')) + $options;
                 $mform->addElement('select', 'groupingid', get_string('groupingsection', 'group'), $options);
                 $mform->addHelpButton('groupingid', 'groupingsection', 'group');

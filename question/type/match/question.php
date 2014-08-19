@@ -188,6 +188,26 @@ class qtype_match_question extends question_graded_automatically_with_countback 
         return $response;
     }
 
+    public function prepare_simulated_post_data($simulatedresponse) {
+        $postdata = array();
+        $stemids = array_keys($this->stems);
+        $choicetochoiceno = array_flip($this->choices);
+        $choicenotochoiceselectvalue = array_flip($this->choiceorder);
+        foreach ($simulatedresponse as $stemno => $choice) {
+            $stemid = $stemids[$stemno];
+            $shuffledstemno = array_search($stemid, $this->stemorder);
+            if (empty($choice)) {
+                $choiceselectvalue = 0;
+            } else if ($choicetochoiceno[$choice]) {
+                $choiceselectvalue = $choicenotochoiceselectvalue[$choicetochoiceno[$choice]];
+            } else {
+                throw new coding_exception("Unknown choice $choice in matching question - {$this->name}.");
+            }
+            $postdata[$this->field($shuffledstemno)] = $choiceselectvalue;
+        }
+        return $postdata;
+    }
+
     public function get_right_choice_for($stemid) {
         foreach ($this->choiceorder as $choicekey => $choiceid) {
             if ($this->right[$stemid] == $choiceid) {

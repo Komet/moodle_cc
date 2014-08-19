@@ -29,6 +29,9 @@ Feature: Verify that all form fields values can be get and set
       | student2 | G1 |
       | student2 | G2 |
       | student3 | G2 |
+    And the following "activities" exists:
+      | activity | course | idnumber | name | intro | firstpagetitle | wikimode | visible |
+      | wiki | C1 | wiki1 | Test this one | Test this one | Test this one | collaborative | 0 |
     And I log in as "admin"
     And I expand "Site administration" node
     And I expand "Appearance" node
@@ -39,12 +42,6 @@ Feature: Verify that all form fields values can be get and set
     And I am on homepage
     And I follow "Course 1"
     And I turn editing mode on
-    And I add a "Wiki" to section "1" and I fill the form with:
-      | Wiki name | Test this one |
-      | Description | Test this one |
-      | First page name | Test this one |
-      | Wiki mode | Collaborative wiki |
-      | Visible | Hide |
     And I follow "Test this one"
     And I press "Create page"
     # Select (multi-select) - Checking "the select box should contain".
@@ -150,13 +147,10 @@ Feature: Verify that all form fields values can be get and set
     And I follow "Groups"
     # Select (multi-select & AJAX) - Checking "I select from" and "select box should contain".
     And I select "Group 2" from "groups"
-    And I wait "5" seconds
     And the "members" select box should contain "Student 2"
     And the "members" select box should contain "Student 3"
     And the "members" select box should not contain "Student 1"
     And I select "Group 1" from "groups"
-    And I wait "5" seconds
-    And the "members" select box should contain "Student 2"
     And the "members" select box should contain "Student 1"
     And the "members" select box should contain "Student 2"
     And the "members" select box should not contain "Student 3"

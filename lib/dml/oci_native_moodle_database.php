@@ -110,15 +110,6 @@ class oci_native_moodle_database extends moodle_database {
     }
 
     /**
-     * Returns localised database description
-     * Note: can be used before connect()
-     * @return string
-     */
-    public function get_configuration_hints() {
-        return get_string('databasesettingssub_oci', 'install');
-    }
-
-    /**
      * Diagnose database and tables, this function is used
      * to verify database and driver settings, db engine types, etc.
      *
@@ -574,7 +565,7 @@ class oci_native_moodle_database extends moodle_database {
                         $info->meta_type     = 'I';
                         $info->unique        = null;
                     }
-                    $info->scale = null;
+                    $info->scale = 0;
 
                 } else {
                     //float
@@ -673,7 +664,7 @@ class oci_native_moodle_database extends moodle_database {
         }
 
         if ($usecache) {
-            $result = $cache->set($table, $structure);
+            $cache->set($table, $structure);
         }
 
         return $structure;
@@ -1729,6 +1720,10 @@ class oci_native_moodle_database extends moodle_database {
             }
             $this->change_database_structure($sql);
         }
+    }
+
+    public function session_lock_supported() {
+        return true;
     }
 
     /**

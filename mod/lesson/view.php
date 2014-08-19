@@ -191,25 +191,23 @@ if (empty($pageid)) {
         unset($USER->modattempts[$lesson->id]);  // if no pageid, then student is NOT reviewing
     }
 
-    // If there are any questions that have been answered correctly (or not) in this attempt
+    // If there are any questions that have been answered correctly (or not) in this attempt.
     $allattempts = $lesson->get_attempts($retries);
     if (!empty($allattempts)) {
         $attempt = end($allattempts);
+        $attemptpage = $lesson->load_page($attempt->pageid);
         $jumpto = $DB->get_field('lesson_answers', 'jumpto', array('id' => $attempt->answerid));
         // convert the jumpto to a proper page id
         if ($jumpto == 0) {
-            // Check if a question has been incorrectly answered AND no more attempts at it are left
-            $nattempts = $DB->count_records("lesson_attempts", array("pageid" => $attempt->pageid, "userid" => $USER->id, "retry" => $attempt->retry));
-            if ($nattempts >= $lesson->maxattempts) {
-                $lastpageseen = $DB->get_field('lesson_pages', 'nextpageid', array('id' => $attempt->pageid));
+            // Check if a question has been incorrectly answered AND no more attempts at it are left.
+            $nattempts = $lesson->get_attempts($attempt->retry, false, $attempt->pageid, $USER->id);
+            if (count($nattempts) >= $lesson->maxattempts) {
+                $lastpageseen = $lesson->get_next_page($attemptpage->nextpageid);
             } else {
                 $lastpageseen = $attempt->pageid;
             }
         } elseif ($jumpto == LESSON_NEXTPAGE) {
-            if (!$lastpageseen = $DB->get_field('lesson_pages', 'nextpageid', array('id' => $attempt->pageid))) {
-                // no nextpage go to end of lesson
-                $lastpageseen = LESSON_EOL;
-            }
+            $lastpageseen = $lesson->get_next_page($attemptpage->nextpageid);
         } else {
             $lastpageseen = $jumpto;
         }

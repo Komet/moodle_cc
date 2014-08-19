@@ -29,6 +29,7 @@ require_once($CFG->libdir.'/adminlib.php');
 require_once($CFG->dirroot.'/user/editadvanced_form.php');
 require_once($CFG->dirroot.'/user/editlib.php');
 require_once($CFG->dirroot.'/user/profile/lib.php');
+require_once($CFG->dirroot.'/user/lib.php');
 
 //HTTPS is required in this page when $CFG->loginhttps enabled
 $PAGE->https_required();
@@ -44,7 +45,12 @@ if (!empty($USER->newadminuser)) {
     $PAGE->set_course($SITE);
     $PAGE->set_pagelayout('maintenance');
 } else {
-    require_login($course);
+    if ($course->id == SITEID) {
+        require_login();
+        $PAGE->set_context(context_system::instance());
+    } else {
+        require_login($course);
+    }
     $PAGE->set_pagelayout('admin');
 }
 
@@ -69,13 +75,12 @@ if ($id == -1) {
     require_capability('moodle/user:update', $systemcontext);
     $user = $DB->get_record('user', array('id'=>$id), '*', MUST_EXIST);
     $PAGE->set_context(context_user::instance($user->id));
-    if ($user->id == $USER->id) {
-        if ($course->id != SITEID && $node = $PAGE->navigation->find($course->id, navigation_node::TYPE_COURSE)) {
-            $node->make_active();
-            $PAGE->navbar->includesettingsbase = true;
-        }
-    } else {
+    if ($user->id != $USER->id) {
         $PAGE->navigation->extend_for_user($user);
+    } else {
+        if ($node = $PAGE->navigation->find('myprofile', navigation_node::TYPE_ROOTNODE)) {
+            $node->force_open();
+        }
     }
 }
 
@@ -151,6 +156,7 @@ $userform = new user_editadvanced_form(null, array(
 $userform->set_data($user);
 
 if ($usernew = $userform->get_data()) {
+    $usercreated = false;
 
     if (empty($usernew->auth)) {
         //user editing self
@@ -161,29 +167,32 @@ if ($usernew = $userform->get_data()) {
     }
 
     $usernew->timemodified = time();
+    $createpassword = false;
 
     if ($usernew->id == -1) {
         //TODO check out if it makes sense to create account with this auth plugin and what to do with the password
         unset($usernew->id);
+        $createpassword = !empty($usernew->createpassword);
+        unset($usernew->createpassword);
         $usernew = file_postupdate_standard_editor($usernew, 'description', $editoroptions, null, 'user', 'profile', null);
         $usernew->mnethostid = $CFG->mnet_localhost_id; // always local user
         $usernew->confirmed  = 1;
         $usernew->timecreated = time();
-        $usernew->password = hash_internal_user_password($usernew->newpassword);
-        $usernew->id = $DB->insert_record('user', $usernew);
+        if ($createpassword) {
+            $usernew->password = '';
+        } else {
+            $usernew->password = hash_internal_user_password($usernew->newpassword);
+        }
+        $usernew->id = user_create_user($usernew, false, false);
         $usercreated = true;
-        add_to_log($course->id, 'user', 'add', "view.php?id=$usernew->id&course=$course->id", '');
-
     } else {
         $usernew = file_postupdate_standard_editor($usernew, 'description', $editoroptions, $usercontext, 'user', 'profile', 0);
-        $DB->update_record('user', $usernew);
-        // pass a true $userold here
-        if (! $authplugin->user_update($user, $userform->get_data())) {
-            // auth update failed, rollback for moodle
-            $DB->update_record('user', $user);
+        // Pass a true old $user here.
+        if (!$authplugin->user_update($user, $usernew)) {
+            // Auth update failed.
             print_error('cannotupdateuseronexauth', '', '', $user->auth);
         }
-        add_to_log($course->id, 'user', 'update', "view.php?id=$user->id&course=$course->id", '');
+        user_update_user($usernew, false, false);
 
         //set new password if specified
         if (!empty($usernew->newpassword)) {
@@ -197,10 +206,8 @@ if ($usernew = $userform->get_data()) {
 
         // force logout if user just suspended
         if (isset($usernew->suspended) and $usernew->suspended and !$user->suspended) {
-            session_kill_user($user->id);
+            \core\session\manager::kill_user_sessions($user->id);
         }
-
-        $usercreated = false;
     }
 
     $usercontext = context_user::instance($usernew->id);
@@ -230,16 +237,26 @@ if ($usernew = $userform->get_data()) {
     // reload from db
     $usernew = $DB->get_record('user', array('id'=>$usernew->id));
 
-    // trigger events
+    if ($createpassword) {
+        setnew_password_and_mail($usernew);
+        unset_user_preference('create_password', $usernew);
+        set_user_preference('auth_forcepasswordchange', 1, $usernew);
+    }
+
+    // Trigger update/create event, after all fields are stored.
     if ($usercreated) {
-        events_trigger('user_created', $usernew);
+        \core\event\user_created::create_from_userid($usernew->id)->trigger();
     } else {
-        events_trigger('user_updated', $usernew);
+        \core\event\user_updated::create_from_userid($usernew->id)->trigger();
     }
 
     if ($user->id == $USER->id) {
         // Override old $USER session variable
         foreach ((array)$usernew as $variable => $value) {
+            if ($variable === 'description' or $variable === 'password') {
+                // These are not set for security nad perf reasons.
+                continue;
+            }
             $USER->$variable = $value;
         }
         // preload custom fields
@@ -255,7 +272,7 @@ if ($usernew = $userform->get_data()) {
             redirect("$CFG->wwwroot/user/view.php?id=$USER->id&course=$course->id");
         }
     } else {
-        session_gc(); // remove stale sessions
+        \core\session\manager::gc(); // Remove stale sessions.
         redirect("$CFG->wwwroot/$CFG->admin/user.php");
     }
     //never reached

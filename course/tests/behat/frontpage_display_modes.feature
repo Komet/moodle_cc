@@ -37,9 +37,8 @@ Feature: Front page displays items in different modes
     And I should not see "Category 1 child" in the "region-main" "region"
     And I toggle "Category 1" category children visibility in frontpage
     And I should see "Category 1 child" in the "region-main" "region"
-    And I follow "Category 1 child"
+    And I toggle "Category 1 child" category children visibility in frontpage
     And I should see "Category 1 child child" in the "region-main" "region"
-    And I should see "Course 11 1" in the "region-main" "region"
 
   @javascript
   Scenario: Displays a combo list
@@ -53,12 +52,11 @@ Feature: Front page displays items in different modes
     And I should see "Course 1 1" in the "region-main" "region"
     And I should see "Course 2 2" in the "region-main" "region"
     And I should not see "Course 11 1" in the "region-main" "region"
-    And I follow "Category 1 child"
+    And I toggle "Category 1 child" category children visibility in frontpage
     And I should see "Course 11 1" in the "region-main" "region"
     And I should see "Category 1 child child" in the "region-main" "region"
-    And I am on homepage
     And I toggle "Category 1" category children visibility in frontpage
     And I should not see "Course 1 1" in the "region-main" "region"
     And I should not see "Category 1 child" in the "region-main" "region"
     And I toggle "Category 1" category children visibility in frontpage
-    And I should see "Course 1 1" in the "region-main" "region"
+    And I should see "Course 11 1" in the "region-main" "region"

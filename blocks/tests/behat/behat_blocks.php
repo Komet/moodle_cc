@@ -59,6 +59,44 @@ class behat_blocks extends behat_base {
     }
 
     /**
+     * Docks a block. Editing mode should be previously enabled.
+     *
+     * @Given /^I dock "(?P<block_name_string>(?:[^"]|\\")*)" block$/
+     * @param string $blockname
+     * @return Given
+     */
+    public function i_dock_block($blockname) {
+
+        // Looking for both title and alt.
+        $xpath = "//input[@type='image'][@title='" . get_string('dockblock', 'block', $blockname) . "' or @alt='" . get_string('addtodock', 'block') . "']";
+        return new Given('I click on " ' . $xpath . '" "xpath_element" in the "' . $this->escape($blockname) . '" "block"');
+    }
+
+    /**
+     * Opens a block's actions menu if it is not already opened.
+     *
+     * @Given /^I open the "(?P<block_name_string>(?:[^"]|\\")*)" blocks action menu$/
+     * @throws DriverException The step is not available when Javascript is disabled
+     * @param string $blockname
+     * @return Given
+     */
+    public function i_open_the_blocks_action_menu($blockname) {
+
+        if (!$this->running_javascript()) {
+            // Action menu does not need to be open if Javascript is off.
+            return;
+        }
+
+        // If it is already opened we do nothing.
+        $blocknode = $this->get_text_selector_node('block', $blockname);
+        if ($blocknode->hasClass('action-menu-shown')) {
+            return;
+        }
+
+        return new Given('I click on "a[role=\'menuitem\']" "css_element" in the "' . $this->escape($blockname) . '" "block"');
+    }
+
+    /**
      * Clicks on Configure block for specified block. Page must be in editing mode.
      *
      * Argument block_name may be either the name of the block or CSS class of the block.
@@ -69,6 +107,7 @@ class behat_blocks extends behat_base {
     public function i_configure_the_block($blockname) {
         // Note that since $blockname may be either block name or CSS class, we can not use the exact label of "Configure" link.
         return array(
+            new Given('I open the "'.$this->escape($blockname).'" blocks action menu'),
             new Given('I click on "Configure" "link" in the "'.$this->escape($blockname).'" "block"')
         );
     }

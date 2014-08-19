@@ -219,20 +219,17 @@ class assign_submission_file extends assign_submission_plugin {
 
         $count = $this->count_files($submission->id, ASSIGNSUBMISSION_FILE_FILEAREA);
 
-        // Send files to event system.
-        // This lets Moodle know that an assessable file was uploaded (eg for plagiarism detection).
-        $eventdata = new stdClass();
-        $eventdata->modulename = 'assign';
-        $eventdata->cmid = $this->assignment->get_course_module()->id;
-        $eventdata->itemid = $submission->id;
-        $eventdata->courseid = $this->assignment->get_course()->id;
-        $eventdata->userid = $USER->id;
-        if ($count > 1) {
-            $eventdata->files = $files;
-        }
-        $eventdata->file = $files;
-        $eventdata->pathnamehashes = array_keys($files);
-        events_trigger('assessable_file_uploaded', $eventdata);
+        $params = array(
+            'context' => context_module::instance($this->assignment->get_course_module()->id),
+            'objectid' => $submission->id,
+            'other' => array(
+                'content' => '',
+                'pathnamehashes' => array_keys($files)
+            )
+        );
+        $event = \assignsubmission_file\event\assessable_uploaded::create($params);
+        $event->set_legacy_files($files);
+        $event->trigger();
 
         if ($filesubmission) {
             $filesubmission->numfiles = $this->count_files($submission->id,
@@ -252,6 +249,7 @@ class assign_submission_file extends assign_submission_plugin {
      * Produce a list of files suitable for export that represent this feedback or submission
      *
      * @param stdClass $submission The submission
+     * @param stdClass $user The user record - unused
      * @return array - return an array of files indexed by filename
      */
     public function get_files(stdClass $submission, stdClass $user) {
@@ -479,5 +477,19 @@ class assign_submission_file extends assign_submission_plugin {
             $DB->insert_record('assignsubmission_file', $filesubmission);
         }
         return true;
+    }
+
+    /**
+     * Return a description of external params suitable for uploading a file submission from a webservice.
+     *
+     * @return external_description|null
+     */
+    public function get_external_parameters() {
+        return array(
+            'files_filemanager' => new external_value(
+                PARAM_INT,
+                'The id of a draft area containing files for this submission.'
+            )
+        );
     }
 }

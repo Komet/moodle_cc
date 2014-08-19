@@ -28,8 +28,9 @@ require_once($CFG->dirroot.'/user/profile/lib.php');
 require_once($CFG->dirroot.'/tag/lib.php');
 require_once($CFG->libdir . '/filelib.php');
 
-$id        = optional_param('id', 0, PARAM_INT);   // user id
-$courseid  = optional_param('course', SITEID, PARAM_INT);   // course id (defaults to Site)
+$id             = optional_param('id', 0, PARAM_INT);   // User id.
+$courseid       = optional_param('course', SITEID, PARAM_INT);   // Course id (defaults to Site).
+$showallcourses = optional_param('showallcourses', 0, PARAM_INT);
 
 if (empty($id)) {            // See your own profile by default
     require_login();
@@ -186,11 +187,23 @@ if ($user->deleted) {
     }
 }
 
-/// OK, security out the way, now we are showing the user
+// OK, security out the way, now we are showing the user.
+// Trigger a user profile viewed event.
+$event = \core\event\user_profile_viewed::create(array(
+    'objectid' => $user->id,
+    'relateduserid' => $user->id,
+    'courseid' => $course->id,
+    'context' => $coursecontext,
+    'other' => array(
+        'courseid' => $course->id,
+        'courseshortname' => $course->shortname,
+        'coursefullname' => $course->fullname
+    )
+));
+$event->add_record_snapshot('user', $user);
+$event->trigger();
 
-add_to_log($course->id, "user", "view", "view.php?id=$user->id&course=$course->id", "$user->id");
-
-/// Get the hidden field list
+// Get the hidden field list.
 if (has_capability('moodle/user:viewhiddendetails', $coursecontext)) {
     $hiddenfields = array();
 } else {
@@ -305,23 +318,29 @@ if (!isset($hiddenfields['mycourses'])) {
                 $ccontext = context_course::instance($mycourse->id);
                 $cfullname = $ccontext->get_context_name(false);
                 if ($mycourse->id != $course->id){
-                    $class = '';
+                    $linkattributes = null;
                     if ($mycourse->visible == 0) {
                         if (!has_capability('moodle/course:viewhiddencourses', $ccontext)) {
                             continue;
                         }
-                        $class = 'class="dimmed"';
+                        $linkattributes['class'] = 'dimmed';
                     }
-                    $courselisting .= "<a href=\"{$CFG->wwwroot}/user/view.php?id={$user->id}&amp;course={$mycourse->id}\" $class >"
-                        . $cfullname . "</a>, ";
+                    $params = array('id' => $user->id, 'course' => $mycourse->id);
+                    if ($showallcourses) {
+                        $params['showallcourses'] = 1;
+                    }
+                    $url = new moodle_url('/user/view.php', $params);
+                    $courselisting .= html_writer::link($url, $ccontext->get_context_name(false), $linkattributes);
+                    $courselisting .= ', ';
                 } else {
                     $courselisting .= $cfullname . ", ";
                     $PAGE->navbar->add($cfullname);
                 }
             }
             $shown++;
-            if ($shown >= 20) {
-                $courselisting .= "...";
+            if (!$showallcourses && $shown >= 20) {
+                $url = new moodle_url('/user/view.php', array('id' => $user->id, 'course' => $courseid, 'showallcourses' => 1));
+                $courselisting .= html_writer::link($url, '...', array('title' => get_string('viewmore')));
                 break;
             }
         }
@@ -342,7 +361,11 @@ echo "</div></div>"; // Closing desriptionbox and userprofilebox.
 if (isloggedin() && has_capability('moodle/site:sendmessage', $usercontext)
     && !empty($CFG->messaging) && !isguestuser() && !isguestuser($user) && ($USER->id != $user->id)) {
     echo '<div class="messagebox">';
-    echo '<a href="'.$CFG->wwwroot.'/message/index.php?id='.$user->id.'">'.get_string('messageselectadd').'</a>';
+    $sendmessageurl = new moodle_url('/message/index.php', array('id' => $user->id));
+    if ($courseid) {
+        $sendmessageurl->param('viewing', MESSAGE_VIEW_COURSE. $courseid);
+    }
+    echo html_writer::link($sendmessageurl, get_string('messageselectadd'));
     echo '</div>';
 }
 

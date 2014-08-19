@@ -24,6 +24,8 @@
  * @author     Chris Scribner
  */
 
+define('NO_DEBUG_DISPLAY', true);
+
 require_once(dirname(__FILE__) . "/../../config.php");
 require_once($CFG->dirroot.'/mod/lti/locallib.php');
 require_once($CFG->dirroot.'/mod/lti/servicelib.php');
@@ -152,19 +154,30 @@ switch ($messagetype) {
         //Fire an event if we get a web service request which we don't support directly.
         //This will allow others to extend the LTI services, which I expect to be a common
         //use case, at least until the spec matures.
-        $data = new stdClass();
-        $data->body = $rawbody;
-        $data->xml = $xml;
-        $data->messagetype = $messagetype;
-        $data->consumerkey = $consumerkey;
-        $data->sharedsecret = $sharedsecret;
+        $eventdata = array();
+        $eventdata['other'] = array();
+        $eventdata['other']['body'] = $rawbody;
+        $eventdata['other']['messageid'] = lti_parse_message_id($xml);
+        $eventdata['other']['messagetype'] = $messagetype;
+        $eventdata['other']['consumerkey'] = $consumerkey;
+        $eventdata['other']['sharedsecret'] = $sharedsecret;
+
+        // Before firing the event, allow subplugins a chance to handle.
+        if (lti_extend_lti_services((object) $eventdata['other'])) {
+            break;
+        }
 
         //If an event handler handles the web service, it should set this global to true
         //So this code knows whether to send an "operation not supported" or not.
         global $lti_web_service_handled;
         $lti_web_service_handled = false;
 
-        events_trigger('lti_unknown_service_api_call', $data);
+        try {
+            $event = \mod_lti\event\unknown_service_api_called::create($eventdata);
+            $event->trigger();
+        } catch (Exception $e) {
+            $lti_web_service_handled = false;
+        }
 
         if (!$lti_web_service_handled) {
             $responsexml = lti_get_response_xml(

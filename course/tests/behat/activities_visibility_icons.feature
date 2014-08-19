@@ -24,10 +24,13 @@ Feature: Toggle activities visibility from the course page
       | Forum name | Test forum name |
       | Description | Test forum description |
       | Visible | Show |
-    When I click on "Hide" "link" in the "Test forum name" activity
+    When I open "Test forum name" actions menu
+    And I click on "Hide" "link" in the "Test forum name" activity
     Then "Test forum name" activity should be hidden
+    And I open "Test forum name" actions menu
     And I click on "Show" "link" in the "Test forum name" activity
     And "Test forum name" activity should be visible
+    And I open "Test forum name" actions menu
     And I click on "Hide" "link" in the "Test forum name" activity
     And "Test forum name" activity should be hidden
     And I reload the page
@@ -57,8 +60,10 @@ Feature: Toggle activities visibility from the course page
       | Visible | Show |
     When I hide section "2"
     Then "Test forum name" activity should be hidden
+    And I open "Test forum name" actions menu
     And I click on "Show" "link" in the "Test forum name" activity
     And "Test forum name" activity should be visible
+    And I open "Test forum name" actions menu
     And I click on "Hide" "link" in the "Test forum name" activity
     And "Test forum name" activity should be hidden
 
@@ -82,7 +87,9 @@ Feature: Toggle activities visibility from the course page
       | Visible | Show |
     When I click on ".reduce-sections" "css_element"
     Then "Test forum name" activity should be visible
+    And I open "Test forum name" actions menu
     And I click on "Hide" "link" in the "Test forum name" activity
     And "Test forum name" activity should be hidden
+    And I open "Test forum name" actions menu
     And I click on "Show" "link" in the "Test forum name" activity
     And "Test forum name" activity should be visible

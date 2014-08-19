@@ -29,7 +29,7 @@ defined('MOODLE_INTERNAL') || die();
 
 class auth_db_testcase extends advanced_testcase {
 
-    protected function init_auth_database() {
+    public function init_auth_database() {
         global $DB, $CFG;
         require_once("$CFG->dirroot/auth/db/auth.php");
 
@@ -52,6 +52,7 @@ class auth_db_testcase extends advanced_testcase {
                 set_config('sybasequoting', '1', 'auth/db');
                 break;
 
+            case 'mariadb_native_moodle_database':
             case 'mysqli_native_moodle_database':
                 set_config('type', 'mysqli', 'auth/db');
                 set_config('setupsql', "SET NAMES 'UTF-8'", 'auth/db');

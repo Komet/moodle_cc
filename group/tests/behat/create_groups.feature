@@ -40,12 +40,10 @@ Feature: Organize students into groups
     And I add "student2" user to "Group 2" group
     And I add "student3" user to "Group 2" group
     Then I select "Group 1 (2)" from "groups"
-    And I wait "5" seconds
     And the "members" select box should contain "Student 0"
     And the "members" select box should contain "Student 1"
     And the "members" select box should not contain "Student 2"
     And I select "Group 2 (2)" from "groups"
-    And I wait "5" seconds
     And the "members" select box should contain "Student 2"
     And the "members" select box should contain "Student 3"
     And the "members" select box should not contain "Student 0"
@@ -91,3 +89,42 @@ Feature: Organize students into groups
       | Grouping name | Not the greatest grouping, but it's ok! |
     And I press "Save changes"
     And I should see "Not the greatest grouping, but it's ok!"
+
+  Scenario: Create groups with enrolment key
+    Given the following "courses" exist:
+      | fullname | shortname | category | groupmode |
+      | Course 1 | C1 | 0 | 1 |
+      | Course 2 | C2 | 0 | 1 |
+    And I log in as "admin"
+    And I follow "Course 1"
+    And I expand "Users" node
+    And I follow "Groups"
+    When I press "Create group"
+    And I set the following fields to these values:
+      | Group name | Group A |
+      | Enrolment key | badpasswd |
+    And I press "Save changes"
+    And I should see "Passwords must have at least 1 digit(s)"
+    And I set the following fields to these values:
+      | Group name | Group A |
+      | Enrolment key | Abcdef-1 |
+    And I press "Save changes"
+    And I press "Create group"
+    And I set the following fields to these values:
+      | Group name | Group B |
+      | Enrolment key | Abcdef-1 |
+    And I press "Save changes"
+    Then I should see "This enrolment key is already used for another group."
+    And I set the following fields to these values:
+      | Enrolment key | Abcdef-2 |
+    And I press "Save changes"
+    And the "groups" select box should contain "Group B (0)"
+    And I am on homepage
+    And I follow "Course 2"
+    And I expand "Users" node
+    And I follow "Groups"
+    And I press "Create group"
+    And I set the following fields to these values:
+      | Group name | Group A |
+      | Enrolment key | Abcdef-1 |
+    And I should not see "This enrolment key is already used for another group."

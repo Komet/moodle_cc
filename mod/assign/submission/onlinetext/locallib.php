@@ -140,10 +140,6 @@ class assign_submission_onlinetext extends assign_submission_plugin {
 
         $onlinetextsubmission = $this->get_onlinetext_submission($submission->id);
 
-        $text = format_text($data->onlinetext,
-                            $data->onlinetext_editor['format'],
-                            array('context'=>$this->assignment->get_context()));
-
         $fs = get_file_storage();
 
         $files = $fs->get_area_files($this->assignment->get_context()->id,
@@ -153,19 +149,17 @@ class assign_submission_onlinetext extends assign_submission_plugin {
                                      'id',
                                      false);
 
-        // Let Moodle know that an assessable content was uploaded (eg for plagiarism detection).
-        $eventdata = new stdClass();
-        $eventdata->modulename = 'assign';
-        $eventdata->cmid = $this->assignment->get_course_module()->id;
-        $eventdata->itemid = $submission->id;
-        $eventdata->courseid = $this->assignment->get_course()->id;
-        $eventdata->userid = $USER->id;
-        $eventdata->content = trim($text);
-
-        if ($files) {
-            $eventdata->pathnamehashes = array_keys($files);
-        }
-        events_trigger('assessable_content_uploaded', $eventdata);
+        $params = array(
+            'context' => context_module::instance($this->assignment->get_course_module()->id),
+            'objectid' => $submission->id,
+            'other' => array(
+                'pathnamehashes' => array_keys($files),
+                'content' => trim($data->onlinetext),
+                'format' => $data->onlinetext_editor['format']
+            )
+        );
+        $event = \assignsubmission_onlinetext\event\assessable_uploaded::create($params);
+        $event->trigger();
 
         if ($onlinetextsubmission) {
 
@@ -428,12 +422,9 @@ class assign_submission_onlinetext extends assign_submission_plugin {
         // Format the info for each submission plugin (will be logged).
         $onlinetextsubmission = $this->get_onlinetext_submission($submission->id);
         $onlinetextloginfo = '';
-        $text = format_text($onlinetextsubmission->onlinetext,
-                            $onlinetextsubmission->onlineformat,
-                            array('context'=>$this->assignment->get_context()));
         $onlinetextloginfo .= get_string('numwordsforlog',
                                          'assignsubmission_onlinetext',
-                                         count_words($text));
+                                         count_words($onlinetextsubmission->onlinetext));
 
         return $onlinetextloginfo;
     }
@@ -499,6 +490,20 @@ class assign_submission_onlinetext extends assign_submission_plugin {
         }
         return true;
     }
+
+    /**
+     * Return a description of external params suitable for uploading an onlinetext submission from a webservice.
+     *
+     * @return external_description|null
+     */
+    public function get_external_parameters() {
+        $editorparams = array('text' => new external_value(PARAM_TEXT, 'The text for this submission.'),
+                              'format' => new external_value(PARAM_INT, 'The format for this submission'),
+                              'itemid' => new external_value(PARAM_INT, 'The draft area id for files attached to the submission'));
+        $editorstructure = new external_single_structure($editorparams);
+        return array('onlinetext_editor' => $editorstructure);
+    }
+
 }
 
 

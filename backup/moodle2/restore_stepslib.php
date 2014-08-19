@@ -65,10 +65,13 @@ class restore_drop_and_clean_temp_stuff extends restore_execution_step {
     protected function define_execution() {
         global $CFG;
         restore_controller_dbops::drop_restore_temp_tables($this->get_restoreid()); // Drop ids temp table
-        backup_helper::delete_old_backup_dirs(time() - (4 * 60 * 60));              // Delete > 4 hours temp dirs
+        $progress = $this->task->get_progress();
+        $progress->start_progress('Deleting backup dir');
+        backup_helper::delete_old_backup_dirs(strtotime('-1 week'), $progress);      // Delete > 1 week old temp dirs.
         if (empty($CFG->keeptempdirectoriesonbackup)) { // Conditionally
-            backup_helper::delete_backup_dir($this->task->get_tempdir()); // Empty restore dir
+            backup_helper::delete_backup_dir($this->task->get_tempdir(), $progress); // Empty restore dir
         }
+        $progress->end_progress();
     }
 }
 
@@ -242,7 +245,8 @@ class restore_gradebook_structure_step extends restore_structure_step {
                 $newitemid = $DB->insert_record('grade_grades', $data);
             }
         } else {
-            debugging("Mapped user id not found for user id '{$olduserid}', grade item id '{$data->itemid}'");
+            $message = "Mapped user id not found for user id '{$olduserid}', grade item id '{$data->itemid}'";
+            $this->log($message, backup::LOG_DEBUG);
         }
     }
 
@@ -516,11 +520,11 @@ class restore_review_pending_block_positions extends restore_execution_step {
 
         // Get all the block_position objects pending to match
         $params = array('backupid' => $this->get_restoreid(), 'itemname' => 'block_position');
-        $rs = $DB->get_recordset('backup_ids_temp', $params, '', 'itemid');
+        $rs = $DB->get_recordset('backup_ids_temp', $params, '', 'itemid, info');
         // Process block positions, creating them or accumulating for final step
         foreach($rs as $posrec) {
-            // Get the complete position object (stored as info)
-            $position = restore_dbops::get_backup_ids_record($this->get_restoreid(), 'block_position', $posrec->itemid)->info;
+            // Get the complete position object out of the info field.
+            $position = backup_controller_dbops::decode_backup_temp_info($posrec->info);
             // If position is for one already mapped (known) contextid
             // process it now, creating the position, else nothing to
             // do, position finally discarded
@@ -552,12 +556,12 @@ class restore_process_course_modules_availability extends restore_execution_step
 
         // Get all the module_availability objects to process
         $params = array('backupid' => $this->get_restoreid(), 'itemname' => 'module_availability');
-        $rs = $DB->get_recordset('backup_ids_temp', $params, '', 'itemid');
+        $rs = $DB->get_recordset('backup_ids_temp', $params, '', 'itemid, info');
         // Process availabilities, creating them if everything matches ok
         foreach($rs as $availrec) {
             $allmatchesok = true;
             // Get the complete availabilityobject
-            $availability = restore_dbops::get_backup_ids_record($this->get_restoreid(), 'module_availability', $availrec->itemid)->info;
+            $availability = backup_controller_dbops::decode_backup_temp_info($availrec->info);
             // Map the sourcecmid if needed and possible
             if (!empty($availability->sourcecmid)) {
                 $newcm = restore_dbops::get_backup_ids_record($this->get_restoreid(), 'course_module', $availability->sourcecmid);
@@ -600,13 +604,17 @@ class restore_load_included_inforef_records extends restore_execution_step {
 
         // Get all the included tasks
         $tasks = restore_dbops::get_included_tasks($this->get_restoreid());
+        $progress = $this->task->get_progress();
+        $progress->start_progress($this->get_name(), count($tasks));
         foreach ($tasks as $task) {
             // Load the inforef.xml file if exists
             $inforefpath = $task->get_taskbasepath() . '/inforef.xml';
             if (file_exists($inforefpath)) {
-                restore_dbops::load_inforef_to_tempids($this->get_restoreid(), $inforefpath); // Load each inforef file to temp_ids
+                // Load each inforef file to temp_ids.
+                restore_dbops::load_inforef_to_tempids($this->get_restoreid(), $inforefpath, $progress);
             }
         }
+        $progress->end_progress();
     }
 }
 
@@ -693,7 +701,8 @@ class restore_load_included_users extends restore_execution_step {
             return;
         }
         $file = $this->get_basepath() . '/users.xml';
-        restore_dbops::load_users_to_tempids($this->get_restoreid(), $file); // Load needed users to temp_ids
+        // Load needed users to temp_ids.
+        restore_dbops::load_users_to_tempids($this->get_restoreid(), $file, $this->task->get_progress());
     }
 }
 
@@ -714,7 +723,8 @@ class restore_process_included_users extends restore_execution_step {
         if (!$this->task->get_setting_value('users')) { // No userinfo being restored, nothing to do
             return;
         }
-        restore_dbops::process_included_users($this->get_restoreid(), $this->task->get_courseid(), $this->task->get_userid(), $this->task->is_samesite());
+        restore_dbops::process_included_users($this->get_restoreid(), $this->task->get_courseid(),
+                $this->task->get_userid(), $this->task->is_samesite(), $this->task->get_progress());
     }
 }
 
@@ -726,7 +736,8 @@ class restore_create_included_users extends restore_execution_step {
 
     protected function define_execution() {
 
-        restore_dbops::create_included_users($this->get_basepath(), $this->get_restoreid(), $this->task->get_userid());
+        restore_dbops::create_included_users($this->get_basepath(), $this->get_restoreid(),
+                $this->task->get_userid(), $this->task->get_progress());
     }
 }
 
@@ -924,7 +935,7 @@ class restore_groups_members_structure_step extends restore_structure_step {
                     }
 
                 } else {
-                    $dir = get_component_directory($data->component);
+                    $dir = core_component::get_component_directory($data->component);
                     if ($dir and is_dir($dir)) {
                         if (component_callback($data->component, 'restore_group_member', array($this, $data), true)) {
                             return;
@@ -933,7 +944,6 @@ class restore_groups_members_structure_step extends restore_structure_step {
                     // Bad luck, plugin could not restore the data, let's add normal membership.
                     groups_add_member($data->groupid, $data->userid);
                     $message = "Restore of '$data->component/$data->itemid' group membership is not supported, using standard group membership instead.";
-                    debugging($message);
                     $this->log($message, backup::LOG_WARNING);
                 }
             }
@@ -1427,6 +1437,12 @@ class restore_course_structure_step extends restore_structure_step {
             $data->theme = '';
         }
 
+        // Check if this is an old SCORM course format.
+        if ($data->format == 'scorm') {
+            $data->format = 'singleactivity';
+            $data->activitytype = 'scorm';
+        }
+
         // Course record ready, update it
         $DB->update_record('course', $data);
 
@@ -1489,7 +1505,7 @@ class restore_course_structure_step extends restore_structure_step {
                 unset($roleids[$roleid]);
             }
 
-            foreach (get_plugin_list('mod') as $modname => $notused) {
+            foreach (core_component::get_plugin_list('mod') as $modname => $notused) {
                 if (isset($this->legacyallowedmodules[$modname])) {
                     // Module is allowed, no worries.
                     continue;
@@ -1603,7 +1619,7 @@ class restore_ras_and_caps_structure_step extends restore_structure_step {
             $data->roleid    = $newroleid;
             $data->userid    = $newuserid;
             $data->contextid = $contextid;
-            $dir = get_component_directory($data->component);
+            $dir = core_component::get_component_directory($data->component);
             if ($dir and is_dir($dir)) {
                 if (component_callback($data->component, 'restore_role_assignment', array($this, $data), true)) {
                     return;
@@ -1612,7 +1628,6 @@ class restore_ras_and_caps_structure_step extends restore_structure_step {
             // Bad luck, plugin could not restore the data, let's add normal membership.
             role_assign($data->roleid, $data->userid, $data->contextid);
             $message = "Restore of '$data->component/$data->itemid' role assignments is not supported, using manual role assignments instead.";
-            debugging($message);
             $this->log($message, backup::LOG_WARNING);
         }
     }
@@ -1758,7 +1773,6 @@ class restore_enrolments_structure_step extends restore_structure_step {
             if (!enrol_is_enabled($data->enrol) or !isset($this->plugins[$data->enrol])) {
                 $this->set_mapping('enrol', $oldid, 0);
                 $message = "Enrol plugin '$data->enrol' data can not be restored because it is not enabled, use migration to manual enrolments";
-                debugging($message);
                 $this->log($message, backup::LOG_WARNING);
                 return;
             }
@@ -2035,7 +2049,6 @@ class restore_badges_structure_step extends restore_structure_step {
         $params = array(
                 'name'           => $data->name,
                 'description'    => $data->description,
-                'image'          => 0,
                 'timecreated'    => $this->apply_date_offset($data->timecreated),
                 'timemodified'   => $this->apply_date_offset($data->timemodified),
                 'usercreated'    => $data->usercreated,
@@ -2524,7 +2537,14 @@ class restore_course_logs_structure_step extends restore_structure_step {
 
         // If we have data, insert it, else something went wrong in the restore_logs_processor
         if ($data) {
-            $DB->insert_record('log', $data);
+            if (empty($data->url)) {
+                $data->url = '';
+            }
+            if (empty($data->info)) {
+                $data->info = '';
+            }
+            add_to_log($data->course, $data->module, $data->action, $data->url, $data->info,
+                $data->cmid, $data->userid);
         }
     }
 }
@@ -2562,7 +2582,14 @@ class restore_activity_logs_structure_step extends restore_course_logs_structure
 
         // If we have data, insert it, else something went wrong in the restore_logs_processor
         if ($data) {
-            $DB->insert_record('log', $data);
+            if (empty($data->url)) {
+                $data->url = '';
+            }
+            if (empty($data->info)) {
+                $data->info = '';
+            }
+            add_to_log($data->course, $data->module, $data->action, $data->url, $data->info,
+                $data->cmid, $data->userid);
         }
     }
 }
@@ -3204,7 +3231,7 @@ abstract class restore_activity_structure_step extends restore_structure_step {
              throw new restore_step_exception('incorrect_subplugin_type', $subplugintype);
         }
         // Get all the restore path elements, looking across all the subplugin dirs
-        $subpluginsdirs = get_plugin_list($subplugintype);
+        $subpluginsdirs = core_component::get_plugin_list($subplugintype);
         foreach ($subpluginsdirs as $name => $subpluginsdir) {
             $classname = 'restore_' . $subplugintype . '_' . $name . '_subplugin';
             $restorefile = $subpluginsdir . '/backup/moodle2/' . $classname . '.class.php';
@@ -3545,65 +3572,110 @@ class restore_move_module_questions_categories extends restore_execution_step {
  * Execution step that will create all the question/answers/qtype-specific files for the restored
  * questions. It must be executed after {@link restore_move_module_questions_categories}
  * because only then each question is in its final category and only then the
- * context can be determined
- *
- * TODO: Improve this. Instead of looping over each question, it can be reduced to
- *       be done by contexts (this will save a huge ammount of queries)
+ * contexts can be determined.
  */
 class restore_create_question_files extends restore_execution_step {
 
+    /** @var array Question-type specific component items cache. */
+    private $qtypecomponentscache = array();
+
+    /**
+     * Preform the restore_create_question_files step.
+     */
     protected function define_execution() {
         global $DB;
 
-        // Let's process only created questions
-        $questionsrs = $DB->get_recordset_sql("SELECT bi.itemid, bi.newitemid, bi.parentitemid, q.qtype
+        // Track progress, as this task can take a long time.
+        $progress = $this->task->get_progress();
+        $progress->start_progress($this->get_name(), core_backup_progress::INDETERMINATE);
+
+        // Parentitemids of question_createds in backup_ids_temp are the category it is in.
+        // MUST use a recordset, as there is no unique key in the first (or any) column.
+        $catqtypes = $DB->get_recordset_sql("SELECT DISTINCT bi.parentitemid AS categoryid, q.qtype as qtype
                                                FROM {backup_ids_temp} bi
                                                JOIN {question} q ON q.id = bi.newitemid
                                               WHERE bi.backupid = ?
-                                                AND bi.itemname = 'question_created'", array($this->get_restoreid()));
-        foreach ($questionsrs as $question) {
-            // Get question_category mapping, it contains the target context for the question
-            if (!$qcatmapping = restore_dbops::get_backup_ids_record($this->get_restoreid(), 'question_category', $question->parentitemid)) {
-                // Something went really wrong, cannot find the question_category for the question
-                debugging('Error fetching target context for question', DEBUG_DEVELOPER);
-                continue;
-            }
-            // Calculate source and target contexts
-            $oldctxid = $qcatmapping->info->contextid;
-            $newctxid = $qcatmapping->parentitemid;
+                                                AND bi.itemname = 'question_created'
+                                           ORDER BY categoryid ASC", array($this->get_restoreid()));
 
-            // Add common question files (question and question_answer ones)
-            restore_dbops::send_files_to_pool($this->get_basepath(), $this->get_restoreid(), 'question', 'questiontext',
-                                              $oldctxid, $this->task->get_userid(), 'question_created', $question->itemid, $newctxid, true);
-            restore_dbops::send_files_to_pool($this->get_basepath(), $this->get_restoreid(), 'question', 'generalfeedback',
-                                              $oldctxid, $this->task->get_userid(), 'question_created', $question->itemid, $newctxid, true);
-            restore_dbops::send_files_to_pool($this->get_basepath(), $this->get_restoreid(), 'question', 'answer',
-                                              $oldctxid, $this->task->get_userid(), 'question_answer', null, $newctxid, true);
-            restore_dbops::send_files_to_pool($this->get_basepath(), $this->get_restoreid(), 'question', 'answerfeedback',
-                                              $oldctxid, $this->task->get_userid(), 'question_answer', null, $newctxid, true);
-            restore_dbops::send_files_to_pool($this->get_basepath(), $this->get_restoreid(), 'question', 'hint',
-                                              $oldctxid, $this->task->get_userid(), 'question_hint', null, $newctxid, true);
-            restore_dbops::send_files_to_pool($this->get_basepath(), $this->get_restoreid(), 'question', 'correctfeedback',
-                                              $oldctxid, $this->task->get_userid(), 'question_created', $question->itemid, $newctxid, true);
-            restore_dbops::send_files_to_pool($this->get_basepath(), $this->get_restoreid(), 'question', 'partiallycorrectfeedback',
-                                              $oldctxid, $this->task->get_userid(), 'question_created', $question->itemid, $newctxid, true);
-            restore_dbops::send_files_to_pool($this->get_basepath(), $this->get_restoreid(), 'question', 'incorrectfeedback',
-                                              $oldctxid, $this->task->get_userid(), 'question_created', $question->itemid, $newctxid, true);
-            // Add qtype dependent files
-            $components = backup_qtype_plugin::get_components_and_fileareas($question->qtype);
-            foreach ($components as $component => $fileareas) {
-                foreach ($fileareas as $filearea => $mapping) {
-                    // Use itemid only if mapping is question_created
-                    $itemid = ($mapping == 'question_created') ? $question->itemid : null;
-                    restore_dbops::send_files_to_pool($this->get_basepath(), $this->get_restoreid(), $component, $filearea,
-                                                      $oldctxid, $this->task->get_userid(), $mapping, $itemid, $newctxid, true);
+        $currentcatid = -1;
+        foreach ($catqtypes as $categoryid => $row) {
+            $qtype = $row->qtype;
+
+            // Check if we are in a new category.
+            if ($currentcatid !== $categoryid) {
+                // Report progress for each category.
+                $progress->progress();
+
+                if (!$qcatmapping = restore_dbops::get_backup_ids_record($this->get_restoreid(),
+                        'question_category', $categoryid)) {
+                    // Something went really wrong, cannot find the question_category for the question_created records.
+                    debugging('Error fetching target context for question', DEBUG_DEVELOPER);
+                    continue;
                 }
+
+                // Calculate source and target contexts.
+                $oldctxid = $qcatmapping->info->contextid;
+                $newctxid = $qcatmapping->parentitemid;
+
+                $this->send_common_files($oldctxid, $newctxid, $progress);
+                $currentcatid = $categoryid;
+            }
+
+            $this->send_qtype_files($qtype, $oldctxid, $newctxid, $progress);
+        }
+        $catqtypes->close();
+        $progress->end_progress();
+    }
+
+    /**
+     * Send the common question files to a new context.
+     *
+     * @param int             $oldctxid Old context id.
+     * @param int             $newctxid New context id.
+     * @param \core\progress  $progress Progress object to use.
+     */
+    private function send_common_files($oldctxid, $newctxid, $progress) {
+        // Add common question files (question and question_answer ones).
+        restore_dbops::send_files_to_pool($this->get_basepath(), $this->get_restoreid(), 'question', 'questiontext',
+                $oldctxid, $this->task->get_userid(), 'question_created', null, $newctxid, true, $progress);
+        restore_dbops::send_files_to_pool($this->get_basepath(), $this->get_restoreid(), 'question', 'generalfeedback',
+                $oldctxid, $this->task->get_userid(), 'question_created', null, $newctxid, true, $progress);
+        restore_dbops::send_files_to_pool($this->get_basepath(), $this->get_restoreid(), 'question', 'answer',
+                $oldctxid, $this->task->get_userid(), 'question_answer', null, $newctxid, true, $progress);
+        restore_dbops::send_files_to_pool($this->get_basepath(), $this->get_restoreid(), 'question', 'answerfeedback',
+                $oldctxid, $this->task->get_userid(), 'question_answer', null, $newctxid, true, $progress);
+        restore_dbops::send_files_to_pool($this->get_basepath(), $this->get_restoreid(), 'question', 'hint',
+                $oldctxid, $this->task->get_userid(), 'question_hint', null, $newctxid, true, $progress);
+        restore_dbops::send_files_to_pool($this->get_basepath(), $this->get_restoreid(), 'question', 'correctfeedback',
+                $oldctxid, $this->task->get_userid(), 'question_created', null, $newctxid, true, $progress);
+        restore_dbops::send_files_to_pool($this->get_basepath(), $this->get_restoreid(), 'question', 'partiallycorrectfeedback',
+                $oldctxid, $this->task->get_userid(), 'question_created', null, $newctxid, true, $progress);
+        restore_dbops::send_files_to_pool($this->get_basepath(), $this->get_restoreid(), 'question', 'incorrectfeedback',
+                $oldctxid, $this->task->get_userid(), 'question_created', null, $newctxid, true, $progress);
+    }
+
+    /**
+     * Send the question type specific files to a new context.
+     *
+     * @param text            $qtype The qtype name to send.
+     * @param int             $oldctxid Old context id.
+     * @param int             $newctxid New context id.
+     * @param \core\progress  $progress Progress object to use.
+     */
+    private function send_qtype_files($qtype, $oldctxid, $newctxid, $progress) {
+        if (!isset($this->qtypecomponentscache[$qtype])) {
+            $this->qtypecomponentscache[$qtype] = backup_qtype_plugin::get_components_and_fileareas($qtype);
+        }
+        $components = $this->qtypecomponentscache[$qtype];
+        foreach ($components as $component => $fileareas) {
+            foreach ($fileareas as $filearea => $mapping) {
+                restore_dbops::send_files_to_pool($this->get_basepath(), $this->get_restoreid(), $component, $filearea,
+                        $oldctxid, $this->task->get_userid(), $mapping, null, $newctxid, true, $progress);
             }
         }
-        $questionsrs->close();
     }
 }
-
 
 /**
  * Try to restore aliases and references to external files.
@@ -3633,7 +3705,7 @@ class restore_process_file_aliases_queue extends restore_execution_step {
     protected function define_execution() {
         global $DB;
 
-        $this->log('processing file aliases queue', backup::LOG_INFO);
+        $this->log('processing file aliases queue', backup::LOG_DEBUG);
 
         $fs = get_file_storage();
 
@@ -3644,7 +3716,7 @@ class restore_process_file_aliases_queue extends restore_execution_step {
 
         // Iterate over aliases in the queue.
         foreach ($rs as $record) {
-            $info = unserialize(base64_decode($record->info));
+            $info = backup_controller_dbops::decode_backup_temp_info($record->info);
 
             // Try to pick a repository instance that should serve the alias.
             $repository = $this->choose_repository($info);
@@ -3677,7 +3749,7 @@ class restore_process_file_aliases_queue extends restore_execution_step {
                 $source = null;
 
                 foreach ($candidates as $candidate) {
-                    $candidateinfo = unserialize(base64_decode($candidate->info));
+                    $candidateinfo = backup_controller_dbops::decode_backup_temp_info($candidate->info);
                     if ($candidateinfo->filename === $reference['filename']
                             and $candidateinfo->filepath === $reference['filepath']
                             and !is_null($candidate->newcontextid)
@@ -4057,6 +4129,10 @@ abstract class restore_questions_activity_structure_step extends restore_activit
             $data->variant = 1;
         }
         $data->timemodified    = $this->apply_date_offset($data->timemodified);
+
+        if (!property_exists($data, 'maxfraction')) {
+            $data->maxfraction = 1;
+        }
 
         $newitemid = $DB->insert_record('question_attempts', $data);
 

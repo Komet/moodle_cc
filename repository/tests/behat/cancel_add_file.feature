@@ -4,7 +4,7 @@ Feature: A selected file can be cancelled
   As a user
   I need to cancel a selected file
 
-  @javascript
+  @javascript @_bug_phantomjs
   Scenario: Cancel a selected recent file from being added to a folder
     Given the following "courses" exists:
       | fullname | shortname | category |
@@ -12,7 +12,7 @@ Feature: A selected file can be cancelled
     And I log in as "admin"
     And I expand "My profile" node
     And I follow "My private files"
-    And I upload "lib/tests/fixtures/empty.txt" file to "Files" filepicker
+    And I upload "lib/tests/fixtures/empty.txt" file to "Files" filemanager
     And I press "Save changes"
     And I am on homepage
     And I follow "Course 1"
@@ -21,12 +21,12 @@ Feature: A selected file can be cancelled
     And I fill the moodle form with:
       | Name | Folder name |
       | Description | Folder description |
-    And I upload "lib/tests/fixtures/upload_users.csv" file to "Files" filepicker
+    And I upload "lib/tests/fixtures/upload_users.csv" file to "Files" filemanager
     And I click on "#fitem_id_files .fp-btn-add a" "css_element"
     And I click on "Recent files" "link" in the ".fp-repo-area" "css_element"
     And I click on "//a[contains(concat(' ', normalize-space(@class), ' '), ' fp-file ')][normalize-space(.)='empty.txt']" "xpath_element"
-    And I click on ".yui3-panel-focused .fp-select .fp-select-cancel" "css_element"
-    And I click on ".yui3-panel-focused .file-picker button.yui3-button-close" "css_element"
+    And I click on ".moodle-dialogue-focused .fp-select .fp-select-cancel" "css_element"
+    And I click on ".moodle-dialogue-focused.filepicker .yui3-button.closebutton" "css_element"
     And I press "Save and display"
     Then I should see "upload_users.csv"
     And I should not see "empty.txt"

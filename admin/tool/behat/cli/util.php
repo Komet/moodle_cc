@@ -84,6 +84,7 @@ define('BEHAT_UTIL', true);
 define('CLI_SCRIPT', true);
 define('ABORT_AFTER_CONFIG', true);
 define('NO_OUTPUT_BUFFERING', true);
+define('IGNORE_COMPONENT_CACHE', true);
 
 error_reporting(E_ALL | E_STRICT);
 ini_set('display_errors', '1');
@@ -149,6 +150,7 @@ $CFG->jsrev = 1;
 
 // Unset cache and temp directories to reset them again with the new $CFG->dataroot.
 unset($CFG->cachedir);
+unset($CFG->localcachedir);
 unset($CFG->tempdir);
 
 // Continues setup.
@@ -158,7 +160,6 @@ require("$CFG->dirroot/lib/setup.php");
 require_once($CFG->libdir.'/adminlib.php');
 require_once($CFG->libdir.'/upgradelib.php');
 require_once($CFG->libdir.'/clilib.php');
-require_once($CFG->libdir.'/pluginlib.php');
 require_once($CFG->libdir.'/installlib.php');
 require_once($CFG->libdir.'/testing/classes/test_lock.php');
 

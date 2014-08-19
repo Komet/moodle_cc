@@ -122,7 +122,7 @@ class dndupload_handler {
         // Loop through all modules to find handlers.
         $mods = get_plugin_list_with_function('mod', 'dndupload_register');
         foreach ($mods as $component => $funcname) {
-            list($modtype, $modname) = normalize_component($component);
+            list($modtype, $modname) = core_component::normalize_component($component);
             if ($modnames && !array_key_exists($modname, $modnames)) {
                 continue; // Module is deactivated (hidden) at the site level.
             }
@@ -588,9 +588,9 @@ class dndupload_ajax_processor {
      * @return string the display name to use
      */
     protected function display_name_from_file($filename) {
-        $pos = textlib::strrpos($filename, '.');
+        $pos = core_text::strrpos($filename, '.');
         if ($pos) { // Want to skip if $pos === 0 OR $pos === false.
-            $filename = textlib::substr($filename, 0, $pos);
+            $filename = core_text::substr($filename, 0, $pos);
         }
         return str_replace('_', ' ', $filename);
     }
@@ -599,6 +599,8 @@ class dndupload_ajax_processor {
      * Create the coursemodule to hold the file/content that has been uploaded
      */
     protected function create_course_module() {
+        global $CFG;
+
         if (!course_allowed_module($this->course, $this->module->name)) {
             throw new coding_exception("The module {$this->module->name} is not allowed to be added to this course");
         }
@@ -616,7 +618,7 @@ class dndupload_ajax_processor {
         // Set the correct default for completion tracking.
         $this->cm->completion = COMPLETION_TRACKING_NONE;
         $completion = new completion_info($this->course);
-        if ($completion->is_enabled()) {
+        if ($completion->is_enabled() && $CFG->completiondefault) {
             if (plugin_supports('mod', $this->cm->modulename, FEATURE_MODEDIT_DEFAULT_COMPLETION, true)) {
                 $this->cm->completion = COMPLETION_TRACKING_MANUAL;
             }
@@ -625,15 +627,7 @@ class dndupload_ajax_processor {
         if (!$this->cm->id = add_course_module($this->cm)) {
             throw new coding_exception("Unable to create the course module");
         }
-        // The following are used inside some few core functions, so may as well set them here.
         $this->cm->coursemodule = $this->cm->id;
-        $groupbuttons = ($this->course->groupmode or (!$this->course->groupmodeforce));
-        if ($groupbuttons and plugin_supports('mod', $this->module->name, FEATURE_GROUPS, 0)) {
-            $this->cm->groupmodelink = (!$this->course->groupmodeforce);
-        } else {
-            $this->cm->groupmodelink = false;
-            $this->cm->groupmode = false;
-        }
     }
 
     /**
@@ -684,7 +678,6 @@ class dndupload_ajax_processor {
         $DB->set_field('course_modules', 'instance', $instanceid, array('id' => $this->cm->id));
         // Rebuild the course cache after update action
         rebuild_course_cache($this->course->id, true);
-        $this->course->modinfo = null; // Otherwise we will just get the old version back again.
 
         $sectionid = course_add_cm_to_section($this->course, $this->cm->id, $this->section);
 
@@ -701,21 +694,11 @@ class dndupload_ajax_processor {
             throw new moodle_exception('errorcreatingactivity', 'moodle', '', $this->module->name);
         }
         $mod = $info->get_cm($this->cm->id);
-        $mod->groupmodelink = $this->cm->groupmodelink;
-        $mod->groupmode = $this->cm->groupmode;
 
-        // Trigger mod_created event with information about this module.
-        $eventdata = new stdClass();
-        $eventdata->modulename = $mod->modname;
-        $eventdata->name       = $mod->name;
-        $eventdata->cmid       = $mod->id;
-        $eventdata->courseid   = $this->course->id;
-        $eventdata->userid     = $USER->id;
-        events_trigger('mod_created', $eventdata);
+        // Trigger course module created event.
+        $event = \core\event\course_module_created::create_from_cm($mod);
+        $event->trigger();
 
-        add_to_log($this->course->id, "course", "add mod",
-                   "../mod/{$mod->modname}/view.php?id=$mod->id",
-                   "{$mod->modname} $instanceid");
         add_to_log($this->course->id, $mod->modname, "add",
                    "view.php?id=$mod->id",
                    "$instanceid", $mod->id);
@@ -730,29 +713,18 @@ class dndupload_ajax_processor {
      */
     protected function send_response($mod) {
         global $OUTPUT, $PAGE;
-        $courserenderer = $PAGE->get_renderer('core', 'course');
 
         $resp = new stdClass();
         $resp->error = self::ERROR_OK;
-        $resp->icon = $mod->get_icon_url()->out();
-        $resp->name = $mod->name;
-        if ($mod->has_view()) {
-            $resp->link = $mod->get_url()->out();
-        } else {
-            $resp->link = null;
-        }
-        $resp->content = $mod->get_content();
-        $resp->elementid = 'module-'.$mod->id;
-        $actions = course_get_cm_edit_actions($mod, 0, $mod->sectionnum);
-        $resp->commands = ' '. $courserenderer->course_section_cm_edit_actions($actions);
-        $resp->onclick = $mod->get_on_click();
-        $resp->visible = $mod->visible;
+        $resp->elementid = 'module-' . $mod->id;
 
-        // if using groupings, then display grouping name
-        if (!empty($mod->groupingid) && has_capability('moodle/course:managegroups', $this->context)) {
-            $groupings = groups_get_all_groupings($this->course->id);
-            $resp->groupingname = format_string($groupings[$mod->groupingid]->name);
-        }
+        $courserenderer = $PAGE->get_renderer('core', 'course');
+        $completioninfo = new completion_info($this->course);
+        $info = get_fast_modinfo($this->course);
+        $sr = null;
+        $modulehtml = $courserenderer->course_section_cm($this->course, $completioninfo,
+                $mod, null, array());
+        $resp->fullcontent = $courserenderer->course_section_cm_list_item($this->course, $completioninfo, $mod, $sr);
 
         echo $OUTPUT->header();
         echo json_encode($resp);

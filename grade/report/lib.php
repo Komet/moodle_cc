@@ -271,18 +271,21 @@ abstract class grade_report {
      * @return int Count of users
      */
     public function get_numusers($groups=true) {
-        global $CFG, $DB;
+        global $DB;
 
         $groupsql      = "";
         $groupwheresql = "";
 
-        //limit to users with a gradeable role
+        // Limit to users with a gradeable role.
         list($gradebookrolessql, $gradebookrolesparams) = $DB->get_in_or_equal(explode(',', $this->gradebookroles), SQL_PARAMS_NAMED, 'grbr0');
 
-        //limit to users with an active enrollment
+        // Limit to users with an active enrollment.
         list($enrolledsql, $enrolledparams) = get_enrolled_sql($this->context);
 
-        $params = array_merge($gradebookrolesparams, $enrolledparams);
+        // We want to query both the current context and parent contexts.
+        list($relatedctxsql, $relatedctxparams) = $DB->get_in_or_equal($this->context->get_parent_context_ids(true), SQL_PARAMS_NAMED, 'relatedctx');
+
+        $params = array_merge($gradebookrolesparams, $enrolledparams, $relatedctxparams);
 
         if ($groups) {
             $groupsql      = $this->groupsql;
@@ -300,7 +303,7 @@ abstract class grade_report {
                       WHERE ra.roleid $gradebookrolessql
                             AND u.deleted = 0
                             $groupwheresql
-                            AND ra.contextid ".get_related_contexts_string($this->context);
+                            AND ra.contextid $relatedctxsql";
         return $DB->count_records_sql($countsql, $params);
     }
 
@@ -346,9 +349,9 @@ abstract class grade_report {
      * @param string $courseid the course id
      * @param string $course_item an instance of grade_item
      * @param string $finalgrade the grade for the course_item
-     * @return string The new final grade
+     * @return array[] containing values for 'grade', 'grademax' and 'grademin'
      */
-    protected function blank_hidden_total($courseid, $course_item, $finalgrade) {
+    protected function blank_hidden_total_and_adjust_bounds($courseid, $course_item, $finalgrade) {
         global $CFG, $DB;
         static $hiding_affected = null;//array of items in this course affected by hiding
 
@@ -358,13 +361,16 @@ abstract class grade_report {
         // If we're dealing with multiple courses we need to know when we've moved on to a new course.
         static $previous_courseid = null;
 
+        $grademin = $course_item->grademin;
+        $grademax = $course_item->grademax;
+
         if (!is_array($this->showtotalsifcontainhidden)) {
             debugging('showtotalsifcontainhidden should be an array', DEBUG_DEVELOPER);
             $this->showtotalsifcontainhidden = array($courseid => $this->showtotalsifcontainhidden);
         }
 
         if ($this->showtotalsifcontainhidden[$courseid] == GRADE_REPORT_SHOW_REAL_TOTAL_IF_CONTAINS_HIDDEN) {
-            return $finalgrade;
+            return array('grade' => $finalgrade, 'grademin' => $grademin, 'grademax' => $grademax);
         }
 
         // If we've moved on to another course or user, reload the grades.
@@ -408,6 +414,12 @@ abstract class grade_report {
             else {
                 //use reprocessed marks that exclude hidden items
                 $finalgrade = $hiding_affected['altered'][$course_item->id];
+                if (!empty($hiding_affected['alteredgrademin'][$course_item->id])) {
+                    $grademin = $hiding_affected['alteredgrademin'][$course_item->id];
+                }
+                if (!empty($hiding_affected['alteredgrademax'][$course_item->id])) {
+                    $grademax = $hiding_affected['alteredgrademax'][$course_item->id];
+                }
             }
         } else if (!empty($hiding_affected['unknown'][$course_item->id])) {
             //not sure whether or not this item depends on a hidden item
@@ -418,10 +430,33 @@ abstract class grade_report {
             else {
                 //use reprocessed marks that exclude hidden items
                 $finalgrade = $hiding_affected['unknown'][$course_item->id];
+
+                if (!empty($hiding_affected['alteredgrademin'][$course_item->id])) {
+                    $grademin = $hiding_affected['alteredgrademin'][$course_item->id];
+                }
+                if (!empty($hiding_affected['alteredgrademax'][$course_item->id])) {
+                    $grademax = $hiding_affected['alteredgrademax'][$course_item->id];
+                }
             }
         }
 
-        return $finalgrade;
+        return array('grade' => $finalgrade, 'grademin' => $grademin, 'grademax' => $grademax);
+    }
+
+    /**
+     * Optionally blank out course/category totals if they contain any hidden items
+     * Will be deprecated in Moodle 2.8 - Call blank_hidden_total_and_adjust_bounds instead.
+     * @param string $courseid the course id
+     * @param string $course_item an instance of grade_item
+     * @param string $finalgrade the grade for the course_item
+     * @return string The new final grade
+     */
+    protected function blank_hidden_total($courseid, $course_item, $finalgrade) {
+        // Note it is flawed to call this function directly because
+        // the aggregated grade does not make sense without the updated min and max information.
+
+        $result = $this->blank_hidden_total_and_adjust_bounds($courseid, $course_item, $finalgrade);
+        return $result['grade'];
     }
 }
 

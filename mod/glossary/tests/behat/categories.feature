@@ -19,6 +19,7 @@ Feature: Glossary entries can be organised in categories
       | student1 | C1 | student |
     And the following "activities" exists:
       | activity | name       | intro                                                           | course | idnumber  |
+      | glossary | MyGlossary | Test glossary description                                       | C1     | glossary1 |
       | label    | name       | check autolinking of CategoryAutoLinks and CategoryNoLinks text | C1     | label1    |
 # Log in as admin and enable autolinking filter
     And I log in as "admin"
@@ -34,10 +35,6 @@ Feature: Glossary entries can be organised in categories
     Then I should see "CategoryAutoLinks"
     And I should see "CategoryNoLinks"
     And "a.glossary.autolink" "css_element" should not exists
-    And I turn editing mode on
-    And I add a "Glossary" to section "1" and I fill the form with:
-      | Name | MyGlossary |
-      | Description | Test glossary description |
 # Create, edit and delete categories
     And I follow "MyGlossary"
     And I follow "Browse by category"
@@ -86,11 +83,11 @@ Feature: Glossary entries can be organised in categories
     And I press "Save changes"
 # Make sure entries appear in their categories
     And I follow "Browse by category"
-    And "//h2[contains(.,'CATEGORYAUTOLINKS')]" "xpath_element" should appear before "//h2[contains(.,'CATEGORYNOLINKS')]" "xpath_element"
-    And "//h3[contains(.,'EntryCategoryAL')]" "xpath_element" should appear before "//h2[contains(.,'CATEGORYNOLINKS')]" "xpath_element"
-    And "//h3[contains(.,'EntryCategoryBoth')]" "xpath_element" should appear before "//h2[contains(.,'CATEGORYNOLINKS')]" "xpath_element"
-    And "//h2[contains(.,'CATEGORYNOLINKS')]" "xpath_element" should appear before "//h3[contains(.,'EntryCategoryBoth')]" "xpath_element"
-    And "//h3[contains(.,'EntryCategoryNL')]" "xpath_element" should appear after "//h2[contains(.,'CATEGORYNOLINKS')]" "xpath_element"
+    And "//h3[contains(.,'CATEGORYAUTOLINKS')]" "xpath_element" should appear before "//h3[contains(.,'CATEGORYNOLINKS')]" "xpath_element"
+    And "//h4[contains(.,'EntryCategoryAL')]" "xpath_element" should appear before "//h3[contains(.,'CATEGORYNOLINKS')]" "xpath_element"
+    And "//h4[contains(.,'EntryCategoryBoth')]" "xpath_element" should appear before "//h3[contains(.,'CATEGORYNOLINKS')]" "xpath_element"
+    And "//h3[contains(.,'CATEGORYNOLINKS')]" "xpath_element" should appear before "//h4[contains(.,'EntryCategoryBoth')]" "xpath_element"
+    And "//h4[contains(.,'EntryCategoryNL')]" "xpath_element" should appear after "//h3[contains(.,'CATEGORYNOLINKS')]" "xpath_element"
     And I should not see "EntryNoCategory"
     And I set the field "hook" to "Not categorised"
     And I click on "Not categorised" "option" in the "#catmenu select" "css_element"
@@ -98,6 +95,8 @@ Feature: Glossary entries can be organised in categories
     And I should not see "EntryCategoryNL"
     And I should not see "EntryCategoryAL"
     And I should not see "EntryCategoryBoth"
+    # Wait for autolink filter to reset
+    And I wait "60" seconds
 # Check that category is autolinked from the text in the course
     And I follow "Course 1"
     And I should see "CategoryAutoLinks"

@@ -50,13 +50,12 @@ class behat_permissions extends behat_base {
      */
     public function i_set_the_following_system_permissions_of_role($rolename, $table) {
 
+        $parentnodes = get_string('administrationsite') . ' > ' .
+            get_string('users', 'admin') . ' > ' .
+            get_string('permissions', 'role');
         return array(
             new Given('I am on homepage'),
-            new Given('I collapse "' . get_string('frontpagesettings', 'admin') . '" node'),
-            new Given('I expand "' . get_string('administrationsite') . '" node'),
-            new Given('I expand "' . get_string('users', 'admin') . '" node'),
-            new Given('I expand "' . get_string('permissions', 'role') . '" node'),
-            new Given('I follow "' . get_string('defineroles', 'role') . '"'),
+            new Given('I navigate to "' . get_string('defineroles', 'role') . '" node in "' . $parentnodes . '"'),
             new Given('I follow "Edit ' . $this->escape($rolename) . ' role"'),
             new Given('I fill the capabilities form with the following permissions:', $table),
             new Given('I press "' . get_string('savechanges') . '"')
@@ -95,7 +94,16 @@ class behat_permissions extends behat_base {
         try {
             $advancedtoggle = $this->find_button(get_string('showadvanced', 'form'));
             if ($advancedtoggle) {
-                $this->getSession()->getPage()->pressButton(get_string('showadvanced', 'form'));
+
+                // As we are interacting with a moodle form we wait for the editor to be ready
+                // otherwise we may have problems when setting values on it or clicking on elements
+                // as the position of the elements will change once the editor is loaded.
+                $this->ensure_editors_are_loaded();
+
+                $advancedtoggle->click();
+
+                // Wait for the page to load.
+                $this->getSession()->wait(self::TIMEOUT * 1000, self::PAGE_READY_JS);
             }
         } catch (Exception $e) {
             // We already are in advanced mode.

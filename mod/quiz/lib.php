@@ -170,7 +170,20 @@ function quiz_delete_instance($id) {
     quiz_delete_all_attempts($quiz);
     quiz_delete_all_overrides($quiz);
 
+    // Look for random questions that may no longer be used when this quiz is gone.
+    $sql = "SELECT q.id
+              FROM {quiz_question_instances} instance
+              JOIN {question} q ON q.id = instance.question
+             WHERE instance.quiz = ? AND q.qtype = ?";
+    $questionids = $DB->get_fieldset_sql($sql, array($quiz->id, 'random'));
+
+    // We need to do this before we try and delete randoms, otherwise they would still be 'in use'.
     $DB->delete_records('quiz_question_instances', array('quiz' => $quiz->id));
+
+    foreach ($questionids as $questionid) {
+        question_delete_question($questionid);
+    }
+
     $DB->delete_records('quiz_feedback', array('quizid' => $quiz->id));
 
     quiz_access_manager::delete_settings($quiz);
@@ -844,9 +857,10 @@ function quiz_get_recent_mod_activity(&$activities, &$index, $timestart,
     $params['timestart'] = $timestart;
     $params['quizid'] = $quiz->id;
 
+    $ufields = user_picture::fields('u', null, 'useridagain');
     if (!$attempts = $DB->get_records_sql("
               SELECT qa.*,
-                     u.firstname, u.lastname, u.email, u.picture, u.imagealt
+                     {$ufields}
                 FROM {quiz_attempts} qa
                      JOIN {user} u ON u.id = qa.userid
                      $groupjoin
@@ -905,14 +919,8 @@ function quiz_get_recent_mod_activity(&$activities, &$index, $timestart,
             $tmpactivity->content->maxgrade  = null;
         }
 
-        $tmpactivity->user = new stdClass();
-        $tmpactivity->user->id        = $attempt->userid;
-        $tmpactivity->user->firstname = $attempt->firstname;
-        $tmpactivity->user->lastname  = $attempt->lastname;
-        $tmpactivity->user->fullname  = fullname($attempt, $viewfullnames);
-        $tmpactivity->user->picture   = $attempt->picture;
-        $tmpactivity->user->imagealt  = $attempt->imagealt;
-        $tmpactivity->user->email     = $attempt->email;
+        $tmpactivity->user = user_picture::unalias($attempt, null, 'useridagain');
+        $tmpactivity->user->fullname  = fullname($tmpactivity->user, $viewfullnames);
 
         $activities[$index++] = $tmpactivity;
     }
@@ -1538,6 +1546,7 @@ function quiz_supports($feature) {
         case FEATURE_BACKUP_MOODLE2:            return true;
         case FEATURE_SHOW_DESCRIPTION:          return true;
         case FEATURE_CONTROLS_GRADE_VISIBILITY: return true;
+        case FEATURE_USES_QUESTIONS:            return true;
 
         default: return null;
     }

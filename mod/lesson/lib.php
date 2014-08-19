@@ -819,7 +819,7 @@ function lesson_extend_settings_navigation($settings, $lessonnode) {
  */
 function lesson_get_import_export_formats($type) {
     global $CFG;
-    $fileformats = get_plugin_list("qformat");
+    $fileformats = core_component::get_plugin_list("qformat");
 
     $fileformatname=array();
     foreach ($fileformats as $fileformat=>$fdir) {
@@ -951,7 +951,6 @@ function lesson_get_file_info($browser, $areas, $course, $cm, $context, $fileare
     }
 
     if (is_null($itemid)) {
-        require_once(__DIR__ . '/locallib.php');
         return new mod_lesson_file_info($browser, $course, $cm, $context, $areas, $filearea);
     }
 

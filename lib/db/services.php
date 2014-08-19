@@ -437,6 +437,15 @@ $functions = array(
         'capabilities'=> 'moodle/user:update',
     ),
 
+    'core_user_add_user_device' => array(
+        'classname'   => 'core_user_external',
+        'methodname'  => 'add_user_device',
+        'classpath'   => 'user/externallib.php',
+        'description' => 'Store mobile user devices information for PUSH Notifications.',
+        'type'        => 'write',
+        'capabilities'=> '',
+    ),
+
     // === enrol related functions ===
 
     'core_enrol_get_enrolled_users_with_capability' => array(
@@ -483,6 +492,14 @@ $functions = array(
         'description' => 'Get the list of courses where a user is enrolled in',
         'type'        => 'read',
         'capabilities'=> 'moodle/course:viewparticipants',
+    ),
+
+    'core_enrol_get_course_enrolment_methods' => array(
+        'classname'   => 'core_enrol_external',
+        'methodname'  => 'get_course_enrolment_methods',
+        'classpath'   => 'enrol/externallib.php',
+        'description' => 'Get the list of course enrolment methods',
+        'type'        => 'read',
     ),
 
     // === Role related functions ===
@@ -774,13 +791,29 @@ $functions = array(
         'capabilities'=> 'moodle/notes:manage',
     ),
 
-    // === grade related functions ===
+    // === grading related functions ===
+
+    'core_grading_get_definitions' => array(
+        'classname'   => 'core_grading_external',
+        'methodname'  => 'get_definitions',
+        'classpath'   => 'grade/externallib.php',
+        'description' => 'Get grading definitions',
+        'type'        => 'read'
+    ),
 
     'core_grade_get_definitions' => array(
         'classname'   => 'core_grade_external',
         'methodname'  => 'get_definitions',
         'classpath'   => 'grade/externallib.php',
-        'description' => 'Get grading definitions',
+        'description' => 'DEPRECATED: this deprecated function will be removed in a future version. This function has been renamed as core_grading_get_definitions()',
+        'type'        => 'read'
+    ),
+
+    'core_grading_get_gradingform_instances' => array(
+        'classname'   => 'core_grading_external',
+        'methodname'  => 'get_gradingform_instances',
+        'classpath'   => 'grade/externallib.php',
+        'description' => 'Get grading form instances',
         'type'        => 'read'
     ),
 
@@ -872,10 +905,12 @@ $services = array(
             'moodle_message_send_instantmessages',
             'core_course_get_contents',
             'core_get_component_strings',
+            'core_user_add_user_device',
             'core_calendar_get_calendar_events'),
         'enabled' => 0,
         'restrictedusers' => 0,
         'shortname' => MOODLE_OFFICIAL_MOBILE_SERVICE,
-        'downloadfiles' => 1
+        'downloadfiles' => 1,
+        'uploadfiles' => 1
     ),
 );

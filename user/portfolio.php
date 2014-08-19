@@ -57,9 +57,6 @@ $display = true; // set this to false in the conditions to stop processing
 
 require_login($course, false);
 
-// Purge all caches related to portfolio administration.
-cache::make('core', 'plugininfo_portfolio')->purge();
-
 $PAGE->set_url($url);
 $PAGE->set_context(context_user::instance($user->id));
 $PAGE->set_title("$course->fullname: $fullname: $strportfolios");
@@ -97,6 +94,7 @@ if (!empty($config)) {
 } else if (!empty($hide)) {
     $instance = portfolio_instance($hide);
     $instance->set_user_config(array('visible' => !$instance->get_user_config('visible', $USER->id)), $USER->id);
+    core_plugin_manager::reset_caches();
 }
 
 if ($display) {

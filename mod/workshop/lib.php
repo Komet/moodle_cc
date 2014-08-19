@@ -211,21 +211,21 @@ function workshop_delete_instance($id) {
     $DB->delete_records_list('workshop_submissions', 'id', array_keys($submissions));
 
     // call the static clean-up methods of all available subplugins
-    $strategies = get_plugin_list('workshopform');
+    $strategies = core_component::get_plugin_list('workshopform');
     foreach ($strategies as $strategy => $path) {
         require_once($path.'/lib.php');
         $classname = 'workshop_'.$strategy.'_strategy';
         call_user_func($classname.'::delete_instance', $workshop->id);
     }
 
-    $allocators = get_plugin_list('workshopallocation');
+    $allocators = core_component::get_plugin_list('workshopallocation');
     foreach ($allocators as $allocator => $path) {
         require_once($path.'/lib.php');
         $classname = 'workshop_'.$allocator.'_allocator';
         call_user_func($classname.'::delete_instance', $workshop->id);
     }
 
-    $evaluators = get_plugin_list('workshopeval');
+    $evaluators = core_component::get_plugin_list('workshopeval');
     foreach ($evaluators as $evaluator => $path) {
         require_once($path.'/lib.php');
         $classname = 'workshop_'.$evaluator.'_evaluation';
@@ -364,11 +364,12 @@ function workshop_user_complete($course, $user, $mod, $workshop) {
 function workshop_print_recent_activity($course, $viewfullnames, $timestart) {
     global $CFG, $USER, $DB, $OUTPUT;
 
+    $authoramefields = get_all_user_name_fields(true, 'author', null, 'author');
+    $reviewerfields = get_all_user_name_fields(true, 'reviewer', null, 'reviewer');
+
     $sql = "SELECT s.id AS submissionid, s.title AS submissiontitle, s.timemodified AS submissionmodified,
-                   author.id AS authorid, author.lastname AS authorlastname, author.firstname AS authorfirstname,
-                   a.id AS assessmentid, a.timemodified AS assessmentmodified,
-                   reviewer.id AS reviewerid, reviewer.lastname AS reviewerlastname, reviewer.firstname AS reviewerfirstname,
-                   cm.id AS cmid
+                   author.id AS authorid, $authoramefields, a.id AS assessmentid, a.timemodified AS assessmentmodified,
+                   reviewer.id AS reviewerid, $reviewerfields, cm.id AS cmid
               FROM {workshop} w
         INNER JOIN {course_modules} cm ON cm.instance = w.id
         INNER JOIN {modules} md ON md.id = cm.module
@@ -404,15 +405,11 @@ function workshop_print_recent_activity($course, $viewfullnames, $timestart) {
         // remember all user names we can use later
         if (empty($users[$activity->authorid])) {
             $u = new stdclass();
-            $u->lastname = $activity->authorlastname;
-            $u->firstname = $activity->authorfirstname;
-            $users[$activity->authorid] = $u;
+            $users[$activity->authorid] = username_load_fields_from_object($u, $activity, 'author');
         }
         if ($activity->reviewerid and empty($users[$activity->reviewerid])) {
             $u = new stdclass();
-            $u->lastname = $activity->reviewerlastname;
-            $u->firstname = $activity->reviewerfirstname;
-            $users[$activity->reviewerid] = $u;
+            $users[$activity->reviewerid] = username_load_fields_from_object($u, $activity, 'reviewer');
         }
 
         $context = context_module::instance($cm->id);
@@ -544,7 +541,7 @@ function workshop_print_recent_activity($course, $viewfullnames, $timestart) {
     if (!empty($assessments)) {
         $shown = true;
         echo $OUTPUT->heading(get_string('recentassessments', 'workshop'), 3);
-        collatorlib::asort_objects_by_property($assessments, 'timemodified');
+        core_collator::asort_objects_by_property($assessments, 'timemodified');
         foreach ($assessments as $id => $assessment) {
             $link = new moodle_url('/mod/workshop/assessment.php', array('asid' => $id));
             if ($assessment->reviewernamevisible) {
@@ -612,12 +609,14 @@ function workshop_get_recent_mod_activity(&$activities, &$index, $timestart, $co
     $params['submissionmodified'] = $timestart;
     $params['assessmentmodified'] = $timestart;
 
+    $authornamefields = get_all_user_name_fields(true, 'author', null, 'author');
+    $reviewerfields = get_all_user_name_fields(true, 'reviewer', null, 'reviewer');
+
     $sql = "SELECT s.id AS submissionid, s.title AS submissiontitle, s.timemodified AS submissionmodified,
-                   author.id AS authorid, author.lastname AS authorlastname, author.firstname AS authorfirstname,
-                   author.picture AS authorpicture, author.imagealt AS authorimagealt, author.email AS authoremail,
-                   a.id AS assessmentid, a.timemodified AS assessmentmodified,
-                   reviewer.id AS reviewerid, reviewer.lastname AS reviewerlastname, reviewer.firstname AS reviewerfirstname,
-                   reviewer.picture AS reviewerpicture, reviewer.imagealt AS reviewerimagealt, reviewer.email AS revieweremail
+                   author.id AS authorid, $authornamefields, author.picture AS authorpicture, author.imagealt AS authorimagealt,
+                   author.email AS authoremail, a.id AS assessmentid, a.timemodified AS assessmentmodified,
+                   reviewer.id AS reviewerid, $reviewerfields, reviewer.picture AS reviewerpicture,
+                   reviewer.imagealt AS reviewerimagealt, reviewer.email AS revieweremail
               FROM {workshop_submissions} s
         INNER JOIN {workshop} w ON s.workshopid = w.id
         INNER JOIN {user} author ON s.authorid = author.id
@@ -648,22 +647,14 @@ function workshop_get_recent_mod_activity(&$activities, &$index, $timestart, $co
         // remember all user names we can use later
         if (empty($users[$activity->authorid])) {
             $u = new stdclass();
-            $u->id = $activity->authorid;
-            $u->lastname = $activity->authorlastname;
-            $u->firstname = $activity->authorfirstname;
-            $u->picture = $activity->authorpicture;
-            $u->imagealt = $activity->authorimagealt;
-            $u->email = $activity->authoremail;
+            $additionalfields = explode(',', user_picture::fields());
+            $u = username_load_fields_from_object($u, $activity, 'author', $additionalfields);
             $users[$activity->authorid] = $u;
         }
         if ($activity->reviewerid and empty($users[$activity->reviewerid])) {
             $u = new stdclass();
-            $u->id = $activity->reviewerid;
-            $u->lastname = $activity->reviewerlastname;
-            $u->firstname = $activity->reviewerfirstname;
-            $u->picture = $activity->reviewerpicture;
-            $u->imagealt = $activity->reviewerimagealt;
-            $u->email = $activity->revieweremail;
+            $additionalfields = explode(',', user_picture::fields());
+            $u = username_load_fields_from_object($u, $activity, 'reviewer', $additionalfields);
             $users[$activity->reviewerid] = $u;
         }
 
@@ -959,7 +950,7 @@ function workshop_cron() {
 function workshop_scale_used($workshopid, $scaleid) {
     global $CFG; // other files included from here
 
-    $strategies = get_plugin_list('workshopform');
+    $strategies = core_component::get_plugin_list('workshopform');
     foreach ($strategies as $strategy => $strategypath) {
         $strategylib = $strategypath . '/lib.php';
         if (is_readable($strategylib)) {
@@ -992,7 +983,7 @@ function workshop_scale_used($workshopid, $scaleid) {
 function workshop_scale_used_anywhere($scaleid) {
     global $CFG; // other files included from here
 
-    $strategies = get_plugin_list('workshopform');
+    $strategies = core_component::get_plugin_list('workshopform');
     foreach ($strategies as $strategy => $strategypath) {
         $strategylib = $strategypath . '/lib.php';
         if (is_readable($strategylib)) {
@@ -1215,10 +1206,8 @@ function workshop_pluginfile($course, $cm, $context, $filearea, array $args, $fo
             send_file_not_found();
         }
 
-        $lifetime = isset($CFG->filelifetime) ? $CFG->filelifetime : 86400;
-
         // finally send the file
-        send_stored_file($file, $lifetime, 0, $forcedownload, $options);
+        send_stored_file($file, null, 0, $forcedownload, $options);
 
     } else if ($filearea === 'instructreviewers') {
         array_shift($args); // itemid is ignored here
@@ -1230,10 +1219,8 @@ function workshop_pluginfile($course, $cm, $context, $filearea, array $args, $fo
             send_file_not_found();
         }
 
-        $lifetime = isset($CFG->filelifetime) ? $CFG->filelifetime : 86400;
-
         // finally send the file
-        send_stored_file($file, $lifetime, 0, $forcedownload, $options);
+        send_stored_file($file, null, 0, $forcedownload, $options);
 
     } else if ($filearea === 'conclusion') {
         array_shift($args); // itemid is ignored here
@@ -1245,10 +1232,8 @@ function workshop_pluginfile($course, $cm, $context, $filearea, array $args, $fo
             send_file_not_found();
         }
 
-        $lifetime = isset($CFG->filelifetime) ? $CFG->filelifetime : 86400;
-
         // finally send the file
-        send_stored_file($file, $lifetime, 0, $forcedownload, $options);
+        send_stored_file($file, null, 0, $forcedownload, $options);
 
     } else if ($filearea === 'submission_content' or $filearea === 'submission_attachment') {
         $itemid = (int)array_shift($args);

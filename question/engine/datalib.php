@@ -106,11 +106,12 @@ class question_engine_data_mapper {
         $record->variant = $qa->get_variant();
         $record->maxmark = $qa->get_max_mark();
         $record->minfraction = $qa->get_min_fraction();
+        $record->maxfraction = $qa->get_max_fraction();
         $record->flagged = $qa->is_flagged();
         $record->questionsummary = $qa->get_question_summary();
-        if (textlib::strlen($record->questionsummary) > question_bank::MAX_SUMMARY_LENGTH) {
+        if (core_text::strlen($record->questionsummary) > question_bank::MAX_SUMMARY_LENGTH) {
             // It seems some people write very long quesions! MDL-30760
-            $record->questionsummary = textlib::substr($record->questionsummary,
+            $record->questionsummary = core_text::substr($record->questionsummary,
                     0, question_bank::MAX_SUMMARY_LENGTH - 3) . '...';
         }
         $record->rightanswer = $qa->get_right_answer_summary();
@@ -259,6 +260,7 @@ SELECT
     qa.variant,
     qa.maxmark,
     qa.minfraction,
+    qa.maxfraction,
     qa.flagged,
     qa.questionsummary,
     qa.rightanswer,
@@ -318,6 +320,7 @@ SELECT
     qa.variant,
     qa.maxmark,
     qa.minfraction,
+    qa.maxfraction,
     qa.flagged,
     qa.questionsummary,
     qa.rightanswer,
@@ -361,14 +364,14 @@ ORDER BY
      * @param qubaid_condition $qubaids used to restrict which usages are included
      *                                  in the query. See {@link qubaid_condition}.
      * @param array            $slots   A list of slots for the questions you want to know about.
+     * @param string|null      $fields
      * @return array of records. See the SQL in this function to see the fields available.
      */
-    public function load_questions_usages_latest_steps(qubaid_condition $qubaids, $slots) {
+    public function load_questions_usages_latest_steps(qubaid_condition $qubaids, $slots, $fields = null) {
         list($slottest, $params) = $this->db->get_in_or_equal($slots, SQL_PARAMS_NAMED, 'slot');
 
-        $records = $this->db->get_records_sql("
-SELECT
-    qas.id,
+        if ($fields === null) {
+            $fields =  "qas.id,
     qa.id AS questionattemptid,
     qa.questionusageid,
     qa.slot,
@@ -377,6 +380,7 @@ SELECT
     qa.variant,
     qa.maxmark,
     qa.minfraction,
+    qa.maxfraction,
     qa.flagged,
     qa.questionsummary,
     qa.rightanswer,
@@ -387,7 +391,13 @@ SELECT
     qas.state,
     qas.fraction,
     qas.timecreated,
-    qas.userid
+    qas.userid";
+
+        }
+
+        $records = $this->db->get_records_sql("
+SELECT
+    {$fields}
 
 FROM {$qubaids->from_question_attempts('qa')}
 JOIN {question_attempt_steps} qas ON qas.questionattemptid = qa.id
@@ -637,6 +647,7 @@ SELECT
     qa.variant,
     qa.maxmark,
     qa.minfraction,
+    qa.maxfraction,
     qa.flagged,
     qa.questionsummary,
     qa.rightanswer,
@@ -704,6 +715,7 @@ ORDER BY
         $record->id = $qa->get_database_id();
         $record->maxmark = $qa->get_max_mark();
         $record->minfraction = $qa->get_min_fraction();
+        $record->maxfraction = $qa->get_max_fraction();
         $record->flagged = $qa->is_flagged();
         $record->questionsummary = $qa->get_question_summary();
         $record->rightanswer = $qa->get_right_answer_summary();
@@ -946,6 +958,7 @@ ORDER BY
                        {$alias}qa.variant,
                        {$alias}qa.maxmark,
                        {$alias}qa.minfraction,
+                       {$alias}qa.maxfraction,
                        {$alias}qa.flagged,
                        {$alias}qa.questionsummary,
                        {$alias}qa.rightanswer,
@@ -1463,6 +1476,14 @@ abstract class qubaid_condition {
      * @return the params needed by a query that uses {@link usage_id_in()}.
      */
     public abstract function usage_id_in_params();
+
+    /**
+     * @return string 40-character hash code that uniquely identifies the combination of properties and class name of this qubaid
+     *                  condition.
+     */
+    public function get_hash_code() {
+        return sha1(serialize($this));
+    }
 }
 
 

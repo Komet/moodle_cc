@@ -22,16 +22,12 @@ Feature: Workshop submission and assessment
       | student3 | c1     | student        |
       | student4 | c1     | student        |
       | teacher1 | c1     | editingteacher |
+    And the following "activities" exists:
+      | activity | name         | intro                     | course | idnumber  |
+      | workshop | TestWorkshop | Test workshop description | c1     | workshop1 |
 # teacher1 sets up assessment form and changes the phase to submission
     When I log in as "teacher1"
     And I follow "Course1"
-    And I turn editing mode on
-    And I add a "Workshop" to section "1" and I fill the form with:
-      | name | TestWorkshop |
-      | Description | Description |
-      | Instructions for submission | Instructions1 |
-      | Instructions for assessment | Instructions2 |
-      | Conclusion | Conclusion |
     And I edit assessment form in workshop "TestWorkshop" as:"
       | id_description__idx_0_editor | Aspect1 |
       | id_description__idx_1_editor | Aspect2 |

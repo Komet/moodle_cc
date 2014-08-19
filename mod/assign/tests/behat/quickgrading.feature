@@ -114,6 +114,7 @@ Feature: In an assignment, teachers grade multiple students on one page
     And I click on "Hide Edit" "link"
     And I click on "Hide Last modified (submission)" "link"
     And I click on "Hide Online text" "link"
+    And I click on "Hide Submission comments" "link"
     And I click on "Hide Last modified (grade)" "link"
     And I click on "Hide Feedback comments" "link"
     And I click on "Hide Final grade" "link"

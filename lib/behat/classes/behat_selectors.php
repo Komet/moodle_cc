@@ -64,11 +64,13 @@ class behat_selectors {
         'checkbox' => 'checkbox',
         'radio' => 'radio',
         'file' => 'file',
+        'filemanager' => 'filemanager',
         'optgroup' => 'optgroup',
         'option' => 'option',
         'table' => 'table',
         'field' => 'field',
         'fieldset' => 'fieldset',
+        'text' => 'text',
         'css_element' => 'css_element',
         'xpath_element' => 'xpath_element'
     );
@@ -82,7 +84,10 @@ class behat_selectors {
      * @var XPaths for moodle elements.
      */
     protected static $moodleselectors = array(
-        'dialogue' => <<<XPATH
+        'text' => <<<XPATH
+//*[contains(., %locator%)][count(./descendant::*[contains(., %locator%)]) = 0]
+XPATH
+        , 'dialogue' => <<<XPATH
 //div[contains(concat(' ', normalize-space(@class), ' '), ' moodle-dialogue ') and
     normalize-space(descendant::div[
         contains(concat(' ', normalize-space(@class), ' '), ' moodle-dialogue-hd ')
@@ -97,10 +102,14 @@ XPATH
      @aria-label = %locator%)]
 XPATH
         , 'region' => <<<XPATH
-.//*[self::div | self::section | self::aside][./@id = %locator%]
+//*[self::div | self::section | self::aside | self::header | self::footer][./@id = %locator%]
 XPATH
         , 'table_row' => <<<XPATH
 .//tr[contains(normalize-space(.), %locator%)]
+XPATH
+        , 'filemanager' => <<<XPATH
+//div[contains(concat(' ', normalize-space(@class), ' '), ' ffilemanager ')]
+    /descendant::input[@id = //label[contains(normalize-space(string(.)), %locator%)]/@for]
 XPATH
     );
 

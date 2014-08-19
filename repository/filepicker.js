@@ -510,7 +510,6 @@ M.core_filepicker.show = function(Y, options) {
         M.core_filepicker.init(Y, options);
     }
     M.core_filepicker.instances[options.client_id].show();
-    document.getElementById("filepicker-"+ options.client_id).focus();
 };
 
 M.core_filepicker.set_templates = function(Y, templates) {
@@ -596,13 +595,17 @@ M.core_filepicker.init = function(Y, options) {
                             data = Y.JSON.parse(o.responseText);
                         } catch(e) {
                             if (o && o.status && o.status > 0) {
-                                new M.core.exception(e);
+                                Y.use('moodle-core-notification-exception', function() {
+                                    return new M.core.exception(e);
+                                });
                                 return;
                             }
                         }
                         // error checking
                         if (data && data.error) {
-                            new M.core.ajaxException(data);
+                            Y.use('moodle-core-notification-ajaxexception', function () {
+                                return new M.core.ajaxException(data);
+                            });
                             this.fpnode.one('.fp-content').setContent('');
                             return;
                         } else {
@@ -710,25 +713,21 @@ M.core_filepicker.init = function(Y, options) {
                     }
                 }, false);
                 this.process_dlg.hide();
-                this.detachKeyDelegation(this.process_dlg);
                 this.selectui.hide();
-                this.detachKeyDelegation(this.selectui);
             }
             if (!this.process_dlg) {
                 this.process_dlg_node = Y.Node.createWithFilesSkin(M.core_filepicker.templates.processexistingfile);
                 var node = this.process_dlg_node;
                 node.generateID();
-                this.process_dlg = new Y.Panel({
-                    srcNode      : node,
+                this.process_dlg = new M.core.dialogue({
+                    draggable    : true,
+                    bodyContent  : node,
                     headerContent: M.str.repository.fileexistsdialogheader,
-                    zIndex       : 8000,
                     centered     : true,
                     modal        : true,
                     visible      : false,
-                    render       : true,
-                    buttons      : {}
+                    zIndex       : this.options.zIndex
                 });
-                this.process_dlg.plug(Y.Plugin.Drag,{handles:['#'+node.get('id')+' .yui3-widget-hd']});
                 node.one('.fp-dlg-butoverwrite').on('click', handleOverwrite, this);
                 node.one('.fp-dlg-butrename').on('click', handleRename, this);
                 node.one('.fp-dlg-butcancel').on('click', handleCancel, this);
@@ -742,7 +741,6 @@ M.core_filepicker.init = function(Y, options) {
             this.process_dlg.dialogdata = data;
             this.process_dlg_node.one('.fp-dlg-butrename').setContent(M.util.get_string('renameto', 'repository', data.newfile.filename));
             this.process_dlg.show();
-            this.keyDelegation(this.process_dlg);
         },
         /** displays error instead of filepicker contents */
         display_error: function(errortext, errorcode) {
@@ -762,19 +760,17 @@ M.core_filepicker.init = function(Y, options) {
                 this.msg_dlg_node = Y.Node.createWithFilesSkin(M.core_filepicker.templates.message);
                 this.msg_dlg_node.generateID();
 
-                this.msg_dlg = new Y.Panel({
-                    srcNode      : this.msg_dlg_node,
-                    zIndex       : 8000,
+                this.msg_dlg = new M.core.dialogue({
+                    draggable    : true,
+                    bodyContent  : this.msg_dlg_node,
                     centered     : true,
                     modal        : true,
                     visible      : false,
-                    render       : true
+                    zIndex       : this.options.zIndex
                 });
-                this.msg_dlg.plug(Y.Plugin.Drag,{handles:['#'+this.msg_dlg_node.get('id')+' .yui3-widget-hd']});
                 this.msg_dlg_node.one('.fp-msg-butok').on('click', function(e) {
                     e.preventDefault();
                     this.msg_dlg.hide();
-                    this.detachKeyDelegation(this.msg_dlg);
                 }, this);
             }
 
@@ -782,7 +778,6 @@ M.core_filepicker.init = function(Y, options) {
             this.msg_dlg_node.removeClass('fp-msg-info').removeClass('fp-msg-error').addClass('fp-msg-'+type)
             this.msg_dlg_node.one('.fp-msg-text').setContent(Y.Escape.html(msg));
             this.msg_dlg.show();
-            this.keyDelegation(this.msg_dlg);
         },
         view_files: function(appenditems) {
             this.viewbar_set_enabled(true);
@@ -800,7 +795,7 @@ M.core_filepicker.init = function(Y, options) {
             } else {
                 this.view_as_icons(appenditems);
             }
-            this.fpnode.one('.fp-content').setAttribute('tabIndex', '0');
+            this.fpnode.one('.fp-content').setAttribute('tabindex', '0');
             this.fpnode.one('.fp-content').focus();
             // display/hide the link for requesting next page
             if (!appenditems && this.active_repo.hasmorepages) {
@@ -902,7 +897,7 @@ M.core_filepicker.init = function(Y, options) {
                 }
             }, false);
         },
-        classnamecallback : function(node) {
+       classnamecallback : function(node) {
             var classname = '';
             if (node.children) {
                 classname = classname + ' fp-folder';
@@ -1080,9 +1075,7 @@ M.core_filepicker.init = function(Y, options) {
                 argstitle = argstitle.substring(0, titlelength) + '...';
             }
             Y.one('#fp-file_label_'+this.options.client_id).setContent(Y.Escape.html(M.str.repository.select+' '+argstitle));
-
             this.selectui.show();
-            this.keyDelegation(this.selectui);
             Y.one('#'+this.selectnode.get('id')).focus();
             var client_id = this.options.client_id;
             var selectnode = this.selectnode;
@@ -1234,7 +1227,6 @@ M.core_filepicker.init = function(Y, options) {
             cancel.on('click', function(e) {
                 e.preventDefault();
                 this.selectui.hide();
-                this.detachKeyDelegation(this.selectui);
             }, this);
         },
         wait: function() {
@@ -1274,12 +1266,16 @@ M.core_filepicker.init = function(Y, options) {
             var viewbar = this.fpnode.one('.fp-viewbar')
             if (viewbar) {
                 if (mode) {
-                    viewbar.addClass('enabled').removeClass('disabled')
+                    viewbar.addClass('enabled').removeClass('disabled');
+                    this.fpnode.all('.fp-vb-icons,.fp-vb-tree,.fp-vb-details').setAttribute("aria-disabled", "false");
+                    this.fpnode.all('.fp-vb-icons,.fp-vb-tree,.fp-vb-details').setAttribute("tabindex", "");
                 } else {
-                    viewbar.removeClass('enabled').addClass('disabled')
+                    viewbar.removeClass('enabled').addClass('disabled');
+                    this.fpnode.all('.fp-vb-icons,.fp-vb-tree,.fp-vb-details').setAttribute("aria-disabled", "true");
+                    this.fpnode.all('.fp-vb-icons,.fp-vb-tree,.fp-vb-details').setAttribute("tabindex", "-1");
                 }
             }
-            this.fpnode.all('.fp-vb-icons,.fp-vb-tree,.fp-vb-details').removeClass('checked')
+            this.fpnode.all('.fp-vb-icons,.fp-vb-tree,.fp-vb-details').removeClass('checked');
             var modes = {1:'icons', 2:'tree', 3:'details'};
             this.fpnode.all('.fp-vb-'+modes[this.viewmode]).addClass('checked');
         },
@@ -1304,29 +1300,21 @@ M.core_filepicker.init = function(Y, options) {
             var fpid = "filepicker-"+ client_id;
             var labelid = 'fp-dialog-label_'+ client_id;
             this.fpnode = Y.Node.createWithFilesSkin(M.core_filepicker.templates.generallayout).
-                set('id', fpid).set('aria-labelledby', labelid);
-
-            this.mainui = new Y.Panel({
-                srcNode      : this.fpnode,
+                set('id', 'filepicker-'+client_id).set('aria-labelledby', labelid);
+            this.mainui = new M.core.dialogue({
+                extraClasses : ['filepicker'],
+                draggable    : true,
+                bodyContent  : this.fpnode,
                 headerContent: '<span id="'+ labelid +'">'+ M.str.repository.filepicker +'</span>',
-                zIndex       : 7500,
                 centered     : true,
                 modal        : true,
                 visible      : false,
-                minWidth     : this.fpnode.getStylePx('minWidth'),
-                minHeight    : this.fpnode.getStylePx('minHeight'),
-                maxWidth     : this.fpnode.getStylePx('maxWidth'),
-                maxHeight    : this.fpnode.getStylePx('maxHeight'),
-                render       : true
+                width        : '873px',
+                responsiveWidth : 873,
+                height       : '558px',
+                zIndex       : this.options.zIndex
             });
 
-            // allow to move the panel dragging it by it's header:
-            this.mainui.plug(Y.Plugin.Drag,{handles:['#filepicker-'+client_id+' .yui3-widget-hd']});
-            this.mainui.show();
-            this.keyDelegation(this.mainui);
-            if (this.mainui.get('y') < 0) {
-                this.mainui.set('y', 0);
-            }
             // create panel for selecting a file (initially hidden)
             this.selectnode = Y.Node.createWithFilesSkin(M.core_filepicker.templates.selectlayout).
                 set('id', 'filepicker-select-'+client_id).
@@ -1334,20 +1322,17 @@ M.core_filepicker.init = function(Y, options) {
                 set('role', 'dialog');
 
             var fplabel = 'fp-file_label_'+ client_id;
-            this.selectui = new Y.Panel({
+            this.selectui = new M.core.dialogue({
                 headerContent: '<span id="' + fplabel +'">'+M.str.repository.select+'</span>',
-                srcNode      : this.selectnode,
-                zIndex       : 7600,
+                draggable    : true,
+                width        : '450px',
+                bodyContent  : this.selectnode,
                 centered     : true,
                 modal        : true,
-                close        : true,
-                render       : true
+                visible      : false,
+                zIndex       : this.options.zIndex
             });
-            // allow to move the panel dragging it by it's header:
-            this.selectui.plug(Y.Plugin.Drag,{handles:['#filepicker-select-'+client_id+' .yui3-widget-hd']});
             Y.one('#'+this.selectnode.get('id')).setAttribute('aria-labelledby', fplabel);
-            this.selectui.hide();
-            this.detachKeyDelegation(this.selectui);
             // event handler for lazy loading of thumbnails and next page
             this.fpnode.one('.fp-content').on(['scroll','resize'], this.content_scrolled, this);
             // save template for one path element and location of path bar
@@ -1411,6 +1396,7 @@ M.core_filepicker.init = function(Y, options) {
                 this.display_error(M.str.repository.norepositoriesavailable, 'norepositoriesavailable')
             }
             // display repository that was used last time
+            this.mainui.show();
             this.show_recent_repository();
         },
         parse_repository_options: function(data, appendtolist) {
@@ -1870,10 +1856,6 @@ M.core_filepicker.init = function(Y, options) {
 
             // login button
             enable_tb_control(toolbar.one('.fp-tb-logout'), !r.nologin);
-            if (!r.nologin) {
-                var label = r.logouttext ? r.logouttext : M.str.repository.logout;
-                toolbar.one('.fp-tb-logout').one('a,button').setContent(label)
-            }
 
             // manage url
             enable_tb_control(toolbar.one('.fp-tb-manage'), r.manage);
@@ -1921,17 +1903,13 @@ M.core_filepicker.init = function(Y, options) {
         },
         hide: function() {
             this.selectui.hide();
-            this.detachKeyDelegation(this.selectui);
             if (this.process_dlg) {
                 this.process_dlg.hide();
-                this.detachKeyDelegation(this.process_dlg);
             }
             if (this.msg_dlg) {
                 this.msg_dlg.hide();
-                this.detachKeyDelegation(this.msg_dlg);
             }
             this.mainui.hide();
-            this.detachKeyDelegation(this.mainui);
         },
         show: function() {
             if (this.fpnode) {
@@ -1941,7 +1919,6 @@ M.core_filepicker.init = function(Y, options) {
             } else {
                 this.launch();
             }
-            this.keyDelegation(this.mainui);
         },
         launch: function() {
             this.render();
@@ -1970,31 +1947,6 @@ M.core_filepicker.init = function(Y, options) {
                 M.util.set_user_preference('filepicker_' + name, value);
                 this.options.userprefs[name] = value;
             }
-        },
-        keyDelegation: function (dialog) {
-            var bb = dialog.get('boundingBox');
-            var can_receive_focus_selector = 'input:not([type="hidden"]), a[href], button, textarea, select';
-            bb.delegate('key', function(e) {
-                var target = e.target;
-                var firstitem = bb.one(can_receive_focus_selector);
-                var lastitem = bb.all(can_receive_focus_selector).pop();
-
-                if (e.shiftKey) {
-                    if (target === firstitem) {
-                        lastitem.focus();
-                        e.preventDefault();
-                    }
-                } else {
-                    if (target === lastitem) {
-                        firstitem.focus();
-                        e.preventDefault();
-                    }
-                }
-            }, 'down:9', can_receive_focus_selector, this);
-        },
-        detachKeyDelegation: function(dialog) {
-            var bb = dialog.get('boundingBox');
-            bb.detach('key', this.keyDelegation);
         }
     });
     var loading = Y.one('#filepicker-loading-'+options.client_id);

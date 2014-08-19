@@ -65,7 +65,6 @@ if ($userid) {
 
 /// require login to access notes
 require_login($course);
-
 /// output HTML
 if ($course->id == SITEID) {
     $coursecontext = context_system::instance();   // SYSTEM context
@@ -75,7 +74,14 @@ if ($course->id == SITEID) {
 require_capability('moodle/notes:view', $coursecontext);
 $systemcontext = context_system::instance();   // SYSTEM context
 
-add_to_log($courseid, 'notes', 'view', 'index.php?course='.$courseid.'&amp;user='.$userid, 'view notes');
+// Trigger event.
+$event = \core\event\notes_viewed::create(array(
+    'courseid' => $courseid,
+    'relateduserid' => $userid,
+    'context' => $coursecontext,
+    'other' => array('content' => 'notes')
+));
+$event->trigger();
 
 $strnotes = get_string('notes', 'notes');
 if ($userid) {

@@ -46,8 +46,7 @@ function cron_run() {
         $DB->set_debug(true);
     }
     if (!empty($CFG->showcrondebugging)) {
-        $CFG->debug = DEBUG_DEVELOPER;
-        $CFG->debugdisplay = true;
+        set_debugging(DEBUG_DEVELOPER, true);
     }
 
     set_time_limit(0);
@@ -78,7 +77,7 @@ function cron_run() {
             $rs = $DB->get_recordset_sql ("SELECT *
                                              FROM {user}
                                             WHERE confirmed = 0 AND firstaccess > 0
-                                                  AND firstaccess < ?", array($cuttime));
+                                                  AND firstaccess < ? AND deleted = 0", array($cuttime));
             foreach ($rs as $user) {
                 delete_user($user); // we MUST delete user properly first
                 $DB->delete_records('user', array('id'=>$user->id)); // this is a bloody hack, but it might work
@@ -170,6 +169,18 @@ function cron_run() {
             mtrace(' Cleaned up read notifications');
         }
 
+        mtrace(' Deleting temporary files...');
+        cron_delete_from_temp();
+
+        // Cleanup user password reset records
+        // Delete any reset request records which are expired by more than a day.
+        // (We keep recently expired requests around so we can give a different error msg to users who
+        // are trying to user a recently expired reset attempt).
+        $pwresettime = isset($CFG->pwresettime) ? $CFG->pwresettime : 1800;
+        $earliestvalid = time() - $pwresettime - DAYSECS;
+        $DB->delete_records_select('user_password_resets', "timerequested < ?", array($earliestvalid));
+        mtrace(' Cleaned up old password reset records');
+
         mtrace("...finished clean-up tasks");
 
     } // End of occasional clean-up tasks
@@ -187,9 +198,10 @@ function cron_run() {
     mtrace(' Created missing context instances');
 
 
-    // Session gc
-    session_gc();
-    mtrace("Cleaned up stale user sessions");
+    // Session gc.
+    mtrace("Running session gc tasks...");
+    \core\session\manager::gc();
+    mtrace("...finished stale session cleanup");
 
 
     // Run the auth cron, if any before enrolments
@@ -211,8 +223,9 @@ function cron_run() {
     // Generate new password emails for users - ppl expect these generated asap
     if ($DB->count_records('user_preferences', array('name'=>'create_password', 'value'=>'1'))) {
         mtrace('Creating passwords for new users...');
-        $newusers = $DB->get_recordset_sql("SELECT u.id as id, u.email, u.firstname,
-                                                 u.lastname, u.username, u.lang,
+        $usernamefields = get_all_user_name_fields(true, 'u');
+        $newusers = $DB->get_recordset_sql("SELECT u.id as id, u.email,
+                                                 $usernamefields, u.username, u.lang,
                                                  p.id as prefid
                                             FROM {user} u
                                             JOIN {user_preferences} p ON u.id=p.userid
@@ -411,8 +424,7 @@ function cron_run() {
 
     // If enabled, fetch information about available updates and eventually notify site admins
     if (empty($CFG->disableupdatenotifications)) {
-        require_once($CFG->libdir.'/pluginlib.php');
-        $updateschecker = available_update_checker::instance();
+        $updateschecker = \core\update\checker::instance();
         $updateschecker->cron();
     }
 
@@ -442,7 +454,7 @@ function cron_run() {
 
 
     // and finally run any local cronjobs, if any
-    if ($locals = get_plugin_list('local')) {
+    if ($locals = core_component::get_plugin_list('local')) {
         mtrace('Processing customized cron scripts ...', '');
         // new cron functions in lib.php first
         cron_execute_plugin_type('local');
@@ -531,7 +543,7 @@ function cron_execute_plugin_type($plugintype, $description = null) {
     }
 
     foreach ($plugins as $component=>$cronfunction) {
-        $dir = get_component_directory($component);
+        $dir = core_component::get_component_directory($component);
 
         // Get cron period if specified in version.php, otherwise assume every cron
         $cronperiod = 0;
@@ -588,7 +600,7 @@ function cron_bc_hack_plugin_functions($plugintype, $plugins) {
     if ($plugintype === 'report') {
         // Admin reports only - not course report because course report was
         // never implemented before, so doesn't need BC
-        foreach (get_plugin_list($plugintype) as $pluginname=>$dir) {
+        foreach (core_component::get_plugin_list($plugintype) as $pluginname=>$dir) {
             $component = $plugintype . '_' . $pluginname;
             if (isset($plugins[$component])) {
                 // We already have detected the function using the new API
@@ -611,7 +623,7 @@ function cron_bc_hack_plugin_functions($plugintype, $plugins) {
         // Detect old style cron function names
         // Plugin gradeexport_frog used to use grade_export_frog_cron() instead of
         // new standard API gradeexport_frog_cron(). Also applies to gradeimport, gradereport
-        foreach(get_plugin_list($plugintype) as $pluginname=>$dir) {
+        foreach(core_component::get_plugin_list($plugintype) as $pluginname=>$dir) {
             $component = $plugintype.'_'.$pluginname;
             if (isset($plugins[$component])) {
                 // We already have detected the function using the new API
@@ -755,7 +767,7 @@ function notify_login_failures() {
         mtrace('Emailing admins about '. $count .' failed login attempts');
         foreach ($recip as $admin) {
             //emailing the admins directly rather than putting these through the messaging system
-            email_to_user($admin, generate_email_supportuser(), $subject, $body);
+            email_to_user($admin, core_user::get_support_user(), $subject, $body);
         }
     }
 
@@ -764,6 +776,54 @@ function notify_login_failures() {
 
     // Finally, delete all the temp records we have created in cache_flags
     $DB->delete_records_select('cache_flags', "flagtype IN ('login_failure_by_ip', 'login_failure_by_info')");
+
+    return true;
+}
+
+/**
+ * Delete files and directories older than one week from directory provided by $CFG->tempdir.
+ *
+ * @exception Exception Failed reading/accessing file or directory
+ * @return bool True on successful file and directory deletion; otherwise, false on failure
+ */
+function cron_delete_from_temp() {
+    global $CFG;
+
+    $tmpdir = $CFG->tempdir;
+    // Default to last weeks time.
+    $time = strtotime('-1 week');
+
+    try {
+        $dir = new RecursiveDirectoryIterator($tmpdir);
+        // Show all child nodes prior to their parent.
+        $iter = new RecursiveIteratorIterator($dir, RecursiveIteratorIterator::CHILD_FIRST);
+
+        for ($iter->rewind(); $iter->valid(); $iter->next()) {
+            $node = $iter->getRealPath();
+            if (!is_readable($node)) {
+                continue;
+            }
+            // Check if file or directory is older than the given time.
+            if ($iter->getMTime() < $time) {
+                if ($iter->isDir() && !$iter->isDot()) {
+                    // Don't attempt to delete the directory if it isn't empty.
+                    if (!glob($node. DIRECTORY_SEPARATOR . '*')) {
+                        if (@rmdir($node) === false) {
+                            mtrace("Failed removing directory '$node'.");
+                        }
+                    }
+                }
+                if ($iter->isFile()) {
+                    if (@unlink($node) === false) {
+                        mtrace("Failed removing file '$node'.");
+                    }
+                }
+            }
+        }
+    } catch (Exception $e) {
+        mtrace('Failed reading/accessing file or directory.');
+        return false;
+    }
 
     return true;
 }

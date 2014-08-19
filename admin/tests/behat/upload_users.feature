@@ -14,12 +14,8 @@ Feature: Upload users
       | Section 1 | math102 | S1 |
       | Section 3 | math102 | S3 |
     And I log in as "admin"
-    And I collapse "Front page settings" node
-    And I expand "Site administration" node
-    And I expand "Users" node
-    And I expand "Accounts" node
-    And I follow "Upload users"
-    When I upload "lib/tests/fixtures/upload_users.csv" file to "File" filepicker
+    And I navigate to "Upload users" node in "Site administration > Users > Accounts"
+    When I upload "lib/tests/fixtures/upload_users.csv" file to "File" filemanager
     And I press "Upload users"
     Then I should see "Upload users preview"
     And I should see "Tom"
@@ -42,5 +38,4 @@ Feature: Upload users
     And I expand "Users" node
     And I follow "Groups"
     And I select "Section 1 (1)" from "groups"
-    And I wait "4" seconds
     And the "members" select box should contain "Tom Jones"

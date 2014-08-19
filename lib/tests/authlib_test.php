@@ -29,7 +29,7 @@ defined('MOODLE_INTERNAL') || die();
 /**
  * Functional test for authentication related APIs.
  */
-class authlib_testcase extends advanced_testcase {
+class core_authlib_testcase extends advanced_testcase {
     public function test_lockout() {
         global $CFG;
         require_once("$CFG->libdir/authlib.php");
@@ -39,12 +39,13 @@ class authlib_testcase extends advanced_testcase {
         $oldlog = ini_get('error_log');
         ini_set('error_log', "$CFG->dataroot/testlog.log"); // Prevent standard logging.
 
+        unset_config('noemailever');
+
         set_config('lockoutthreshold', 0);
         set_config('lockoutwindow', 60*20);
         set_config('lockoutduration', 60*30);
 
         $user = $this->getDataGenerator()->create_user();
-
 
         // Test lockout is disabled when threshold not set.
 
@@ -55,25 +56,22 @@ class authlib_testcase extends advanced_testcase {
         login_attempt_failed($user);
         $this->assertFalse(login_is_lockedout($user));
 
-
         // Test lockout threshold works.
 
         set_config('lockoutthreshold', 3);
         login_attempt_failed($user);
         login_attempt_failed($user);
         $this->assertFalse(login_is_lockedout($user));
-        ob_start();
+        $sink = $this->redirectEmails();
         login_attempt_failed($user);
-        $output = ob_get_clean();
-        $this->assertContains('noemailever', $output);
+        $this->assertCount(1, $sink->get_messages());
+        $sink->close();
         $this->assertTrue(login_is_lockedout($user));
-
 
         // Test unlock works.
 
         login_unlock_account($user);
         $this->assertFalse(login_is_lockedout($user));
-
 
         // Test lockout window works.
 
@@ -84,7 +82,6 @@ class authlib_testcase extends advanced_testcase {
         login_attempt_failed($user);
         $this->assertFalse(login_is_lockedout($user));
 
-
         // Test valid login resets window.
 
         login_attempt_valid($user);
@@ -93,19 +90,17 @@ class authlib_testcase extends advanced_testcase {
         login_attempt_failed($user);
         $this->assertFalse(login_is_lockedout($user));
 
-
         // Test lock duration works.
 
-        ob_start(); // Prevent nomailever notice.
+        $sink = $this->redirectEmails();
         login_attempt_failed($user);
-        $output = ob_get_clean();
-        $this->assertContains('noemailever', $output);
+        $this->assertCount(1, $sink->get_messages());
+        $sink->close();
         $this->assertTrue(login_is_lockedout($user));
         set_user_preference('login_lockout', time()-60*30+10, $user);
         $this->assertTrue(login_is_lockedout($user));
         set_user_preference('login_lockout', time()-60*30-10, $user);
         $this->assertFalse(login_is_lockedout($user));
-
 
         // Test lockout ignored pref works.
 
@@ -126,6 +121,8 @@ class authlib_testcase extends advanced_testcase {
 
         $oldlog = ini_get('error_log');
         ini_set('error_log', "$CFG->dataroot/testlog.log"); // Prevent standard logging.
+
+        unset_config('noemailever');
 
         set_config('lockoutthreshold', 0);
         set_config('lockoutwindow', 60*20);
@@ -166,8 +163,8 @@ class authlib_testcase extends advanced_testcase {
         $this->assertFalse($result);
         $this->assertEquals(AUTH_LOGIN_NOUSER, $reason);
 
-
         set_config('lockoutthreshold', 3);
+
         $reason = null;
         $result = authenticate_user_login('username1', 'nopass', false, $reason);
         $this->assertFalse($result);
@@ -175,9 +172,10 @@ class authlib_testcase extends advanced_testcase {
         $result = authenticate_user_login('username1', 'nopass', false, $reason);
         $this->assertFalse($result);
         $this->assertEquals(AUTH_LOGIN_FAILED, $reason);
-        ob_start(); // Prevent nomailever notice.
+        $sink = $this->redirectEmails();
         $result = authenticate_user_login('username1', 'nopass', false, $reason);
-        ob_end_clean();
+        $this->assertCount(1, $sink->get_messages());
+        $sink->close();
         $this->assertFalse($result);
         $this->assertEquals(AUTH_LOGIN_FAILED, $reason);
 
@@ -191,4 +189,21 @@ class authlib_testcase extends advanced_testcase {
 
         ini_set('error_log', $oldlog);
     }
+
+    public function test_user_loggedin_event_exceptions() {
+        try {
+            $event = \core\event\user_loggedin::create(array('objectid' => 1));
+            $this->fail('\core\event\user_loggedin requires other[\'username\']');
+        } catch(Exception $e) {
+            $this->assertInstanceOf('coding_exception', $e);
+        }
+
+        try {
+            $event = \core\event\user_loggedin::create(array('other' => array('username' => 'test')));
+            $this->fail('\core\event\user_loggedin requires objectid');
+        } catch(Exception $e) {
+            $this->assertInstanceOf('coding_exception', $e);
+        }
+    }
+
 }

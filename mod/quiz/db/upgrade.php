@@ -113,7 +113,7 @@ function xmldb_quiz_upgrade($oldversion) {
         // Get a list of response variables that have files.
         require_once($CFG->dirroot . '/question/type/questiontypebase.php');
         $variables = array();
-        foreach (get_plugin_list('qtype') as $qtypename => $path) {
+        foreach (core_component::get_plugin_list('qtype') as $qtypename => $path) {
             $file = $path . '/questiontype.php';
             if (!is_readable($file)) {
                 continue;
@@ -406,6 +406,9 @@ function xmldb_quiz_upgrade($oldversion) {
     // Moodle v2.5.0 release upgrade line.
     // Put any upgrade step following this.
 
+
+    // Moodle v2.6.0 release upgrade line.
+    // Put any upgrade step following this.
 
     return true;
 }

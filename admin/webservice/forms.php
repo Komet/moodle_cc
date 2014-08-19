@@ -73,11 +73,16 @@ class external_service_form extends moodleform {
         $mform->addHelpButton('restrictedusers', 'restrictedusers', 'webservice');
         $mform->setType('restrictedusers', PARAM_BOOL);
 
-        //can users download files
+        // Can users download files?
         $mform->addElement('advcheckbox', 'downloadfiles', get_string('downloadfiles', 'webservice'));
         $mform->setAdvanced('downloadfiles');
         $mform->addHelpButton('downloadfiles', 'downloadfiles', 'webservice');
         $mform->setType('downloadfiles', PARAM_BOOL);
+
+        // Can users upload files?
+        $mform->addElement('advcheckbox', 'uploadfiles', get_string('uploadfiles', 'webservice'));
+        $mform->setAdvanced('uploadfiles');
+        $mform->addHelpButton('uploadfiles', 'uploadfiles', 'webservice');
 
         /// needed to select automatically the 'No required capability" option
         $currentcapabilityexist = false;
@@ -88,7 +93,7 @@ class external_service_form extends moodleform {
 
         // Prepare the list of capabilities to choose from
         $systemcontext = context_system::instance();
-        $allcapabilities = fetch_context_capabilities($systemcontext);
+        $allcapabilities = $systemcontext->get_capabilities();
         $capabilitychoices = array();
         $capabilitychoices['norequiredcapability'] = get_string('norequiredcapability',
                         'webservice');
@@ -202,12 +207,14 @@ class web_service_token_form extends moodleform {
 
             if ($usertotal < 500) {
                 list($sort, $params) = users_order_by_sql('u');
-                //user searchable selector - get all users (admin and guest included)
-                //user must be confirmed, not deleted, not suspended, not guest
-                $sql = "SELECT u.id, u.firstname, u.lastname
-                            FROM {user} u
-                            WHERE u.deleted = 0 AND u.confirmed = 1 AND u.suspended = 0 AND u.id != :siteguestid
-                            ORDER BY $sort";
+                // User searchable selector - return users who are confirmed, not deleted, not suspended and not a guest.
+                $sql = 'SELECT u.id, ' . get_all_user_name_fields(true, 'u') . '
+                        FROM {user} u
+                        WHERE u.deleted = 0
+                        AND u.confirmed = 1
+                        AND u.suspended = 0
+                        AND u.id != :siteguestid
+                        ORDER BY ' . $sort;
                 $params['siteguestid'] = $CFG->siteguest;
                 $users = $DB->get_records_sql($sql, $params);
                 $options = array();

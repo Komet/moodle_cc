@@ -103,15 +103,6 @@ class pgsql_native_moodle_database extends moodle_database {
     }
 
     /**
-     * Returns localised database description
-     * Note: can be used before connect()
-     * @return string
-     */
-    public function get_configuration_hints() {
-        return get_string('databasesettingssub_postgres7', 'install');
-    }
-
-    /**
      * Connect to db
      * Must be called before other methods.
      * @param string $dbhost The database host.
@@ -583,7 +574,7 @@ class pgsql_native_moodle_database extends moodle_database {
         pg_free_result($result);
 
         if ($usecache) {
-            $result = $cache->set($table, $structure);
+            $cache->set($table, $structure);
         }
 
         return $structure;
@@ -1227,6 +1218,16 @@ class pgsql_native_moodle_database extends moodle_database {
 
     public function sql_regex($positivematch=true) {
         return $positivematch ? '~*' : '!~*';
+    }
+
+    /**
+     * Does this driver support tool_replace?
+     *
+     * @since 2.6.1
+     * @return bool
+     */
+    public function replace_all_text_supported() {
+        return true;
     }
 
     public function session_lock_supported() {

@@ -44,9 +44,9 @@ Feature: Automatic creation of groups
   @javascript
   Scenario: Split automatically the course users in groups and add the groups to a new grouping
     Given I fill the moodle form with:
-      | Specify | Number of groups |
+      | Auto create based on | Number of groups |
       | Group/member count | 2 |
-      | Create in grouping | New grouping |
+      | Grouping of auto-created groups | New grouping |
       | Grouping name | Grouping name |
     And I press "Preview"
     Then I should see "Group members"
@@ -65,9 +65,9 @@ Feature: Automatic creation of groups
   @javascript
   Scenario: Split automatically the course users in groups based on group member count
     Given I fill the moodle form with:
-      | Specify | Members per group |
+      | Auto create based on | Members per group |
       | Group/member count | 4 |
-      | Create in grouping | New grouping |
+      | Grouping of auto-created groups | New grouping |
       | Grouping name | Grouping name |
     And I press "Preview"
     Then I should see "Group members"

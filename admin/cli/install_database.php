@@ -36,6 +36,12 @@ if (isset($_SERVER['REMOTE_ADDR'])) {
     exit(1);
 }
 
+// Force OPcache reset if used, we do not want any stale caches
+// when preparing test environment.
+if (function_exists('opcache_reset')) {
+    opcache_reset();
+}
+
 $help =
 "Advanced command line Moodle database installer.
 Please note you must execute this script with the same uid as apache.
@@ -161,9 +167,8 @@ if (!$envstatus) {
 }
 
 // Test plugin dependencies.
-require_once($CFG->libdir . '/pluginlib.php');
 $failed = array();
-if (!plugin_manager::instance()->all_plugins_ok($version, $failed)) {
+if (!core_plugin_manager::instance()->all_plugins_ok($version, $failed)) {
     cli_problem(get_string('pluginscheckfailed', 'admin', array('pluginslist' => implode(', ', array_unique($failed)))));
     cli_error(get_string('pluginschecktodo', 'admin'));
 }

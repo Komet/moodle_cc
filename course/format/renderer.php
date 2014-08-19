@@ -173,9 +173,11 @@ abstract class format_section_renderer_base extends plugin_renderer_base {
         // When on a section page, we only display the general section title, if title is not the default one
         $hasnamesecpg = ($onsectionpage && ($section->section == 0 && !is_null($section->name)));
 
+        $classes = ' accesshide';
         if ($hasnamenotsecpg || $hasnamesecpg) {
-            $o.= $this->output->heading($this->section_title($section, $course), 3, 'sectionname');
+            $classes = '';
         }
+        $o.= $this->output->heading($this->section_title($section, $course), 3, 'sectionname' . $classes);
 
         $o.= html_writer::start_tag('div', array('class' => 'summary'));
         $o.= $this->format_summary_text($section);
@@ -184,7 +186,7 @@ abstract class format_section_renderer_base extends plugin_renderer_base {
         if ($PAGE->user_is_editing() && has_capability('moodle/course:update', $context)) {
             $url = new moodle_url('/course/editsection.php', array('id'=>$section->id, 'sr'=>$sectionreturn));
             $o.= html_writer::link($url,
-                html_writer::empty_tag('img', array('src' => $this->output->pix_url('t/edit'),
+                html_writer::empty_tag('img', array('src' => $this->output->pix_url('i/settings'),
                     'class' => 'iconsmall edit', 'alt' => get_string('edit'))),
                 array('title' => get_string('editsummary')));
         }
@@ -652,15 +654,16 @@ abstract class format_section_renderer_base extends plugin_renderer_base {
         // Title with section navigation links.
         $sectionnavlinks = $this->get_nav_links($course, $modinfo->get_section_info_all(), $displaysection);
         $sectiontitle = '';
-        $sectiontitle .= html_writer::start_tag('div', array('class' => 'section-navigation header headingblock'));
+        $sectiontitle .= html_writer::start_tag('div', array('class' => 'section-navigation navigationtitle'));
         $sectiontitle .= html_writer::tag('span', $sectionnavlinks['previous'], array('class' => 'mdl-left'));
         $sectiontitle .= html_writer::tag('span', $sectionnavlinks['next'], array('class' => 'mdl-right'));
         // Title attributes
-        $titleattr = 'mdl-align title';
+        $classes = 'sectionname';
         if (!$thissection->visible) {
-            $titleattr .= ' dimmed_text';
+            $classes .= ' dimmed_text';
         }
-        $sectiontitle .= html_writer::tag('div', get_section_name($course, $displaysection), array('class' => $titleattr));
+        $sectiontitle .= $this->output->heading(get_section_name($course, $displaysection), 3, $classes);
+
         $sectiontitle .= html_writer::end_tag('div');
         echo $sectiontitle;
 

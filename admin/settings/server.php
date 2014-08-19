@@ -35,7 +35,9 @@ $ADMIN->add('server', $temp);
 
 // "sessionhandling" settingpage
 $temp = new admin_settingpage('sessionhandling', new lang_string('sessionhandling', 'admin'));
-$temp->add(new admin_setting_configcheckbox('dbsessions', new lang_string('dbsessions', 'admin'), new lang_string('configdbsessions', 'admin'), 1));
+if (empty($CFG->session_handler_class) and $DB->session_lock_supported()) {
+    $temp->add(new admin_setting_configcheckbox('dbsessions', new lang_string('dbsessions', 'admin'), new lang_string('configdbsessions', 'admin'), 0));
+}
 $temp->add(new admin_setting_configselect('sessiontimeout', new lang_string('sessiontimeout', 'admin'), new lang_string('configsessiontimeout', 'admin'), 7200, array(14400 => new lang_string('numhours', '', 4),
                                                                                                                                                       10800 => new lang_string('numhours', '', 3),
                                                                                                                                                       7200 => new lang_string('numhours', '', 2),
@@ -175,15 +177,25 @@ $ADMIN->add('server', new admin_externalpage('phpinfo', new lang_string('phpinfo
 // "performance" settingpage
 $temp = new admin_settingpage('performance', new lang_string('performance', 'admin'));
 
+// Memory limit options for large administration tasks.
+$memoryoptions = array(
+    '64M' => '64M',
+    '128M' => '128M',
+    '256M' => '256M',
+    '512M' => '512M',
+    '1024M' => '1024M',
+    '2048M' => '2048M');
+
+// Allow larger memory usage for 64-bit sites only.
+if (PHP_INT_SIZE === 8) {
+    $memoryoptions['3072M'] = '3072M';
+    $memoryoptions['4096M'] = '4096M';
+}
+
 $temp->add(new admin_setting_configselect('extramemorylimit', new lang_string('extramemorylimit', 'admin'),
                                           new lang_string('configextramemorylimit', 'admin'), '512M',
-                                          // if this option is set to 0, default 128M will be used
-                                          array( '64M' => '64M',
-                                                 '128M' => '128M',
-                                                 '256M' => '256M',
-                                                 '512M' => '512M',
-                                                 '1024M' => '1024M'
-                                             )));
+                                          $memoryoptions));
+
 $temp->add(new admin_setting_configtext('curlcache', new lang_string('curlcache', 'admin'),
                                         new lang_string('configcurlcache', 'admin'), 120, PARAM_INT));
 

@@ -72,7 +72,7 @@ $strglossary     = get_string("modulename", "glossary");
 $PAGE->navbar->add(get_string("categories","glossary"),
         new moodle_url('/mod/glossary/editcategories.php', array('id' => $cm->id,'mode' => 'cat')));
 if (!empty($action)) {
-    $navaction = get_string($action). " " . textlib::strtolower(get_string("category","glossary"));
+    $navaction = get_string($action). " " . core_text::strtolower(get_string("category","glossary"));
     $PAGE->navbar->add($navaction);
 }
 $PAGE->set_title($glossary->name);
@@ -106,7 +106,8 @@ if ( $hook >0 ) {
 
         } else {
             echo $OUTPUT->header();
-            echo "<h3 class=\"main\">" . get_string("edit"). " " . get_string("category","glossary") . "</h3>";
+            echo $OUTPUT->heading(format_string($glossary->name), 2);
+            echo $OUTPUT->heading(format_string(get_string("edit"). " " . get_string("category","glossary")), 3);
 
             $name = $category->name;
             $usedynalink = $category->usedynalink;
@@ -125,7 +126,8 @@ if ( $hook >0 ) {
             redirect("editcategories.php?id=$cm->id", get_string("categorydeleted", "glossary"), 2);
         } else {
             echo $OUTPUT->header();
-            echo "<p>" . get_string("delete"). " " . get_string("category","glossary"). "</p>";
+            echo $OUTPUT->heading(format_string($glossary->name), 2);
+            echo $OUTPUT->heading(format_string(get_string("delete"). " " . get_string("category","glossary")), 3);
 
             echo $OUTPUT->box_start('generalbox boxaligncenter errorboxcontent boxwidthnarrow');
             echo "<div class=\"boxaligncenter deletecatconfirm\">".format_string($category->name, true, $fmtoptions)."<br/>";
@@ -170,6 +172,7 @@ if ( $hook >0 ) {
         $dupcategory = $DB->get_records_sql("SELECT * FROM {glossary_categories} WHERE ".$DB->sql_like('name','?', false)." AND glossaryid=?", array($name, $glossary->id));
         if ( $dupcategory ) {
             redirect("editcategories.php?id=$cm->id&amp;action=add&amp;name=$name", get_string("duplicatecategory", "glossary"), 2);
+
         } else {
             $action = "";
             $cat = new stdClass();
@@ -182,6 +185,7 @@ if ( $hook >0 ) {
         }
     } else {
         echo $OUTPUT->header();
+        echo $OUTPUT->heading(format_string($glossary->name), 2);
         echo "<h3 class=\"main\">" . get_string("add"). " " . get_string("category","glossary"). "</h3>";
         $name="";
         require "editcategories.html";
@@ -194,6 +198,7 @@ if ( $action ) {
 }
 
 echo $OUTPUT->header();
+echo $OUTPUT->heading(format_string($glossary->name), 2);
 
 ?>
 

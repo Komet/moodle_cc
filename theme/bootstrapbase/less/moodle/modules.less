@@ -10,6 +10,7 @@ select {
 }
 
 // Forum
+
 .path-mod-forum .forumsearch {
     input,
     .helptooltip {
@@ -46,7 +47,7 @@ select {
     }
 }
 
-.path-mod-feedback .generalbox div table tbody img {
+.path-mod-feedback .feedback_bar_image {
     height: 5px; // we should remove the bar height specification in core
 }
 
@@ -201,11 +202,16 @@ div#dock {
     display: none;
 }
 
-.path-mod-choice .horizontal  .choices {
-    margin: 0;
-    .option {
-        display: inline-block;
-        padding: 10px;
+.path-mod-choice {
+    .horizontal  .choices {
+        margin: 0;
+        .option {
+            display: inline-block;
+            padding: 10px;
+        }
+    }
+    .results .data {
+        white-space: normal;
     }
 }
 
@@ -230,12 +236,28 @@ div#dock {
     width: 100%;
 }
 
+// Dropdown styling.
+.dropdown-menu {
+    > li > a {
+        padding: 3px 20px 3px 8px;
+    }
+}
+.dir-rtl .dropdown-menu {
+    > li > a {
+        padding: 3px 8px 3px 20px;
+    }
+}
+.dir-rtl .dropdown-submenu > .dropdown-menu {
+  .border-radius(6px 0px 6px 6px);
+}
+
+
 // Survey module
 
 .path-mod-survey {
     .surveytable {
-      > tbody > tr:nth-of-type(odd) {background-color: @tableBackground;}
-      > tbody > tr:nth-of-type(even) {background-color: @tableBackgroundAccent;}
+        .r0 {background-color: #eee;}
+        .r1 {background-color: #ddd;}
         .rblock label {text-align: center;}
     }
     .resultgraph, .reportsummary, .studentreport, .reportbuttons, .centerpara {
@@ -254,4 +276,11 @@ div#dock {
             }
         }
     }
+}
+
+.nav .caret {
+    margin-left: 4px;
+}
+.dir-rtl .nav .caret {
+    margin-right: 4px;
 }

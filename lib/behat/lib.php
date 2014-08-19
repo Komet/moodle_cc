@@ -132,7 +132,7 @@ function behat_error_handler($errno, $errstr, $errfile, $errline, $errcontext) {
     }
 
     // Wrapping the output.
-    echo '<div class="phpdebugmessage">' . PHP_EOL;
+    echo '<div class="phpdebugmessage" data-rel="phpdebugmessage">' . PHP_EOL;
     echo "$errnostr: $errstr in $errfile on line $errline" . PHP_EOL;
     echo '</div>';
 
@@ -154,8 +154,14 @@ function behat_clean_init_config() {
     $allowed = array_flip(array(
         'wwwroot', 'dataroot', 'dirroot', 'admin', 'directorypermissions', 'filepermissions',
         'dbtype', 'dblibrary', 'dbhost', 'dbname', 'dbuser', 'dbpass', 'prefix', 'dboptions',
-        'proxyhost', 'proxyport', 'proxytype', 'proxyuser', 'proxypassword', 'proxybypass'
+        'proxyhost', 'proxyport', 'proxytype', 'proxyuser', 'proxypassword', 'proxybypass',
+        'theme'
     ));
+
+    // Add extra allowed settings.
+    if (!empty($CFG->behat_extraallowedsettings)) {
+        $allowed = array_merge($allowed, array_flip($CFG->behat_extraallowedsettings));
+    }
 
     // Also allowing behat_ prefixed attributes.
     foreach ($CFG as $key => $value) {

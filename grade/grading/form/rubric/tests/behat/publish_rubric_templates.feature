@@ -12,6 +12,10 @@ Feature: Publish rubrics as templates
     And the following "courses" exists:
       | fullname | shortname | format |
       | Course 1 | C1 | topics |
+    And the following "activities" exists:
+      | activity | course | idnumber | name                   | intro | advancedgradingmethod_submissions |
+      | assign   | C1     | A1       | Test assignment 1 name | TA1   | rubric                            |
+      | assign   | C1     | A2       | Test assignment 2 name | TA2   | rubric                            |
     And the following "course enrolments" exists:
       | user | course | role |
       | teacher1 | C1 | editingteacher |
@@ -20,15 +24,6 @@ Feature: Publish rubrics as templates
       | manager1 | manager | System | |
     And I log in as "manager1"
     And I follow "Course 1"
-    And I turn editing mode on
-    And I add a "Assignment" to section "1" and I fill the form with:
-      | Assignment name | Test assignment 1 name |
-      | Description | TA1 |
-      | Grading method | Rubric |
-    And I add a "Assignment" to section "1" and I fill the form with:
-      | Assignment name | Test assignment 2 name |
-      | Description | TA2 |
-      | Grading method | Rubric |
     And I go to "Test assignment 1 name" advanced grading definition page
     And I fill the moodle form with:
       | Name | Assignment 1 rubric |

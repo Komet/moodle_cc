@@ -64,7 +64,7 @@ class behat_forms extends behat_base {
      * Fills a form with field/value data. More info in http://docs.moodle.org/dev/Acceptance_testing#Providing_values_to_steps.
      *
      * Backport of Moodle 2.7 method to help backporting
-     * features to 2.5.
+     * features to 2.6.
      *
      * @Given /^I set the following fields to these values:$/
      * @throws ElementNotFoundException Thrown by behat_base::find
@@ -100,11 +100,7 @@ class behat_forms extends behat_base {
         // The action depends on the field type.
         foreach ($datahash as $locator => $value) {
 
-            // Getting the node element pointed by the label.
-            $fieldnode = $this->find_field($locator);
-
-            // Gets the field type from a parent node.
-            $field = behat_field_manager::get_form_field($fieldnode, $this->getSession());
+            $field = behat_field_manager::get_form_field_from_label($locator, $this);
 
             // Delegates to the field class.
             $field->set_value($value);
@@ -130,18 +126,23 @@ class behat_forms extends behat_base {
      */
     protected function expand_all_fields() {
 
-        // behat_base::find() throws an exception if there are no elements, we should not fail a test because of this.
+        // We ensure that all the editors are loaded and we can interact with them.
+        $this->ensure_editors_are_loaded();
+
+        // We already know that we waited for the DOM and the JS to be loaded, even the editor
+        // so, we will use the reduced timeout as it is a common task and we should save time.
         try {
 
             // Expand fieldsets link.
-            $collapseexpandlink = $this->find('xpath', "//div[@class='collapsible-actions']" .
+            $xpath = "//div[@class='collapsible-actions']" .
                 "/descendant::a[contains(concat(' ', @class, ' '), ' collapseexpand ')]" .
-                "[not(contains(concat(' ', @class, ' '), ' collapse-all '))]"
-            );
+                "[not(contains(concat(' ', @class, ' '), ' collapse-all '))]";
+            $collapseexpandlink = $this->find('xpath', $xpath, false, false, self::REDUCED_TIMEOUT);
             $collapseexpandlink->click();
 
         } catch (ElementNotFoundException $e) {
-            // We continue if there are not expandable fields.
+            // The behat_base::find() method throws an exception if there are no elements,
+            // we should not fail a test because of this. We continue if there are not expandable fields.
         }
 
         // Different try & catch as we can have expanded fieldsets with advanced fields on them.
@@ -152,7 +153,9 @@ class behat_forms extends behat_base {
                 "[contains(concat(' ', normalize-space(@class), ' '), ' moreless-toggler')]";
 
             // We don't wait here as we already waited when getting the expand fieldsets links.
-            $showmores = $this->getSession()->getPage()->findAll('xpath', $showmorexpath);
+            if (!$showmores = $this->getSession()->getPage()->findAll('xpath', $showmorexpath)) {
+                return;
+            }
 
             // Funny thing about this, with findAll() we specify a pattern and each element matching the pattern is added to the array
             // with of xpaths with a [0], [1]... sufix, but when we click on an element it does not matches the specified xpath
@@ -173,7 +176,7 @@ class behat_forms extends behat_base {
      * Sets the specified value to the field.
      *
      * Backport of Moodle 2.7 method to help backporting
-     * features to 2.5.
+     * features to 2.6.
      *
      * @Given /^I set the field "(?P<field_string>(?:[^"]|\\")*)" to "(?P<field_value_string>(?:[^"]|\\")*)"$/
      * @throws ElementNotFoundException Thrown by behat_base::find
@@ -253,10 +256,7 @@ class behat_forms extends behat_base {
      */
     public function the_field_should_match_value($locator, $value) {
 
-        $fieldnode = $this->find_field($locator);
-
-        // Get the field.
-        $field = behat_field_manager::get_form_field($fieldnode, $this->getSession());
+        $field = behat_field_manager::get_form_field_from_label($locator, $this);
 
         // Checks if the provided value matches the current field value.
         if (!$field->matches($value)) {
@@ -272,7 +272,7 @@ class behat_forms extends behat_base {
      * Checks, the field matches the value. More info in http://docs.moodle.org/dev/Acceptance_testing#Providing_values_to_steps.
      *
      * Backport of Moodle 2.7 method to help backporting
-     * features to 2.5.
+     * features to 2.6.
      *
      * @Then /^the field "(?P<field_string>(?:[^"]|\\")*)" matches value "(?P<field_value_string>(?:[^"]|\\")*)"$/
      * @throws ElementNotFoundException Thrown by behat_base::find
@@ -282,10 +282,8 @@ class behat_forms extends behat_base {
      */
     public function the_field_matches_value($field, $value) {
 
-        $fieldnode = $this->find_field($field);
-
         // Get the field.
-        $formfield = behat_field_manager::get_form_field($fieldnode, $this->getSession());
+        $formfield = behat_field_manager::get_form_field_from_label($field, $this);
 
         // Checks if the provided value matches the current field value.
         if (!$formfield->matches($value)) {
@@ -309,10 +307,8 @@ class behat_forms extends behat_base {
      */
     public function the_field_does_not_match_value($field, $value) {
 
-        $fieldnode = $this->find_field($field);
-
         // Get the field.
-        $formfield = behat_field_manager::get_form_field($fieldnode, $this->getSession());
+        $formfield = behat_field_manager::get_form_field_from_label($field, $this);
 
         // Checks if the provided value matches the current field value.
         if ($formfield->matches($value)) {
@@ -484,11 +480,9 @@ class behat_forms extends behat_base {
      */
     protected function set_field_value($fieldlocator, $value) {
 
-        $node = $this->find_field($fieldlocator);
-
         // We delegate to behat_form_field class, it will
         // guess the type properly as it is a select tag.
-        $field = behat_field_manager::get_form_field($node, $this->getSession());
+        $field = behat_field_manager::get_form_field_from_label($fieldlocator, $this);
         $field->set_value($value);
     }
 

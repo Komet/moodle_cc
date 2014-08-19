@@ -298,15 +298,6 @@ class mysqli_native_moodle_database extends moodle_database {
     }
 
     /**
-     * Returns localised database description
-     * Note: can be used before connect()
-     * @return string
-     */
-    public function get_configuration_hints() {
-        return get_string('databasesettingssub_mysqli', 'install');
-    }
-
-    /**
      * Diagnose database and tables, this function is used
      * to verify database and driver settings, db engine types, etc.
      *
@@ -628,7 +619,7 @@ class mysqli_native_moodle_database extends moodle_database {
         }
 
         if ($usecache) {
-            $result = $cache->set($table, $structure);
+            $cache->set($table, $structure);
         }
 
         return $structure;
@@ -1399,6 +1390,16 @@ class mysqli_native_moodle_database extends moodle_database {
      */
     public function sql_cast_2signed($fieldname) {
         return ' CAST(' . $fieldname . ' AS SIGNED) ';
+    }
+
+    /**
+     * Does this driver support tool_replace?
+     *
+     * @since 2.6.1
+     * @return bool
+     */
+    public function replace_all_text_supported() {
+        return true;
     }
 
     public function session_lock_supported() {

@@ -314,7 +314,7 @@ if ($user->icq && !isset($hiddenfields['icqnumber'])) {
 
 if ($user->skype && !isset($hiddenfields['skypeid'])) {
     $imurl = 'skype:'.urlencode($user->skype).'?call';
-    $iconurl = new moodle_url('http://mystatus.skype.com/smallicon/'.$user->skype);
+    $iconurl = new moodle_url('http://mystatus.skype.com/smallicon/'.urlencode($user->skype));
     if (strpos($CFG->httpswwwroot, 'https:') === 0) {
         // Bad luck, skype devs are lazy to set up SSL on their servers - see MDL-37233.
         $statusicon = '';
@@ -413,9 +413,8 @@ if (!empty($CFG->enablebadges)) {
 
 echo html_writer::end_tag('dl');
 echo "</div></div>"; // Closing desriptionbox and userprofilebox.
-echo '<div id="region-content" class="block-region"><div class="region-content">';
-echo $OUTPUT->blocks_for_region('content');
-echo '</div></div>';
+
+echo $OUTPUT->custom_block_region('content');
 
 // Print messaging link if allowed
 if (isloggedin() && has_capability('moodle/site:sendmessage', $context)

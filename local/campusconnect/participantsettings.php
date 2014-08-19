@@ -41,11 +41,11 @@ class campusconnect_participantsettings {
     protected $mid = null;
     protected $pid = null;
     protected $export = false;
-    protected $exportenrolment = false;
-    protected $exporttoken = false;
+    protected $exportenrolment = true;
+    protected $exporttoken = true;
     protected $import = false;
-    protected $importenrolment = false;
-    protected $importtoken = false;
+    protected $importenrolment = true;
+    protected $importtoken = true;
     protected $importtype = self::IMPORT_LINK;
 
     protected $displayname = null; // Constructed from the community name + part name

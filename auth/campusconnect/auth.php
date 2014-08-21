@@ -253,6 +253,7 @@ class auth_plugin_campusconnect extends auth_plugin_base {
         global $CFG;
         require_once($CFG->dirroot.'/local/campusconnect/connect.php');
         require_once($CFG->dirroot.'/local/campusconnect/enrolment.php');
+        require_once($CFG->dirroot.'/local/campusconnect/participantsettings.php');
 
         $authenticatingecs = null;
         $pid = null;

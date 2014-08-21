@@ -27,6 +27,7 @@ defined('MOODLE_INTERNAL') || die();
 global $CFG;
 require_once($CFG->dirroot.'/local/campusconnect/ecssettings.php');
 require_once($CFG->dirroot.'/local/campusconnect/connect.php');
+require_once($CFG->dirroot.'/local/campusconnect/courselink.php');
 
 class campusconnect_participantsettings {
 

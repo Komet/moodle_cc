@@ -382,6 +382,37 @@ class local_campusconnect_courselink_test extends advanced_testcase {
         $this->assertEquals('myeppn2', $userdetails2->custom_eppn2); // custom_eppn => PERSON_EPPN => custom_eppn2.
     }
 
-    // Tests to try:
-    // * import matching existing users
+    public function test_courselink_authentication_existing_user() {
+        /** @var campusconnect_participantsettings $part1 */
+        /** @var campusconnect_participantsettings $part2 */
+        list($dstcourseid, $part1, $part2) = $this->setup_courselink();
+        $exportfields = $part2->get_export_fields();
+        $exportfields[] = campusconnect_courselink::PERSON_LOGINUID;
+        $exportmappings = $part2->get_export_mappings();
+        $exportmappings[campusconnect_courselink::PERSON_LOGINUID] = 'idnumber';
+        $personuidtype = campusconnect_courselink::PERSON_LOGINUID;
+        $part2->save_settings(array('exportfields' => $exportfields,
+                                    'exportfieldmapping' => $exportmappings,
+                                    'personuidtype' => $personuidtype));
+
+        $importfields = $part1->get_import_mappings();
+        $importfields[campusconnect_courselink::PERSON_LOGINUID] = 'idnumber';
+        $part1->save_settings(array('importfieldmapping' => $importfields));
+
+        // Generate a URL on 'unittest2'.
+        $authuser = $this->getDataGenerator()->create_user(
+            array('firstname' => 'firstname1',
+                  'lastname' => 'lastname1',
+                  'email' => 'testuser1@example.com',
+                  'username' => 'firstname1.lastname1',
+                  'idnumber' => 'myloginuid1') // Mapped on to PERSON_LOGINUID in export / import.
+        );
+        $url = campusconnect_courselink::check_redirect($dstcourseid, $authuser);
+        $this->assertNotEquals(false, $url); // Make sure this is correctly identified as a course link.
+
+        // Authenticate the URL on 'unittest1'.
+        $userdetails = auth_plugin_campusconnect::authenticate_from_url($url);
+        $this->assertNotNull($userdetails); // Check the user has authenticated correctly.
+        $this->assertEquals('firstname1.lastname1', $userdetails->username); // Check they are matched up to the existing user.
+    }
 }

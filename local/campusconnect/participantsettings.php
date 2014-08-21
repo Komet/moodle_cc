@@ -619,21 +619,21 @@ class campusconnect_participantsettings {
             if (!is_array($this->exportfields)) {
                 $this->exportfields = explode(',', $this->exportfields);
             }
-        } else {
+        } else if ($this->exportfields !== null) {
             $this->exportfields = array();
         }
         if ($this->exportfieldmapping) {
             if (!is_array($this->exportfieldmapping)) {
                 $this->exportfieldmapping = unserialize($this->exportfieldmapping);
             }
-        } else {
+        } else if ($this->exportfieldmapping !== null) {
             $this->exportfieldmapping = array();
         }
         if ($this->importfieldmapping) {
             if (!is_array($this->importfieldmapping)) {
                 $this->importfieldmapping = unserialize($this->importfieldmapping);
             }
-        } else {
+        } else if ($this->importfieldmapping !== null) {
             $this->importfieldmapping = array();
         }
     }

@@ -126,7 +126,7 @@ $current = array(
 $form->set_data($current);
 
 if ($data = $form->get_data()) {
-    $data->exportfields = array_keys($data->exportfields);
+    $data->exportfields = isset($data->exportfields) ? array_keys($data->exportfields) : array();
     $part->save_settings($data);
     redirect($PAGE->url);
 }

@@ -126,7 +126,7 @@ class campusconnect_export {
         return false;
     }
 
-    protected function get_participant($ecsid, $mid) {
+    public function get_participant($ecsid, $mid) {
         foreach ($this->exportparticipants as $part) {
             if ($part->get_ecs_id() == $ecsid && $part->get_mid() == $mid) {
                 return $part;
@@ -137,12 +137,12 @@ class campusconnect_export {
 
     public function should_handle_auth_token($ecsid, $mid) {
         $part = $this->get_participant($ecsid, $mid);
-        return ($part->is_exported() && $part->is_export_token_enabled());
+        return ($part && $part->is_exported() && $part->is_export_token_enabled());
     }
 
     public function should_send_enrolment_status($ecsid, $mid) {
         $part = $this->get_participant($ecsid, $mid);
-        return ($part->is_exported() && $part->is_export_enrolment_enabled());
+        return ($part && $part->is_exported() && $part->is_export_enrolment_enabled());
     }
 
     /**

@@ -86,6 +86,8 @@ class local_campusconnect_courselink_test extends advanced_testcase {
                 }
             }
         }
+
+        campusconnect_participantsettings::reset_custom_fields();
     }
 
     protected function tearDown() {
@@ -145,10 +147,10 @@ class local_campusconnect_courselink_test extends advanced_testcase {
         return array($dstcourseid, $part1, $part2);
     }
 
-    public function test_courselink_authentication() {
-        global $USER;
-
-        list($dstcourseid, , ) = $this->setup_courselink();
+    public function test_legacy_courselink_authentication() {
+        list($dstcourseid, $part1, $part2) = $this->setup_courselink();
+        /** @var campusconnect_participantsettings $part2 */
+        $part2->save_settings(array('uselegacy' => true));
 
         // Generate a URL on 'unittest2'.
         $authuser = $this->getDataGenerator()->create_user(
@@ -157,10 +159,7 @@ class local_campusconnect_courselink_test extends advanced_testcase {
                   'email' => 'testuser1@example.com',
                   'username' => 'firstname1.lastname1')
         );
-        $olduser = $USER;
-        $USER = clone $authuser;
-        $url = campusconnect_courselink::check_redirect($dstcourseid);
-        $USER = $olduser;
+        $url = campusconnect_courselink::check_redirect($dstcourseid, $authuser);
         $this->assertNotEquals(false, $url); // Make sure this is correctly identified as a course link.
 
         // Authenticate the URL on 'unittest1'.
@@ -174,10 +173,7 @@ class local_campusconnect_courselink_test extends advanced_testcase {
         $authuser->firstname = 'firstname2';
         $authuser->lastname = 'lastname2';
         $authuser->email = 'testuser2@example.com';
-        $olduser = $USER;
-        $USER = clone $authuser;
-        $url = campusconnect_courselink::check_redirect($dstcourseid);
-        $USER = $olduser;
+        $url = campusconnect_courselink::check_redirect($dstcourseid, $authuser);
         $this->assertNotEquals(false, $url); // Make sure this is correctly identified as a course link.
 
         // Authenticate this URL and check that the same username is retrieved and the details have been updated correctly.
@@ -190,8 +186,6 @@ class local_campusconnect_courselink_test extends advanced_testcase {
     }
 
     public function test_token_settings() {
-        global $USER;
-
         $authuser = $this->getDataGenerator()->create_user(
             array('firstname' => 'firstname1',
                   'lastname' => 'lastname1',
@@ -203,10 +197,7 @@ class local_campusconnect_courselink_test extends advanced_testcase {
         // Make sure the token data is ignored when disabled on the receiving site.
         /** @var campusconnect_participantsettings $part1 */
         $part1->save_settings(array('exporttoken' => false)); // Disable handling of token for exported courselinks.
-        $olduser = $USER;
-        $USER = clone $authuser;
-        $url = campusconnect_courselink::check_redirect($dstcourseid);
-        $USER = $olduser;
+        $url = campusconnect_courselink::check_redirect($dstcourseid, $authuser);
 
         $this->assertNotEquals(false, $url); // Make sure this is correctly identified as a course link.
         parse_str(parse_url($url, PHP_URL_QUERY), $params);
@@ -218,14 +209,179 @@ class local_campusconnect_courselink_test extends advanced_testcase {
         // Make sure the token data is not generated when disabled on the sending site.
         /** @var campusconnect_participantsettings $part2 */
         $part2->save_settings(array('importtoken' => false)); // Disable sending of token for imported courselinks.
-        $olduser = $USER;
-        $USER = clone $authuser;
-        $url = campusconnect_courselink::check_redirect($dstcourseid);
-        $USER = $olduser;
+        $url = campusconnect_courselink::check_redirect($dstcourseid, $authuser);
 
         $this->assertNotEquals(false, $url); // Make sure this is correctly identified as a course link.
         parse_str(parse_url($url, PHP_URL_QUERY), $params);
         $this->assertCount(1, $params);
         $this->assertArrayHasKey('id', $params); // Check the URL only has the courseid and no other details have been added.
     }
+
+    public function test_courselink_authentication_default_mappings() {
+        list($dstcourseid, $part1, $part2) = $this->setup_courselink();
+        /** @var campusconnect_participantsettings $part2 */
+
+        // Generate a URL on 'unittest2'.
+        $authuser = $this->getDataGenerator()->create_user(
+            array('firstname' => 'firstname1',
+                  'lastname' => 'lastname1',
+                  'email' => 'testuser1@example.com',
+                  'username' => 'firstname1.lastname1')
+        );
+        $url = campusconnect_courselink::check_redirect($dstcourseid, $authuser);
+        $this->assertNotEquals(false, $url); // Make sure this is correctly identified as a course link.
+        $this->assertRegExp('|ecs_person_id_type=ecs_uid|', $url); // Make sure the 'ecs_person_id_type' param is present.
+        $uid = campusconnect_participantsettings::get_uid_prefix().$authuser->id;
+        $this->assertRegExp('|ecs_uid='.preg_quote($uid).'|', $url);
+        $this->assertRegExp('|ecs_firstname=firstname1|', $url);
+        $this->assertRegExp('|ecs_lastname=lastname1|', $url);
+        $this->assertRegExp('|ecs_email='.urlencode('testuser1@example.com').'|', $url);
+        $this->assertRegExp('|ecs_login=firstname1.lastname1|', $url);
+        $this->assertNotRegExp('|ecs_eppn=|', $url); // Should not be in the default export.
+        $this->assertNotRegExp('|ecs_PersonalUniqueCode=|', $url);
+
+        // Authenticate the URL on 'unittest1'.
+        $userdetails = auth_plugin_campusconnect::authenticate_from_url($url);
+        $this->assertNotNull($userdetails); // Check the user has authenticated correctly.
+        foreach (array('firstname', 'lastname', 'email') as $fieldname) { // Make sure all user details transferred as expected.
+            $this->assertEquals($authuser->$fieldname, $userdetails->$fieldname);
+        }
+
+        // Generate a second URL on 'unittest2'.
+        $authuser->firstname = 'firstname2';
+        $authuser->lastname = 'lastname2';
+        $authuser->email = 'testuser2@example.com';
+        $url = campusconnect_courselink::check_redirect($dstcourseid, $authuser);
+        $this->assertNotEquals(false, $url); // Make sure this is correctly identified as a course link.
+
+        // Authenticate this URL and check that the same username is retrieved and the details have been updated correctly.
+        $userdetails2 = auth_plugin_campusconnect::authenticate_from_url($url);
+        $this->assertNotNull($userdetails2);
+        $this->assertEquals($userdetails->username, $userdetails2->username); // Should be matched up to the same username.
+        foreach (array('firstname', 'lastname', 'email') as $fieldname) { // Make sure all user details updated.
+            $this->assertEquals($authuser->$fieldname, $userdetails2->$fieldname);
+        }
+    }
+
+    protected function create_text_profile_field($fieldname) {
+        global $CFG;
+        $data = (object)array(
+            'categoryid' => 1,
+            'datatype' => 'text',
+            'shortname' => $fieldname,
+            'name' => $fieldname,
+            'required' => 0,
+            'locked' => 0,
+            'forceunique' => 0,
+            'signup' => 0,
+            'visible' => PROFILE_VISIBLE_ALL,
+            'param1' => 30,
+            'param2' => 2048,
+            'param3' => 0,
+        );
+        require_once($CFG->dirroot.'/user/profile/field/text/define.class.php');
+        $formfield = new profile_define_text();
+        $formfield->define_save($data);
+    }
+
+    protected function set_profile_field($user, $field, $value) {
+        global $DB;
+        $fieldid = $DB->get_field('user_info_field', 'id', array('shortname' => $field));
+        if ($existing = $DB->get_record('user_info_data', array('fieldid' => $fieldid, 'userid' => $user->id))) {
+            $upd = (object)array(
+                'id' => $existing->id,
+                'data' => $value,
+            );
+            $DB->update_record('user_info_data', $upd);
+        } else {
+            $ins = (object)array(
+                'fieldid' => $fieldid,
+                'userid' => $user->id,
+                'data' => $value,
+            );
+            $DB->insert_record('user_info_data', $ins);
+        }
+    }
+
+    public function test_courselink_authentication_custom_mappings() {
+        list($dstcourseid, $part1, $part2) = $this->setup_courselink();
+
+        // Define some custom user profile fields.
+        $this->create_text_profile_field('eppn');
+        $this->create_text_profile_field('eppn2');
+        campusconnect_participantsettings::reset_custom_fields();
+
+        // Override the default export mappings.
+        /** @var campusconnect_participantsettings $part2 */
+        $mapping = $part2->get_export_mappings();
+        $mapping[campusconnect_courselink::PERSON_EPPN] = 'custom_eppn';
+        $mapping[campusconnect_courselink::PERSON_UNIQUECODE] = 'department';
+        $exportfields = $part2->get_export_fields();
+        $exportfields[] = campusconnect_courselink::PERSON_EPPN;
+        $exportfields[] = campusconnect_courselink::PERSON_UNIQUECODE;
+        $part2->save_settings(array('exportfieldmapping' => $mapping, 'exportfields' => $exportfields));
+
+        // Override the default import mappings.
+        /** @var campusconnect_participantsettings $part1 */
+        $mapping = $part1->get_import_mappings();
+        $mapping[campusconnect_courselink::PERSON_EPPN] = 'custom_eppn2';
+        $mapping[campusconnect_courselink::PERSON_UNIQUECODE] = 'address';
+        $mapping[campusconnect_courselink::PERSON_EMAIL] = 'idnumber';
+        $part1->save_settings(array('importfieldmapping' => $mapping));
+
+        // Generate a URL on 'unittest2'.
+        $authuser = $this->getDataGenerator()->create_user(
+            array('firstname' => 'firstname1',
+                  'lastname' => 'lastname1',
+                  'email' => 'testuser1@example.com',
+                  'username' => 'firstname1.lastname1',
+                  'department' => 'department1') // Mapped on to 'ecs_PersonalUniqueCode.
+        );
+        $this->set_profile_field($authuser, 'eppn', 'myeppn');
+        $authuser = get_complete_user_data('id', $authuser->id);
+
+        $url = campusconnect_courselink::check_redirect($dstcourseid, $authuser);
+        $this->assertNotEquals(false, $url); // Make sure this is correctly identified as a course link.
+        $this->assertRegExp('|ecs_person_id_type=ecs_uid|', $url); // Make sure the 'ecs_person_id_type' param is present.
+        $uid = campusconnect_participantsettings::get_uid_prefix().$authuser->id;
+        $this->assertRegExp('|ecs_uid='.preg_quote($uid).'|', $url);
+        $this->assertRegExp('|ecs_firstname=firstname1|', $url);
+        $this->assertRegExp('|ecs_lastname=lastname1|', $url);
+        $this->assertRegExp('|ecs_email='.urlencode('testuser1@example.com').'|', $url);
+        $this->assertRegExp('|ecs_login=firstname1.lastname1|', $url);
+        $this->assertRegExp('|ecs_eppn=myeppn|', $url);
+        $this->assertRegExp('|ecs_PersonalUniqueCode=department1|', $url);
+
+        // Authenticate the URL on 'unittest1'.
+        $userdetails = auth_plugin_campusconnect::authenticate_from_url($url);
+        $this->assertNotNull($userdetails); // Check the user has authenticated correctly.
+        $this->assertEquals('firstname1', $userdetails->firstname);
+        $this->assertEquals('lastname1', $userdetails->lastname);
+        $this->assertEquals('testuser1@example.com', $userdetails->idnumber); // email => PERSON_EMAIL => idnumber.
+        $this->assertEquals('department1', $userdetails->address); // department => PERSON_UNIQUECODE => address.
+        $this->assertEquals('myeppn', $userdetails->custom_eppn2); // custom_eppn => PERSON_EPPN => custom_eppn2.
+
+        // Generate a second URL on 'unittest2'.
+        $this->set_profile_field($authuser, 'eppn', 'myeppn2');
+        $authuser = get_complete_user_data('id', $authuser->id); // Reload with new profile field.
+        $authuser->firstname = 'firstname2';
+        $authuser->lastname = 'lastname2';
+        $authuser->email = 'testuser2@example.com';
+        $authuser->department = 'department2';
+        $url = campusconnect_courselink::check_redirect($dstcourseid, $authuser);
+        $this->assertNotEquals(false, $url); // Make sure this is correctly identified as a course link.
+
+        // Authenticate this URL and check that the same username is retrieved and the details have been updated correctly.
+        $userdetails2 = auth_plugin_campusconnect::authenticate_from_url($url);
+        $this->assertNotNull($userdetails2);
+        $this->assertEquals($userdetails->username, $userdetails2->username); // Should be matched up to the same username.
+        $this->assertEquals('firstname2', $userdetails2->firstname);
+        $this->assertEquals('lastname2', $userdetails2->lastname);
+        $this->assertEquals('testuser2@example.com', $userdetails2->idnumber); // email => PERSON_EMAIL => idnumber.
+        $this->assertEquals('department2', $userdetails2->address); // department => PERSON_UNIQUECODE => address.
+        $this->assertEquals('myeppn2', $userdetails2->custom_eppn2); // custom_eppn => PERSON_EPPN => custom_eppn2.
+    }
+
+    // Tests to try:
+    // * import matching existing users
 }

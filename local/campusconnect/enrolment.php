@@ -31,16 +31,6 @@ require_once($CFG->dirroot.'/local/campusconnect/log.php');
  */
 class campusconnect_enrolment {
 
-    const PERSON_UNIQUECODE = 'ecs_PersonalUniqueCode';
-    const PERSON_LOGIN = 'ecs_login';
-    const PERSON_UID = 'ecs_uid';
-    const PERSON_LOGINUID = 'ecs_loginUID';
-    const PERSON_EMAIL = 'ecs_email';
-    const PERSON_EPPN = 'ecs_eppn';
-
-    public static $validpersontypes = array(self::PERSON_UNIQUECODE, self::PERSON_LOGIN, self::PERSON_UID,
-                                            self::PERSON_LOGINUID, self::PERSON_EMAIL, self::PERSON_EPPN);
-
     const STATUS_ACTIVE = 'active';
     const STATUS_PENDING = 'pendig';
     const STATUS_REJECTED = 'rejected';
@@ -179,12 +169,6 @@ class campusconnect_enrolment {
     public static function update_status_from_ecs(campusconnect_ecssettings $settings, $resource, campusconnect_details $details) {
         global $DB;
 
-        // Match back to the original user.
-        if (!$user = campusconnect_courselink::get_user_from_personid($resource->personID, $resource->personIDtype)) {
-            campusconnect_log::add("Cannot find user matching personID: {$resource->personID} ({$resource->personIDtype})");
-            return true;
-        }
-
         // Find the course link to the external course.
         $ecsid = $settings->get_id();
         $mid = $details->get_sender_mid();
@@ -203,6 +187,13 @@ class campusconnect_enrolment {
 
         if (!$course = $DB->get_record('course', array('id' => $courselink->courseid))) {
             campusconnect_log::add("Cannot find course $courselink->courseid, referred to be courselink $courselink->id");
+            return true;
+        }
+
+        // Match back to the original user.
+        if (!$user = campusconnect_courselink::get_user_from_personid($resource->personID, $resource->personIDtype,
+                                                                      $participantsettings)) {
+            campusconnect_log::add("Cannot find user matching personID: {$resource->personID} ({$resource->personIDtype})");
             return true;
         }
 

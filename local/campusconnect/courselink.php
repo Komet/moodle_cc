@@ -48,7 +48,29 @@ class campusconnect_courselink_exception extends moodle_exception {
  */
 class campusconnect_courselink {
 
-    const INCLUDE_LEGACY_PARAMS = true; // Include the legacy 'ecs_hash' and 'ecs_uid_hash' params in the courselink url.
+    const PERSON_UNIQUECODE = 'ecs_PersonalUniqueCode';
+    const PERSON_LOGIN = 'ecs_login';
+    const PERSON_UID = 'ecs_uid';
+    const PERSON_LOGINUID = 'ecs_loginUID';
+    const PERSON_EMAIL = 'ecs_email';
+    const PERSON_EPPN = 'ecs_eppn';
+    const PERSON_CUSTOM = 'ecs_custom';
+
+    public static $validpersontypes = array(self::PERSON_UNIQUECODE, self::PERSON_LOGIN, self::PERSON_UID,
+                                            self::PERSON_LOGINUID, self::PERSON_EMAIL, self::PERSON_EPPN, self::PERSON_CUSTOM);
+
+    const PERSON_ID_TYPE = 'ecs_person_id_type'; // Param that stores the type to use.
+
+    const USERFIELD_LEARNINGPROGRESS = 'learningProgress';
+    const USERFIELD_GRADE = 'grade';
+
+    public static $validexportmappingfields = array(self::PERSON_EPPN, self::PERSON_LOGINUID, self::PERSON_LOGIN, self::PERSON_UID,
+                                                    self::PERSON_EMAIL, self::PERSON_UNIQUECODE, self::PERSON_CUSTOM,
+                                                    self::USERFIELD_LEARNINGPROGRESS, self::USERFIELD_GRADE);
+    public static $validimportmappingfields = array(self::PERSON_EPPN, self::PERSON_LOGINUID, self::PERSON_LOGIN, self::PERSON_UID,
+                                                    self::PERSON_EMAIL, self::PERSON_UNIQUECODE, self::PERSON_CUSTOM);
+
+    const INCLUDE_LEGACY_PARAMS = false; // Include the legacy 'ecs_hash' and 'ecs_uid_hash' params in the courselink url.
 
     protected $recordid;
     protected $courseid;
@@ -402,14 +424,19 @@ class campusconnect_courselink {
         $DB->delete_records('local_campusconnect_clink', array('mid' => $mid));
     }
 
-
     /**
      * Check if the courseid provided refers to a remote course and return the URL if it does
      * @param int $courseid the ID of the course being viewed
+     * @param null $user
      * @return mixed string | false - the URL to redirect to
      */
-    public static function check_redirect($courseid) {
-        global $USER;
+    public static function check_redirect($courseid, $user = null) {
+        global $USER, $CFG;
+        require_once($CFG->dirroot.'/local/campusconnect/participantsettings.php');
+
+        if ($user == null) {
+            $user = $USER;
+        }
 
         self::log("\n\n****Checking for external courselink redirect for course {$courseid}****");
 
@@ -421,22 +448,30 @@ class campusconnect_courselink {
         $url = $courselink->url;
         self::log("Link to external url: {$url}");
 
-        if (!isguestuser() && self::should_include_token($courselink)) {
+        $participant = new campusconnect_participantsettings($courselink->ecsid, $courselink->mid);
+        if (!isguestuser() && $participant->is_import_token_enabled()) {
+
+            $userdata = $participant->map_export_data($user);
+            $userparams = http_build_query($userdata, null, '&');
+
             // Add the auth token.
             if (strpos($url, '?') !== false) {
                 $url .= '&';
             } else {
                 $url .= '?';
             }
-            $hash = self::get_ecs_hash($courselink, $USER);
-            if (self::INCLUDE_LEGACY_PARAMS) {
-                self::log("Adding legacy ecs_hash: {$hash}");
-                $url .= 'ecs_hash='.$hash.'&';
+            $url .= $userparams;
+
+            $hash = self::get_ecs_hash($url, $courselink, $userdata, $participant->is_legacy_export());
+            $url .= '&ecs_hash='.$hash;
+
+            self::log("Adding user params: {$userparams}");
+            self::log("Adding ecs_hash: {$hash}");
+            if ($participant->is_legacy_export() && self::INCLUDE_LEGACY_PARAMS) {
+                $hashurl = self::get_encoded_hash_url($courselink, $hash);
+                self::log("Adding ecs_hash_url: {$hashurl}");
+                $url .= '&ecs_hash_url='.$hashurl;
             }
-            self::log("Adding ecs_hash_url: ".self::get_encoded_hash_url($courselink, $hash));
-            $url .= 'ecs_hash_url='.self::get_encoded_hash_url($courselink, $hash);
-            self::log("Adding user params: ".self::get_user_data_params($USER));
-            $url .= '&'.self::get_user_data_params($USER);
         }
 
         self::log("Redirecting to: {$url}");
@@ -461,16 +496,21 @@ class campusconnect_courselink {
     /**
      * Internal - generate an authentication hash for the given
      * course link
+     * @param string $url
      * @param object $courselink
-     * @param object $user
+     * @param object $userdata
+     * @param bool $uselegacy true to use the legacy method for generating the realm
      * @return string
      */
-    protected static function get_ecs_hash($courselink, $user) {
+    protected static function get_ecs_hash($url, $courselink, $userdata, $uselegacy) {
         $ecssettings = new campusconnect_ecssettings($courselink->ecsid);
         $connect = new campusconnect_connect($ecssettings);
 
-        $userdata = self::get_user_data($user);
-        $realm = campusconnect_connect::generate_realm($courselink->url, $userdata);
+        if ($uselegacy) {
+            $realm = campusconnect_connect::generate_legacy_realm($courselink->url, $userdata);
+        } else {
+            $realm = campusconnect_connect::generate_realm($url);
+        }
         $post = (object)array('realm' => $realm);
         if (self::INCLUDE_LEGACY_PARAMS) {
             $post->url = $courselink->url;
@@ -493,90 +533,55 @@ class campusconnect_courselink {
     }
 
     /**
-     * Generate an array containing all the userdata fields
-     * @param object $user
-     * @return array
-     */
-    protected static function get_user_data($user) {
-        global $SITE, $CFG;
-        require_once($CFG->dirroot.'/local/campusconnect/enrolment.php');
-
-        $uid_hash = self::get_user_personid($user, campusconnect_enrolment::PERSON_UID);
-        $userdata = array('ecs_login' => $user->username,
-                          'ecs_firstname' => $user->firstname,
-                          'ecs_lastname' => $user->lastname,
-                          'ecs_email' => $user->email,
-                          'ecs_institution' => $SITE->shortname,
-                          'ecs_uid' => $uid_hash);
-        if (self::INCLUDE_LEGACY_PARAMS) {
-            $userdata['ecs_uid_hash'] = $uid_hash;
-        }
-
-        return $userdata;
-    }
-
-    /**
-     * Generate the personid from the user and personid type.
-     *
-     * @param object $user
-     * @param string $personidtype
-     * @return string
-     * @throws coding_exception
-     */
-    public static function get_user_personid($user, $personidtype) {
-        global $CFG;
-        require_once($CFG->dirroot.'/local/campusconnect/enrolment.php');
-
-        switch ($personidtype) {
-            case campusconnect_enrolment::PERSON_UID:
-                $siteid = substr(sha1($CFG->wwwroot), 0, 8); // Generate a unique ID from the site URL
-                $personid = 'moodle_'.$siteid.'_usr_'.$user->id;
-                break;
-            default:
-                throw new coding_exception("Unsupported personidtype: {$personidtype}");
-        }
-
-        return $personid;
-    }
-
-    /**
      * Get the user object from the personid
      *
      * @param string $personid
      * @param string $personidtype
+     * @param campusconnect_participantsettings $participant
      * @return null|object the user object, or null if not found
      */
-    public static function get_user_from_personid($personid, $personidtype) {
+    public static function get_user_from_personid($personid, $personidtype, $participant) {
         global $CFG, $DB;
 
         $user = null;
-        switch ($personidtype) {
-            case campusconnect_enrolment::PERSON_UID:
-                $siteid = substr(sha1($CFG->wwwroot), 0, 8); // Generate a unique ID from the site URL
-                $personidprefix = 'moodle_'.$siteid.'_usr_';
-                if (substr($personid, 0, strlen($personidprefix)) == $personidprefix) {
-                    if ($userid = intval(substr($personid, strlen($personidprefix)))) {
-                        if (!$user = $DB->get_record('user', array('id' => $userid))) {
-                            $user = null;
-                        }
-                    }
+
+        if ($personidtype == self::PERSON_UID) {
+            // Strip off the prefix.
+            $siteid = substr(sha1($CFG->wwwroot), 0, 8); // Generate a unique ID from the site URL.
+            $personidprefix = 'moodle_'.$siteid.'_usr_';
+            if (substr($personid, 0, strlen($personidprefix)) == $personidprefix) {
+                $personid = intval(substr($personid, strlen($personidprefix)));
+            }
+        }
+
+        // Map the field name, then look for a match.
+        $map = $participant->get_export_mappings();
+        if (!empty($map[$personidtype])) { // This type is mapped onto a Moodle field.
+            $moodlefield = $map[$personidtype];
+            if (in_array($moodlefield, campusconnect_participantsettings::get_possible_export_fields())) {
+                if ($fieldname = $participant->is_custom_field($moodlefield)) {
+                    // Look for the personid in the 'user_info_data' table.
+                    $sql = 'SELECT u.id, u.username
+                              FROM {user} u
+                              JOIN {user_info_data} ud ON ud.userid = u.id
+                              JOIN {user_info_field} uf ON uf.id = ud.fieldid
+                             WHERE uf.shortname = :fieldname AND ud.data = :personid';
+                    $users = $DB->get_records_sql($sql, array('fieldname' => $fieldname, 'personid' => $personid));
+                } else {
+                    // Look for the personid in the 'user' table.
+                    $users = $DB->get_records('user', array($moodlefield => $personid), '', 'id, username');
                 }
-                break;
-            default:
-                debugging("Unsupported personidtype: {$personidtype}");
+                if (count($users) == 1) {
+                    // All OK, we've matched up to an existing user.
+                    $user = reset($users);
+
+                } else if (count($users) > 1) {
+                    self::log("More than one user found with {$moodlefield} (mapped from {$personidtype}) set to {$personid}");
+                }
+            }
         }
 
         return $user;
-    }
-
-    /**
-     * Internal - generate the user data to append to the courselink URL to allow SSO
-     * @param object $user
-     * @return string
-     */
-    protected static function get_user_data_params($user) {
-        $userdata = self::get_user_data($user);
-        return http_build_query($userdata, null, '&');
     }
 
     /**

@@ -150,7 +150,15 @@ class campusconnect_connect {
         if (empty($hash)) {
             throw new campusconnect_connect_exception('get_auth - no auth hash given');
         }
-        $this->init_connection('/sys/auths/'.$hash);
+        $path = '/sys/auths/'.$hash;
+        $this->init_connection($path.'/details');
+        $result = $this->call();
+        if (!$this->check_status(self::HTTP_CODE_OK)) {
+            throw new campusconnect_connect_exception('get_auth - bad response: '.$this->get_status());
+        }
+        $details = new campusconnect_details($this->parse_json($result));
+
+        $this->init_connection($path);
         $this->set_delete();
 
         $result = $this->call();
@@ -158,17 +166,22 @@ class campusconnect_connect {
             throw new campusconnect_connect_exception('get_auth - bad response: '.$this->get_status());
         }
 
-        return $this->parse_json($result);
+        $result = $this->parse_json($result);
+        $result->mid = $details->get_sender_mid();
+
+        return $result;
     }
 
     /**
      * Generates a hash of the URL and userdata which can be used to authenticate the data after calling get_auth
-     * @param string $url
+     * Only used when the participant is using 'legacy' settings when following course links.
+     *
+     * @param string $courseurl
      * @param array $userdata
      * @return string
      */
-    public static function generate_realm($url, $userdata) {
-        $str = $url;
+    public static function generate_legacy_realm($courseurl, $userdata) {
+        $str = $courseurl;
         $params = array('ecs_login', 'ecs_firstname', 'ecs_lastname', 'ecs_email', 'ecs_institution', 'ecs_uid');
         foreach ($params as $param) {
             if (!isset($userdata[$param])) {
@@ -181,6 +194,17 @@ class campusconnect_connect {
             $str .= $userdata[$param];
         }
         return sha1($str);
+    }
+
+    /**
+     * Generate a hash of the full URL, which can be used to authenticate the data after calling get_auth
+     *
+     * @param string $url
+     * @return string
+     */
+    public static function generate_realm($url) {
+        $url = preg_replace('|&ecs_hash=[^&]*|', '', $url); // Remove any existing 'ecs_hash' param, before calculating.
+        return sha1($url);
     }
 
     /**

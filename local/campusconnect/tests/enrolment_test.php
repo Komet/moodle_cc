@@ -149,14 +149,16 @@ class local_campusconnect_enrolment_test extends advanced_testcase {
         $srcuser = $this->getDataGenerator()->create_user(array('username' => 'srcuser')); // User on 'unittest1'.
         $this->assertEmpty(enrol_get_all_users_courses($srcuser->id)); // Make sure the user (on 'unittest1') is not currently ...
                                                                        // ... enroled in any courses.
-        $uid = campusconnect_courselink::get_user_personid($srcuser, campusconnect_enrolment::PERSON_UID);
+        $userdata = $part1->map_export_data($srcuser);
+        $uid = $userdata['ecs_uid'];
         $authcc = get_auth_plugin('campusconnect');
         $class = new ReflectionClass('auth_plugin_campusconnect'); // Need to use reflection as the method is private.
         $usernamefromparams = $class->getMethod('username_from_params');
         $usernamefromparams->setAccessible(true);
         $username = $usernamefromparams->invoke($authcc, 'test_institution', 'test_username',
-                                                $uid, campusconnect_enrolment::PERSON_UID, // Unique user id from 'unittest1'.
-                                                $this->connect[2]->get_ecs_id(), $this->pid[1]); // From 'unittest1'.
+                                                campusconnect_courselink::PERSON_UID, $uid, // Unique user id from 'unittest1'.
+                                                $this->connect[2]->get_ecs_id(), $this->pid[1], // From 'unittest1'.
+                                                $part1);
         $dstuser = $this->getDataGenerator()->create_user(array('auth' => 'campusconnect', 'username' => $username)); // User on 'unittest2'.
 
         //////////////////////////////////

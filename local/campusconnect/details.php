@@ -49,6 +49,10 @@ class campusconnect_details {
                 return $this->senders[$pos]->mid;
             }
         }
+        if ($this->is_mine()) {
+            // Not on the list of receivers, but was the sender, so assume 'sender[0]' is a suitable answer.
+            return $this->senders[0]->mid;
+        }
         throw new campusconnect_connect_exception("This participant is not in the list of receivers");
     }
 

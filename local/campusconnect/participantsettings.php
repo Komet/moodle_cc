@@ -34,6 +34,8 @@ class campusconnect_participantsettings {
     const IMPORT_COURSE = 2;
     const IMPORT_CMS = 3;
 
+    const CUSTOM_FIELD_PREFIX = 'custom_';
+
     // Settings saved locally in the database.
     protected $recordid = null;
     protected $ecsid = null;
@@ -47,6 +49,11 @@ class campusconnect_participantsettings {
     protected $importenrolment = true;
     protected $importtoken = true;
     protected $importtype = self::IMPORT_LINK;
+    protected $uselegacy = false;
+    protected $personuidtype = campusconnect_courselink::PERSON_UID;
+    protected $exportfields = null;
+    protected $exportfieldmapping = null;
+    protected $importfieldmapping = null;
 
     protected $displayname = null; // Constructed from the community name + part name
     protected $active = 1;
@@ -65,10 +72,51 @@ class campusconnect_participantsettings {
     protected $exported = null;
 
     protected static $validsettings = array('export', 'exportenrolment', 'exporttoken',
-                                            'import', 'importenrolment', 'importtoken', 'importtype');
+                                            'import', 'importenrolment', 'importtoken', 'importtype',
+                                            'uselegacy', 'personuidtype', 'exportfields', 'exportfieldmapping',
+                                            'importfieldmapping');
     protected static $ecssettings = array('name', 'description', 'dns', 'email', 'org', 'orgabbr', 'communityname', 'itsyou');
 
     protected static $pidtomid = null;
+
+    protected static $defaultexportfields = array(
+        campusconnect_courselink::PERSON_UID,
+        campusconnect_courselink::PERSON_LOGIN,
+        campusconnect_courselink::PERSON_EMAIL,
+    );
+    protected static $defaultexportmapping = array(
+        campusconnect_courselink::PERSON_EPPN => null,
+        campusconnect_courselink::PERSON_LOGINUID => null,
+        campusconnect_courselink::PERSON_LOGIN => 'username',
+        campusconnect_courselink::PERSON_UID => 'id',
+        campusconnect_courselink::PERSON_EMAIL => 'email',
+        campusconnect_courselink::PERSON_UNIQUECODE => null,
+        campusconnect_courselink::PERSON_CUSTOM => null,
+        campusconnect_courselink::USERFIELD_LEARNINGPROGRESS => null,
+        campusconnect_courselink::USERFIELD_GRADE => null,
+    );
+    protected static $defaultimportmapping = array(
+        campusconnect_courselink::PERSON_EPPN => null,
+        campusconnect_courselink::PERSON_LOGINUID => null,
+        campusconnect_courselink::PERSON_LOGIN => null,
+        campusconnect_courselink::PERSON_UID => null,
+        campusconnect_courselink::PERSON_EMAIL => 'email',
+        campusconnect_courselink::PERSON_UNIQUECODE => null,
+        campusconnect_courselink::PERSON_CUSTOM => null,
+        campusconnect_courselink::USERFIELD_LEARNINGPROGRESS => null,
+        campusconnect_courselink::USERFIELD_GRADE => null,
+    );
+
+    protected static $possibleexportfields = array(
+        'id', 'username', 'idnumber', 'firstname', 'lastname', 'email', 'icq', 'skype', 'yahoo', 'aim', 'msn', 'phone1', 'phone2',
+        'institution', 'department', 'address', 'city', 'country'
+    );
+
+    // Not 'id', 'username', 'firstname', 'lastname', as these mappings are hard-coded.
+    protected static $possibleimportfields = array(
+        'idnumber', 'email', 'icq', 'skype', 'yahoo', 'aim', 'msn', 'phone1', 'phone2',
+        'institution', 'department', 'address', 'city', 'country'
+    );
 
     /**
      * @param mixed $ecsidordata either the ID of the ECS or an object containing
@@ -138,6 +186,10 @@ class campusconnect_participantsettings {
         return ($this->export && $this->exportenrolment);
     }
 
+    public function is_legacy_export() {
+        return (bool)$this->uselegacy;
+    }
+
     public function is_import_enabled() {
         return (bool)$this->import;
     }
@@ -182,6 +234,55 @@ class campusconnect_participantsettings {
         return $this->orgabbr;
     }
 
+    public function get_export_fields() {
+        if ($this->exportfields !== null) {
+            return $this->exportfields;
+        }
+        return self::$defaultexportfields;
+    }
+
+    public function get_export_mappings() {
+        if ($this->exportfieldmapping !== null) {
+            return $this->exportfieldmapping;
+        }
+        return self::$defaultexportmapping;
+    }
+
+    public function get_import_mappings() {
+        if ($this->importfieldmapping !== null) {
+            return $this->importfieldmapping;
+        }
+        return self::$defaultimportmapping;
+    }
+
+    /**
+     * Used in unit tests to reset the known list of custom fields.
+     */
+    public static function reset_custom_fields() {
+        self::get_custom_fields(true);
+    }
+
+    protected static function get_custom_fields($reset = false) {
+        global $DB;
+        static $customfields = null;
+        if ($reset || $customfields === null) {
+            // Don't include 'textarea' customfields, as the data for them is not loaded into the user object.
+            $customfields = $DB->get_fieldset_select('user_info_field', 'shortname', "datatype <> 'textarea'");
+            foreach ($customfields as &$customfield) {
+                $customfield = self::CUSTOM_FIELD_PREFIX.$customfield;
+            }
+        }
+        return $customfields;
+    }
+
+    public static function get_possible_export_fields() {
+        return array_merge(self::$possibleexportfields, self::get_custom_fields());
+    }
+
+    public static function get_possible_import_fields() {
+        return array_merge(self::$possibleimportfields, self::get_custom_fields());
+    }
+
     public function is_me() {
         return ($this->itsyou == true);
     }
@@ -216,7 +317,7 @@ class campusconnect_participantsettings {
                 $ins->$setting = $this->$setting; // Set all the defaults from this class.
             }
             $this->active = $ins->active = 1;
-            $this->recordid = $DB->insert_record('local_campusconnect_part', $ins);
+            $this->recordid = $this->save_to_database($ins);
         }
     }
 
@@ -226,8 +327,6 @@ class campusconnect_participantsettings {
      * connect to the ECS)
      */
     protected function set_display_name() {
-        global $DB;
-
         if (empty($this->name)) {
             return;
         }
@@ -241,42 +340,31 @@ class campusconnect_participantsettings {
             $upd = new stdClass();
             $upd->id = $this->recordid;
             $upd->displayname = $displayname;
-            $DB->update_record('local_campusconnect_part', $upd);
+            $this->save_to_database($upd);
         }
     }
 
     public function save_settings($settings) {
-        global $DB, $CFG;
+        global $CFG;
 
-        $settings = (array)$settings; // Avoid updating passed-in objects
+        $settings = (array)$settings; // Avoid updating passed-in objects.
         $settings = (object)$settings;
 
         // Check to see if anything has changed and all settings are valid.
-        if ($this->export) {
-            if (isset($settings->export) && !$settings->export) {
-                $settings->export = false;
+        $checksettings = array('export', 'exportenrolment', 'exporttoken', 'import', 'importenrolment', 'importtoken');
+        foreach ($checksettings as $setting) {
+            if ($this->$setting) {
+                if (isset($settings->$setting) && !$settings->$setting) {
+                    $settings->$setting = false;
+                } else {
+                    unset($settings->$setting); // Unchanged.
+                }
             } else {
-                unset($settings->export);
-            }
-        } else {
-            if (!empty($settings->export)) {
-                $settings->export = true;
-            } else {
-                unset($settings->export);
-            }
-        }
-
-        if ($this->import) {
-            if (isset($settings->import) && !$settings->import) {
-                $settings->import = false;
-            } else {
-                unset($settings->import);
-            }
-        } else {
-            if (!empty($settings->import)) {
-                $settings->import = true;
-            } else {
-                unset($settings->import);
+                if (!empty($settings->$setting)) {
+                    $settings->$setting = true;
+                } else {
+                    unset($settings->$setting); // Unchanged.
+                }
             }
         }
 
@@ -290,8 +378,65 @@ class campusconnect_participantsettings {
             }
         }
 
+        if (isset($settings->personuidtype)) {
+            if (!in_array($settings->personuidtype, campusconnect_courselink::$validpersontypes)) {
+                unset($settings->personuidtype);
+            } else if ($settings->personuidtype == $this->personuidtype) {
+                unset($settings->personuidtype); // Unchanged.
+            }
+        }
+
+        if (isset($settings->exportfields)) {
+            $settings->exportfields = array_intersect($settings->exportfields, campusconnect_courselink::$validexportmappingfields);
+            sort($settings->exportfields);
+            if ($this->exportfields) {
+                sort($this->exportfields);
+                if ($settings->exportfields == $this->exportfields) {
+                    unset($settings->exportfields); // Unchanged.
+                }
+            }
+        }
+        if (isset($settings->exportfieldmapping)) {
+            $possible = self::get_possible_export_fields();
+            foreach ($settings->exportfieldmapping as $ecsfield => $moodlefield) {
+                if (!in_array($ecsfield, campusconnect_courselink::$validexportmappingfields)) {
+                    unset($settings->exportfieldmapping[$ecsfield]);
+                }
+                if (!in_array($moodlefield, $possible)) {
+                    $current = $this->get_export_mappings(); // Retrieve the current, or the default.
+                    $settings->exportfieldmapping[$ecsfield] = $current[$ecsfield];
+                }
+            }
+            ksort($settings->exportfieldmapping);
+            if ($this->exportfieldmapping) {
+                ksort($this->exportfieldmapping);
+                if ($settings->exportfieldmapping == $this->exportfieldmapping) {
+                    unset($settings->exportfieldmapping); // Unchanged.
+                }
+            }
+        }
+        if (isset($settings->importfieldmapping)) {
+            $possible = self::get_possible_import_fields();
+            foreach ($settings->importfieldmapping as $ecsfield => $moodlefield) {
+                if (!in_array($ecsfield, campusconnect_courselink::$validimportmappingfields)) {
+                    unset($settings->importfieldmapping[$ecsfield]);
+                }
+                if (!in_array($moodlefield, $possible)) {
+                    $current = $this->get_import_mappings(); // Retrieve the current, or the default.
+                    $settings->importfieldmapping[$ecsfield] = $current[$ecsfield];
+                }
+            }
+            ksort($settings->importfieldmapping);
+            if ($this->importfieldmapping) {
+                ksort($this->importfieldmapping);
+                if ($settings->importfieldmapping == $this->importfieldmapping) {
+                    unset($settings->importfieldmapping); // Unchanged.
+                }
+            }
+        }
+
         if (isset($settings->import) || isset($settings->importtype)) {
-            // About to change import or import type
+            // About to change import or import type.
             $newimport = isset($settings->import) ? $settings->import : $this->import;
             $newimporttype = isset($settings->importtype) ? $settings->importtype : $this->importtype;
 
@@ -315,16 +460,16 @@ class campusconnect_participantsettings {
 
         if ($updateneeded) {
             $settings->id = $this->recordid;
-            $DB->update_record('local_campusconnect_part', $settings);
+            $this->save_to_database($settings);
             $this->set_settings($settings);
 
-            // Import state changed - need to update all course links
+            // Import state changed - need to update all course links.
             if (isset($settings->import)) {
                 require_once($CFG->dirroot.'/local/campusconnect/courselink.php');
                 if ($settings->import) {
                     campusconnect_courselink::refresh_from_participant($this->ecsid, $this->mid);
                 } else {
-                    // No longer importing course links
+                    // No longer importing course links.
                     campusconnect_courselink::delete_mid_courselinks($this->mid);
                 }
             }
@@ -433,6 +578,35 @@ class campusconnect_participantsettings {
                 }
             }
         }
+        if ($this->exportfields && !is_array($this->exportfields)) {
+            $this->exportfields = explode(',', $this->exportfields);
+        }
+        if ($this->exportfieldmapping && !is_array($this->exportfieldmapping)) {
+            $this->exportfieldmapping = unserialize($this->exportfieldmapping);
+        }
+        if ($this->importfieldmapping && !is_array($this->importfieldmapping)) {
+            $this->importfieldmapping = unserialize($this->importfieldmapping);
+        }
+    }
+
+    protected function save_to_database($settings) {
+        global $DB;
+        $ins = clone $settings;
+        if (isset($ins->exportfields)) {
+            $ins->exportfields = implode(',', $ins->exportfields);
+        }
+        if (!empty($ins->exportfieldmapping)) {
+            $ins->exportfieldmapping = serialize($ins->exportfieldmapping);
+        }
+        if (!empty($ins->importfieldmapping)) {
+            $ins->importfieldmapping = serialize($ins->importfieldmapping);
+        }
+
+        if (!empty($settings->id)) {
+            $DB->update_record('local_campusconnect_part', $ins);
+            return $settings->id;
+        }
+        return $DB->insert_record('local_campusconnect_part', $ins);
     }
 
     public function get_settings() {
@@ -485,6 +659,105 @@ class campusconnect_participantsettings {
                 $DB->set_field('local_campusconnect_part', 'active', 0, array('id' => $this->recordid));
             }
         }
+    }
+
+    public static function is_custom_field($fieldname) {
+        $len = strlen(self::CUSTOM_FIELD_PREFIX);
+        if (substr($fieldname, 0, $len) == self::CUSTOM_FIELD_PREFIX) {
+            return substr($fieldname, $len);
+        }
+        return false;
+    }
+
+    public function map_export_data($user) {
+        global $SITE;
+
+        // Some mappings are hard-coded.
+        $ret = array(
+            'ecs_firstname' => $user->firstname,
+            'ecs_lastname' => $user->lastname,
+            'ecs_institution' => $SITE->shortname,
+        );
+
+        if ($this->is_legacy_export()) {
+            // Support sending of legacy, hard-coded mappings.
+            $ret['ecs_login'] = $user->username;
+            $ret['ecs_email'] = $user->email;
+            $ret['ecs_uid'] = $user->id;
+
+        } else {
+            // Map the selected fields.
+            $mapping = $this->get_export_mappings();
+            $toexport = $this->get_export_fields();
+            $possiblefields = self::get_possible_export_fields();
+            foreach ($mapping as $ecs => $moodle) {
+                if (!in_array($ecs, $toexport)) {
+                    continue;
+                }
+                if (!$moodle && !in_array($moodle, $possiblefields)) {
+                    $ret[$ecs] = ''; // No (valid) mapping specified.
+                } else if ($fieldname = self::is_custom_field($moodle)) {
+                    if (isset($user->profile[$fieldname])) {
+                        $ret[$ecs] = $user->profile[$fieldname]; // Custom profile field.
+                    } else {
+                        $ret[$ecs] = '';
+                    }
+                } else {
+                    $ret[$ecs] = $user->$moodle;
+                }
+            }
+            $ret[campusconnect_courselink::PERSON_ID_TYPE] = $this->personuidtype;
+        }
+
+        // UID needs the site identifier adding to it.
+        if (!empty($ret[campusconnect_courselink::PERSON_UID])) {
+            $prefix = self::get_uid_prefix();
+            $ret[campusconnect_courselink::PERSON_UID] = $prefix.$ret[campusconnect_courselink::PERSON_UID];
+        }
+
+        return $ret;
+    }
+
+    public static function get_uid_prefix() {
+        global $CFG;
+        $siteid = substr(sha1($CFG->wwwroot), 0, 8);
+        return 'moodle_'.$siteid.'_usr_';
+    }
+
+    public static function is_legacy($ecsdata) {
+        return !isset($ecsdata[campusconnect_courselink::PERSON_ID_TYPE]);
+    }
+
+    public function map_import_data($ecsdata) {
+
+        // Some mappings are hard-coded.
+        $ret = (object)array(
+            'firstname' => $ecsdata['ecs_firstname'],
+            'lastname' => $ecsdata['ecs_lastname'],
+        );
+
+        if (self::is_legacy($ecsdata)) {
+            // Email is the only other value mapped by the legacy params.
+            $ret->email = $ecsdata['ecs_email'];
+        } else {
+
+            // Non-legacy - do the full mapping.
+            $mapping = $this->get_import_mappings();
+            $possiblefields = self::get_possible_import_fields();
+            foreach ($mapping as $ecs => $moodle) {
+                if (!$moodle) {
+                    continue; // Not mapped onto anything in Moodle.
+                }
+                if (!in_array($moodle, $possiblefields)) {
+                    continue; // Not mapped onto anything valid in Moodle.
+                }
+                if (isset($ecsdata[$ecs])) {
+                    $ret->$moodle = $ecsdata[$ecs];
+                }
+            }
+        }
+
+        return $ret;
     }
 
     /**

@@ -23,34 +23,13 @@
  */
 
 require_once(dirname(__FILE__).'/../../config.php');
-global $DB, $SESSION;
+global $DB, $SESSION, $FULLME;
 
 $courseid = required_param('id', PARAM_INT);
 $course = $DB->get_record('course', array('id' => $courseid), '*', MUST_EXIST);
 
-// Sanitise the parameters on the incomming URL.
-$expectedparams = array(
-    'ecs_hash_url',
-    'ecs_hash',
-    'ecs_uid',
-    'ecs_uid_hash',
-    'ecs_login',
-    'ecs_firstname',
-    'ecs_lastname',
-    'ecs_email',
-    'ecs_institution'
-);
-$destparams = array('id' => $courseid);
-foreach ($expectedparams as $expectedparam) {
-    $val = optional_param($expectedparam, null, PARAM_TEXT);
-    if (!is_null($val)) {
-        $destparams[$expectedparam] = $val;
-    }
-}
-
-// Make sure 'wantsurl' param (used by auth_campusconnect) includes the ECS authentication details
-$url = new moodle_url('/local/campusconnect/viewcourse.php', $destparams);
-$SESSION->wantsurl = $url->out(false);
+// Retain the entire URL just as it is - otherwise the hash will not be calculated properly.
+$SESSION->wantsurl = $FULLME;
 
 // Make sure the 'wantsurl' param is not overridden by require_login => this will redirect to the course + test
 // authentication, if not already logged in.

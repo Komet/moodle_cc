@@ -76,6 +76,11 @@
         <FIELD NAME="exporttoken" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
         <FIELD NAME="importenrolment" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
         <FIELD NAME="importtoken" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
+        <FIELD NAME="uselegacy" TYPE="int" LENGTH="2" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="1 if the legacy URL params should be sent when following course links"/>
+        <FIELD NAME="personuidtype" TYPE="char" LENGTH="25" NOTNULL="false" DEFAULT="ecs_uid" SEQUENCE="false" COMMENT="The personuidtype to use when following course links"/>
+        <FIELD NAME="exportfields" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Comma-separated list of user fields to include in the export"/>
+        <FIELD NAME="exportfieldmapping" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Mapping of ECS fields =&amp;gt; Moodle fields (serialised)"/>
+        <FIELD NAME="importfieldmapping" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Mapping ecs field =&amp;gt; Moodle field (serialised)"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>

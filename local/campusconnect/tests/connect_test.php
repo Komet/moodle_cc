@@ -155,12 +155,14 @@ class local_campusconnect_connect_test extends advanced_testcase {
         $result = $this->connect[2]->get_auth($hash);
         $this->assertEquals($hash, $result->hash);
         $this->assertEquals($realm, $result->realm);
+        $this->assertEquals($this->mid[1], $result->mid);
 
         // Test that 'unittest2' cannot confirm this hash as second time
         $this->setExpectedException('campusconnect_connect_exception');
         $this->connect[2]->get_auth($hash);
 
         // Test that 'unittest3' cannot retrieve this hash
+        $hash = $this->connect[1]->add_auth($post, $this->mid[2]);
         $this->setExpectedException('campusconnect_connect_exception');
         $this->connect[3]->get_auth($hash);
     }

@@ -123,6 +123,7 @@ if (optional_param('saveparticipants', false, PARAM_TEXT)) {
     }
 }
 
+$PAGE->requires->string_for_js('changesmadereallygoaway', 'moodle');
 $PAGE->requires->yui_module('moodle-local_campusconnect-participantsettings', 'M.local_campusconnect.participantsettings.init');
 
 echo $OUTPUT->header();
@@ -258,6 +259,10 @@ foreach ($allcommunities as $ecsname => $communities) {
             foreach ($community->participants as $participant) {
                 $partid = $participant->get_identifier();
                 $name = s($participant->get_name());
+                $userdataurl = new moodle_url('/local/campusconnect/admin/userdatamapping.php',
+                                              array('ecsid' => $participant->get_ecs_id(), 'mid' => $participant->get_mid()));
+                $userdatalink = '<br/>'.html_writer::link($userdataurl,
+                                                          get_string('edituserdatamapping', 'local_campusconnect'));
                 echo '<tr><td><h4';
                 if ($participant->is_me()) {
                     echo ' class="itsme"';
@@ -283,9 +288,13 @@ foreach ($allcommunities as $ecsname => $communities) {
                                            get_string('enrolmentstatus', 'local_campusconnect'),
                                            array('id' => 'exportenrolment_'.$partid));
                 echo '<br/>';
+                $editlink = '';
+                if ($participant->is_export_token_enabled()) {
+                    $editlink = $userdatalink;
+                }
                 echo html_writer::checkbox('exporttoken[]', $partid,
                                            $participant->is_export_token_enabled(),
-                                           get_string('authenticationtoken', 'local_campusconnect'),
+                                           get_string('authenticationtoken', 'local_campusconnect').$editlink,
                                            array('id' => 'exporttoken_'.$partid));
                 echo '</td>';
                 echo "<td>";
@@ -299,9 +308,13 @@ foreach ($allcommunities as $ecsname => $communities) {
                                            get_string('enrolmentstatus', 'local_campusconnect'),
                                            array('id' => 'importenrolment_'.$partid));
                 echo '<br/>';
+                $editlink = '';
+                if ($participant->is_import_token_enabled()) {
+                    $editlink = $userdatalink;
+                }
                 echo html_writer::checkbox('importtoken[]', $partid,
                                            $participant->is_import_token_enabled(),
-                                           get_string('authenticationtoken', 'local_campusconnect'),
+                                           get_string('authenticationtoken', 'local_campusconnect').$editlink,
                                            array('id' => 'importtoken_'.$partid));
                 echo '<br/>';
                 echo '</td>';
@@ -324,7 +337,8 @@ foreach ($allcommunities as $ecsname => $communities) {
     }
     echo '<div style="float: right;">
         <input type="submit" name="saveparticipants" value="'.$strsavechanges.'" />
-        <input onclick="window.location.reload( true );" type="button" value="'.$strcancel.'" />
+        <input onclick="M.local_campusconnect.participantsettings.hasChanges=false;
+                        window.location.reload( true );" type="button" value="'.$strcancel.'" />
     </div>';
     echo '</form>';
     echo '<br style="clear:both;" /><br />';

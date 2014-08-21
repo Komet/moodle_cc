@@ -88,3 +88,17 @@ table.campusconnect_imported {
     color: #aaa;
     font-style: italic;
 }
+
+.userdatamappingtable {
+    width: 550px;
+    border: 1px solid #ccc;
+}
+.userdatamappingtable td {
+    border-top: 1px solid #ccc;
+}
+.userdatamappingtable thead {
+    background-color: #eee;
+}
+.userdatamappingtable span.indentfield {
+    margin-left: 15%;
+}

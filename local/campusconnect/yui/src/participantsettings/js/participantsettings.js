@@ -25,6 +25,7 @@
 M.local_campusconnect = M.local_campusconnect || {};
 M.local_campusconnect.participantsettings = {
     participantIdentifiers: [],
+    hasChanges: false,
 
     init: function() {
         // Build up a list of all participant identifiers.
@@ -33,6 +34,26 @@ M.local_campusconnect.participantsettings = {
         }, this);
 
         Y.one('body').delegate('click', function() { this.updateDisabled(); }, '.participantsettings input', this);
+
+        // Handle warnings about unsaved changes when navigating.
+        Y.one('body').delegate('click', function() { this.hasChanges = true; }, '.participantsettings input[type=checkbox]', this);
+        Y.one('body').delegate('change', function() { this.hasChanges = true; }, '.participantsettings select', this);
+
+        Y.all('form').on('submit', function() { this.hasChanges = false; }, this); // No warning if form saved.
+
+        var self = this;
+        window.onbeforeunload = function(e) {
+            if (self.hasChanges) {
+                var warningmessage = M.util.get_string('changesmadereallygoaway', 'moodle');
+                if (M.cfg.behatsiterunning) {
+                    return;
+                }
+                if (e) {
+                    e.returnValue = warningmessage;
+                }
+                return warningmessage;
+            }
+        };
 
         this.updateDisabled();
     },

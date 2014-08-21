@@ -29,6 +29,32 @@ require_once($CFG->dirroot.'/local/campusconnect/ecssettings.php');
 require_once($CFG->dirroot.'/local/campusconnect/connect.php');
 require_once($CFG->dirroot.'/local/campusconnect/courselink.php');
 
+class campusconnect_community {
+    public $name;
+    public $desciption;
+    public $ecsid;
+    /** @var campusconnect_participantsettings[] */
+    public $participants = array();
+
+    public function __construct($ecsid, $name, $description) {
+        $this->name = $name;
+        $this->description = $description;
+        $this->ecsid = $ecsid;
+    }
+
+    public function add_participant(campusconnect_participantsettings $part) {
+        $this->participants[$part->get_identifier()] = $part;
+    }
+
+    public function remove_participant(campusconnect_participantsettings $part) {
+        unset($this->participants[$part->get_identifier()]);
+    }
+
+    public function has_participants() {
+        return !!($this->participants);
+    }
+}
+
 class campusconnect_participantsettings {
 
     const IMPORT_LINK = 1;
@@ -45,10 +71,10 @@ class campusconnect_participantsettings {
     protected $pid = null;
     protected $export = false;
     protected $exportenrolment = true;
-    protected $exporttoken = true;
+    protected $exporttoken = true; // Use the token when a user from a remote site follows an exported course link.
     protected $import = false;
     protected $importenrolment = true;
-    protected $importtoken = true;
+    protected $importtoken = true; // Use the token when the user follows an imported course link.
     protected $importtype = self::IMPORT_LINK;
     protected $uselegacy = false;
     protected $personuidtype = campusconnect_courselink::PERSON_UID;
@@ -124,8 +150,10 @@ class campusconnect_participantsettings {
      *                           the settings record loaded from the database
      * @param int $mid optional the participant ID (required if the ECS ID is provided)
      * @param object $extradetails details about the participant loaded from the ECS
+     * @param int $strictness throw an exception if the participant is not found
+     * @throws coding_exception
      */
-    public function __construct($ecsidordata, $mid = null, $extradetails = null) {
+    public function __construct($ecsidordata, $mid = null, $extradetails = null, $strictness = IGNORE_MISSING) {
         global $DB;
 
         if (is_object($ecsidordata)) {
@@ -135,7 +163,7 @@ class campusconnect_participantsettings {
             if (is_null($mid)) {
                 throw new coding_exception("Must set the participant id (mid) if not passing in the database record");
             }
-            $this->load_settings($ecsidordata, $mid);
+            $this->load_settings($ecsidordata, $mid, $strictness);
         }
 
         if (isset($extradetails)) {
@@ -249,6 +277,10 @@ class campusconnect_participantsettings {
         return self::$defaultexportmapping;
     }
 
+    public function get_personuidtype() {
+        return $this->personuidtype;
+    }
+
     public function get_import_mappings() {
         if ($this->importfieldmapping !== null) {
             return $this->importfieldmapping;
@@ -303,11 +335,11 @@ class campusconnect_participantsettings {
         $this->exported = $exported;
     }
 
-    protected function load_settings($ecsid, $mid) {
+    protected function load_settings($ecsid, $mid, $strictness = IGNORE_MISSING) {
         global $DB;
 
         $settings = $DB->get_record('local_campusconnect_part', array('mid' => $mid,
-                                                                      'ecsid' => $ecsid));
+                                                                      'ecsid' => $ecsid), '*', $strictness);
         if ($settings) {
             $this->set_settings($settings);
         } else {
@@ -403,7 +435,9 @@ class campusconnect_participantsettings {
                 if (!in_array($ecsfield, campusconnect_courselink::$validexportmappingfields)) {
                     unset($settings->exportfieldmapping[$ecsfield]);
                 }
-                if (!in_array($moodlefield, $possible)) {
+                if (!$moodlefield) {
+                    $moodlefield = null;
+                } else if (!in_array($moodlefield, $possible)) {
                     $current = $this->get_export_mappings(); // Retrieve the current, or the default.
                     $settings->exportfieldmapping[$ecsfield] = $current[$ecsfield];
                 }
@@ -422,7 +456,9 @@ class campusconnect_participantsettings {
                 if (!in_array($ecsfield, campusconnect_courselink::$validimportmappingfields)) {
                     unset($settings->importfieldmapping[$ecsfield]);
                 }
-                if (!in_array($moodlefield, $possible)) {
+                if (!$moodlefield) {
+                    $moodlefield = null;
+                } else if (!in_array($moodlefield, $possible)) {
                     $current = $this->get_import_mappings(); // Retrieve the current, or the default.
                     $settings->importfieldmapping[$ecsfield] = $current[$ecsfield];
                 }
@@ -579,14 +615,26 @@ class campusconnect_participantsettings {
                 }
             }
         }
-        if ($this->exportfields && !is_array($this->exportfields)) {
-            $this->exportfields = explode(',', $this->exportfields);
+        if ($this->exportfields) {
+            if (!is_array($this->exportfields)) {
+                $this->exportfields = explode(',', $this->exportfields);
+            }
+        } else {
+            $this->exportfields = array();
         }
-        if ($this->exportfieldmapping && !is_array($this->exportfieldmapping)) {
-            $this->exportfieldmapping = unserialize($this->exportfieldmapping);
+        if ($this->exportfieldmapping) {
+            if (!is_array($this->exportfieldmapping)) {
+                $this->exportfieldmapping = unserialize($this->exportfieldmapping);
+            }
+        } else {
+            $this->exportfieldmapping = array();
         }
-        if ($this->importfieldmapping && !is_array($this->importfieldmapping)) {
-            $this->importfieldmapping = unserialize($this->importfieldmapping);
+        if ($this->importfieldmapping) {
+            if (!is_array($this->importfieldmapping)) {
+                $this->importfieldmapping = unserialize($this->importfieldmapping);
+            }
+        } else {
+            $this->importfieldmapping = array();
         }
     }
 
@@ -783,7 +831,7 @@ class campusconnect_participantsettings {
      * Load all the communities we are a member of (including participant lists) from
      * the given ECS
      * @param campusconnect_ecssettings $ecssettings - the ECS to connect to
-     * @return array details of the communities
+     * @return campusconnect_community[] details of the communities
      */
     public static function load_communities(campusconnect_ecssettings $ecssettings) {
         global $DB;
@@ -795,17 +843,13 @@ class campusconnect_participantsettings {
         $missingmids = $DB->get_records_menu('local_campusconnect_part', array('active' => 1, 'ecsid' => $ecsid), '', 'mid, id');
         $resp = array();
         foreach ($communities as $community) {
-            $comm = new stdClass();
-            $comm->name = $community->community->name;
-            $comm->description = $community->community->description;
-            $comm->participants = array();
-            $comm->ecsid = $ecsid;
+            $comm = new campusconnect_community($ecsid, $community->community->name, $community->community->description);
             foreach ($community->participants as $participant) {
                 $mid = $participant->mid;
                 $participant->communityname = $comm->name;
                 $part = new campusconnect_participantsettings($ecsid, $mid, $participant);
                 $part->set_active();
-                $comm->participants[$part->get_identifier()] = $part;
+                $comm->add_participant($part);
                 unset($missingmids[$mid]);
             }
 

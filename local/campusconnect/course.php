@@ -124,11 +124,15 @@ class campusconnect_course {
             $pgroups[] = array(); // Make sure there is at least one course to be created.
         }
 
+        $courseids = array();
         $pgclass = new campusconnect_parallelgroups($ecssettings, $resourceid);
         foreach ($pgroups as $pgcourse) {
-            self::create_new_course($ecssettings, $resourceid, $course, $mid, $coursedata, $pgclass, $pgroupmode,
-                                    $pgcourse, $categories);
+            $courseids[] = self::create_new_course($ecssettings, $resourceid, $course, $mid, $coursedata, $pgclass, $pgroupmode,
+                                                   $pgcourse, $categories);
         }
+
+        // Process any pre-existing course_members requests for this course.
+        campusconnect_membership::assign_course_users($courseids, $course->lectureID);
 
         return true;
     }
@@ -144,6 +148,8 @@ class campusconnect_course {
      * @param int $pgroupmode the parallel groups scenario
      * @param stdClass[] $pgcourse the parallel groups to create in this course
      * @param campusconnect_course_category[] $categories the categories in which to create this course
+     *
+     * @return int the id of the 'real' course created.
      */
     protected static function create_new_course(campusconnect_ecssettings $ecssettings, $resourceid, $course, $mid,
                                                 $coursedata, campusconnect_parallelgroups $pgclass,
@@ -187,11 +193,8 @@ class campusconnect_course {
                 $courseurl = new campusconnect_course_url($ins->id);
                 $courseurl->add();
 
-                // Create any required groups for this course
+                // Create any required groups for this course.
                 $pgclass->update_parallel_groups($course->lectureID, $newcourse, $pgroupmode, $pgcourse);
-
-                // Process any existing enrolment requests for this course
-                campusconnect_membership::assign_course_users($newcourse, $ins->cmsid);
 
                 campusconnect_notification::queue_message($ecssettings->get_id(),
                                                           campusconnect_notification::MESSAGE_COURSE,
@@ -199,6 +202,8 @@ class campusconnect_course {
                                                           $newcourse->id);
             }
         }
+
+        return $internallink; // The 'real' course that was created (if any).
     }
 
     /**
@@ -313,7 +318,7 @@ class campusconnect_course {
                     $newcourse = create_course($coursedetails);
                     unset($coursedetails);
 
-                    // Update the main crs record for this entry
+                    // Update the main crs record for this entry.
                     $currcourse->courseid = $newcourse->id;
                     $DB->set_field('local_campusconnect_crs', 'courseid', $newcourse->id, array('id' => $currcourse->id));
 
@@ -325,7 +330,7 @@ class campusconnect_course {
                         }
                     }
 
-                    // Update any groups for this course
+                    // Update any groups for this course.
                     if (isset($pgmatched[$oldcourseid])) {
                         $pgclass->update_parallel_groups($course->lectureID, $newcourse, $pgroupmode, $pgmatched[$oldcourseid]);
                     }
@@ -365,7 +370,7 @@ class campusconnect_course {
                 }
                 update_course($coursedetails);
 
-                // The cms course id has changed (not sure if this should ever happen, but handle it anyway)
+                // The cms course id has changed (not sure if this should ever happen, but handle it anyway).
                 if ($course->lectureID != $currcourse->cmsid) {
                     $upd = new stdClass();
                     $upd->id = $currcourse->id;
@@ -383,7 +388,7 @@ class campusconnect_course {
                                                               $currcourse->courseid);
                 }
 
-                // Check the groups for this course
+                // Check the groups for this course.
                 if (isset($pgmatched[$coursedetails->id])) {
                     $pgclass->update_parallel_groups($course->lectureID, $coursedetails, $pgroupmode, $pgmatched[$coursedetails->id]);
                 }
@@ -404,7 +409,7 @@ class campusconnect_course {
                 }
                 $newcourse = create_course($coursedata);
 
-                // Create a new crs record to redirect to the internallink course
+                // Create a new crs record to redirect to the internallink course.
                 $ins = new stdClass();
                 $ins->courseid = $newcourse->id;
                 $ins->resourceid = $resourceid;
@@ -443,7 +448,7 @@ class campusconnect_course {
                 $DB->update_record('course', $realcourse);
                 $DB->update_record('course', $swapcourse);
 
-                // Swap the directoryids & sortorder for these courses
+                // Swap the directoryids & sortorder for these courses.
                 $crs1 = $DB->get_record('local_campusconnect_crs', array('courseid' => $realcourse->id),
                                         'id, sortorder, directoryid', MUST_EXIST);
                 $crs2 = $DB->get_record('local_campusconnect_crs', array('courseid' => $swapcourseid),
@@ -457,8 +462,16 @@ class campusconnect_course {
         }
 
         // Create new courses for parallel groups that didn't exist before.
-        foreach ($pgnotmatched as $pgcourse) {
-            self::create_new_course($ecssettings, $resourceid, $course, $mid, $coursedata, $pgclass, $pgroupmode, $pgcourse, $categories);
+        if ($pgnotmatched) {
+            $courseids = array();
+            foreach ($pgnotmatched as $pgcourse) {
+                $courseids[] = self::create_new_course($ecssettings, $resourceid, $course, $mid, $coursedata, $pgclass,
+                                                       $pgroupmode, $pgcourse, $categories);
+            }
+            // Not calling campusconnect_membership::assign_course_users here as this will have already been processed for this
+            // cmscourseid at the point when the 'course' resource was first created OR at the point when the 'course_member'
+            // resource was first created (if this was after the 'course' resource was created). There should be no outstanding
+            // 'course_member' resource requests for this course.
         }
 
         return true;

@@ -37,6 +37,105 @@ class campusconnect_membership_exception extends moodle_exception {
     }
 }
 
+class campusconnect_member_personid {
+    public $id;
+    public $type;
+
+    const CUSTOM_FIELD_PREFIX = 'custom_';
+
+    public static $valididtypes = array(campusconnect_courselink::PERSON_UNIQUECODE, campusconnect_courselink::PERSON_EPPN,
+                                        campusconnect_courselink::PERSON_LOGIN, campusconnect_courselink::PERSON_LOGINUID,
+                                        campusconnect_courselink::PERSON_UID, campusconnect_courselink::PERSON_EMAIL);
+
+    protected static $mapping = null;
+
+    public function __construct($personid, $personidtype) {
+        if (!self::valid_type($personidtype)) {
+            throw new moodle_exception('invalidpersonidtype', 'local_campusconnect');
+        }
+        $this->id = $personid;
+        $this->type = $personidtype;
+    }
+
+    public static function valid_type($personidtype) {
+        return in_array($personidtype, self::$valididtypes);
+    }
+
+    public static function get_type_from_member($member) {
+        if (isset($member->personIDtype)) {
+            if (self::valid_type($member->personIDtype)) {
+                return $member->personIDtype;
+            } else {
+                campusconnect_log::add("Invalid personIDtype in course_members resource: {$member->personIDtype}");
+                return null;
+            }
+        }
+        return campusconnect_courselink::PERSON_LOGIN; // Default type, if none specified.
+    }
+
+    public static function get_possible_user_fields() {
+        return campusconnect_participantsettings::get_possible_export_fields();
+    }
+
+    public static function get_mapping() {
+        if (!self::$mapping) {
+            if ($mapping = get_config('local_campusconnect', 'member_personid_mapping')) {
+                self::$mapping = unserialize($mapping);
+            } else {
+                self::$mapping = array(
+                    campusconnect_courselink::PERSON_UNIQUECODE => null,
+                    campusconnect_courselink::PERSON_EPPN => null,
+                    campusconnect_courselink::PERSON_LOGIN => 'username',
+                    campusconnect_courselink::PERSON_LOGINUID => null,
+                    campusconnect_courselink::PERSON_UID => 'id',
+                    campusconnect_courselink::PERSON_EMAIL => 'email',
+                );
+            }
+        }
+        return self::$mapping;
+    }
+
+    public static function set_mapping($mapping) {
+        $possibleuserfields = self::get_possible_user_fields();
+        foreach ($mapping as $personidtype => $userfield) {
+            if (!in_array($userfield, $possibleuserfields)) {
+                $mapping[$personidtype] = null; // Invalid Moodle user field => clear the mapping.
+            }
+            if (!self::valid_type($personidtype)) {
+                unset($mapping[$personidtype]); // Invalid persondidtype => remove the mapping.
+            }
+        }
+        foreach (self::$valididtypes as $personidtype) {
+            if (!array_key_exists($personidtype, $mapping)) {
+                $mapping[$personidtype] = null; // Make sure all mappings are present.
+            }
+        }
+        self::$mapping = $mapping;
+        set_config('member_personid_mapping', serialize($mapping), 'local_campusconnect');
+    }
+
+    public static function reset_default_mapping() {
+        unset_config('member_personid_mapping', 'local_campusconnect');
+        self::$mapping = null;
+    }
+
+    public static function get_userfield_from_type($personidtype) {
+        $mapping = self::get_mapping();
+        if (!array_key_exists($personidtype, $mapping)) {
+            throw new coding_exception("Invalid personidtype: {$personidtype}");
+        }
+        return $mapping[$personidtype];
+    }
+
+    public static function is_custom_field($fieldname) {
+        $len = strlen(self::CUSTOM_FIELD_PREFIX);
+        if (substr($fieldname, 0, $len) == self::CUSTOM_FIELD_PREFIX) {
+            return substr($fieldname, $len);
+        }
+        return false;
+    }
+}
+
 /**
  * Looks after membership update requests.
  */
@@ -73,7 +172,7 @@ class campusconnect_membership {
         $mid = $transferdetails->get_sender_mid();
         $ecsid = $ecssettings->get_id();
         if (!$cms || $cms->get_mid() != $mid || $cms->get_ecs_id() != $ecsid) {
-            throw new campusconnect_course_exception("Received create membership event from non-CMS participant");
+            throw new campusconnect_membership_exception("Received create membership event from non-CMS participant");
         }
 
         if (self::get_by_resourceid($resourceid)) {
@@ -91,6 +190,9 @@ class campusconnect_membership {
         $ins->cmscourseid = $membership->lectureID;
         foreach ($membership->members as $member) {
             $ins->personid = $member->personID;
+            if (!$ins->personidtype = campusconnect_member_personid::get_type_from_member($member)) {
+                continue; // Invalid personidtype - skip this member.
+            }
 
             $ins->role = self::ROLE_UNSPECIFIED;
             if (isset($member->role)) {
@@ -121,7 +223,7 @@ class campusconnect_membership {
         $mid = $transferdetails->get_sender_mid();
         $ecsid = $ecssettings->get_id();
         if (!$cms || $cms->get_mid() != $mid || $cms->get_ecs_id() != $ecsid) {
-            throw new campusconnect_course_exception("Received create membership event from non-CMS participant");
+            throw new campusconnect_membership_exception("Received create membership event from non-CMS participant");
         }
 
         $currmembers = self::get_by_resourceid($resourceid);
@@ -133,24 +235,24 @@ class campusconnect_membership {
             $membership = reset($membership);
         }
 
-        // Sort all the existing memberships by courseid and personid
+        // Sort all the existing memberships by courseid and personid.
         $sortedcurrmembers = array();
-        $sortedcurrmembers[$membership->courseID] = array();
+        $sortedcurrmembers[$membership->lectureID] = array();
         foreach ($currmembers as $idx => $currmember) {
-            if ($currmember->cmscourseid == $membership->courseID) {
-                $sortedcurrmembers[$membership->courseID][$currmember->personid] = $currmember;
+            if ($currmember->cmscourseid == $membership->lectureID) {
+                $sortedcurrmembers[$currmember->cmscourseid][$currmember->personidtype][$currmember->personid] = $currmember;
             }
             unset($currmembers[$idx]);
         }
 
-        // Mark any records that do not match any cmscourseid as deleted (a new enrolment will be created below)
+        // Mark any records that do not match any cmscourseid as deleted (a new enrolment will be created below).
         foreach ($currmembers as $currmember) {
             if ($currmember->status != self::STATUS_DELETED) {
                 if ($currmember->status == self::STATUS_CREATED) {
-                    // Record created, but never used => just delete the record
+                    // Record created, but never used => just delete the record.
                     $DB->delete_records('local_campusconnect_mbr', array('id' => $currmember->id));
                 } else {
-                    // Record created & used => mark for deletion
+                    // Record created & used => mark for deletion.
                     $upd = new stdClass();
                     $upd->id = $currmember->id;
                     $upd->status = self::STATUS_DELETED;
@@ -159,34 +261,38 @@ class campusconnect_membership {
             }
         }
 
-        // Now compare the membership lists - add new members, update roles for existing members, remove expired members
+        // Now compare the membership lists - add new members, update roles for existing members, remove expired members.
         foreach ($membership->members as $member) {
             $pgroups = self::prepare_parallel_groups($member);
-            if (isset($sortedcurrmembers[$membership->courseID][$member->personID])) {
+            if (!$personidtype = campusconnect_member_personid::get_type_from_member($member)) {
+                continue; // Invalid personidtype - skip this member.
+            }
+            $role = (isset($member->role) && in_array($member->role, self::$validroles)) ? $member->role : self::ROLE_UNSPECIFIED;
+            if (isset($sortedcurrmembers[$membership->lectureID][$personidtype][$member->personID])) {
                 // Existing member - check if the role has changed.
-                $curr = $sortedcurrmembers[$membership->courseID][$member->personID];
-                if ($curr->role == $member->courseRole && $curr->status != self::STATUS_DELETED
-                    && $curr->parallelgroups == $pgroups) {
-                    // Unchanged role assignment - nothing to update.
-                } else {
+                $curr = $sortedcurrmembers[$membership->lectureID][$personidtype][$member->personID];
+                if ($curr->role != $role || $curr->status == self::STATUS_DELETED || $curr->parallelgroups != $pgroups) {
+                    // Something has changed - update the record.
                     $upd = new stdClass();
                     $upd->id = $curr->id;
-                    $upd->role = $member->courseRole;
+                    $upd->role = $member->role;
                     $upd->parallelgroups = $pgroups;
                     if ($curr->status != self::STATUS_CREATED) {
                         $upd->status = self::STATUS_UPDATED;
                     }
                     $DB->update_record('local_campusconnect_mbr', $upd);
                 }
-                unset($sortedcurrmembers[$membership->courseID][$member->personID]); // Remove from list, so not deleted at the end.
+                // Remove from list, so not deleted at the end.
+                unset($sortedcurrmembers[$membership->lectureID][$personidtype][$member->personID]);
             } else {
-                // New member
+                // New member.
                 $ins = new stdClass();
                 $ins->resourceid = $resourceid;
-                $ins->cmscourseid = $membership->courseID;
+                $ins->cmscourseid = $membership->lectureID;
                 $ins->status = self::STATUS_CREATED;
                 $ins->personid = $member->personID;
-                $ins->role = $member->courseRole;
+                $ins->personidtype = $personidtype;
+                $ins->role = $member->role;
                 $ins->parallelgroups = $pgroups;
 
                 $DB->insert_record('local_campusconnect_mbr', $ins);
@@ -194,17 +300,19 @@ class campusconnect_membership {
         }
 
         // Remove any members who are no longer in the list.
-        foreach ($sortedcurrmembers as $coursemembers) {
-            foreach ($coursemembers as $removedmember) {
-                if ($removedmember->status == self::STATUS_CREATED) {
-                    // Record was created but never processed - just delete it.
-                    $DB->delete_records('local_campusconnect_mbr', array('id' => $removedmember->id));
-                } else if ($removedmember->status != self::STATUS_DELETED) {
-                    // Mark record as ready for deletion.
-                    $upd = new stdClass();
-                    $upd->id = $removedmember->id;
-                    $upd->status = self::STATUS_DELETED;
-                    $DB->update_record('local_campusconnect_mbr', $upd);
+        foreach ($sortedcurrmembers as $personidtypes) {
+            foreach ($personidtypes as $coursemembers) {
+                foreach ($coursemembers as $removedmember) {
+                    if ($removedmember->status == self::STATUS_CREATED) {
+                        // Record was created but never processed - just delete it.
+                        $DB->delete_records('local_campusconnect_mbr', array('id' => $removedmember->id));
+                    } else if ($removedmember->status != self::STATUS_DELETED) {
+                        // Mark record as ready for deletion.
+                        $upd = new stdClass();
+                        $upd->id = $removedmember->id;
+                        $upd->status = self::STATUS_DELETED;
+                        $DB->update_record('local_campusconnect_mbr', $upd);
+                    }
                 }
             }
         }
@@ -302,7 +410,7 @@ class campusconnect_membership {
             return $ret;
         }
         if ($cms->get_ecs_id() != $ecssettings->get_id()) {
-            // Not refreshing the ECS that the CMS is attached to
+            // Not refreshing the ECS that the CMS is attached to.
             return $ret;
         }
 
@@ -326,7 +434,7 @@ class campusconnect_membership {
                 $ret->updated[] = $resourceid;
                 unset($memberships[$resourceid]); // So we can delete anything left in the list at the end.
             } else {
-                // We don't already have this membership list
+                // We don't already have this membership list.
                 if (empty($details)) {
                     continue; // This probably shouldn't occur, but we're just going to ignore it.
                 }
@@ -356,37 +464,37 @@ class campusconnect_membership {
 
         // Check the enrolment plugin is enabled and we are on the correct ECS for processing course members.
 
-        if (!enrol_is_enabled('campusconnect')) {
-            if ($output) {
-                mtrace("CampusConnect enrolment plugin not enabled - no enrolments will take place\n");
-            }
-            return;
-        }
-        /** @var $enrol enrol_plugin */
-        if (!$enrol = enrol_get_plugin('campusconnect')) {
-            if ($output) {
-                mtrace("CampusConnect enrolment cannot be loaded - no enrolments will take place\n");
-            }
-            return;
-        }
-
         /** @var $cms campusconnect_participantsettings */
         $cms = campusconnect_participantsettings::get_cms_participant();
         if (!$cms || $cms->get_ecs_id() != $ecssettings->get_id()) {
             return; // Not processing the CMS's ECS at the moment.
         }
 
-        // Load membership list items from the database (which have status != ASSIGNED)
+        // Load membership list items from the database (which have status != ASSIGNED).
         $memberships = $DB->get_records_select('local_campusconnect_mbr', 'status != ?', array(self::STATUS_ASSIGNED));
         if (empty($memberships)) {
             return;
         }
 
-        // Get a list of all affected users
+        if (!enrol_is_enabled('campusconnect')) {
+            if ($output) {
+                campusconnect_log::add("CampusConnect enrolment plugin not enabled - no enrolments will take place");
+            }
+            return;
+        }
+        /** @var $enrol enrol_plugin */
+        if (!$enrol = enrol_get_plugin('campusconnect')) {
+            if ($output) {
+                campusconnect_log::add("CampusConnect enrolment cannot be loaded - no enrolments will take place");
+            }
+            return;
+        }
+
+        // Get a list of all affected users.
         $personids = array();
         $cmscourseids = array();
         foreach ($memberships as $membership) {
-            $personids[$membership->personid] = $membership->personid;
+            $personids[] = new campusconnect_member_personid($membership->personid, $membership->personidtype);
             $cmscourseids[$membership->cmscourseid] = $membership->cmscourseid;
         }
         $userids = self::get_userids_from_personids($personids);
@@ -411,13 +519,13 @@ class campusconnect_membership {
 
         // Call 'assign_role' on each of them.
         foreach ($memberships as $membership) {
-            if (!isset($userids[$membership->personid])) {
+            if (!isset($userids[$membership->personidtype][$membership->personid])) {
                 if ($output) {
                     mtrace("User '{$membership->personid}' not found - skipping");
                 }
                 continue; // User doesn't (yet) exist - skip them.
             }
-            $userid = $userids[$membership->personid];
+            $userid = $userids[$membership->personidtype][$membership->personid];
             if (!isset($mappedcourseids[$membership->cmscourseid])) {
                 if ($output) {
                     mtrace("Course '{$membership->cmscourseid}' not found - skipping");
@@ -490,11 +598,11 @@ class campusconnect_membership {
 
     /**
      * Process the 'create course' event and see if any user memberships have already been sent for this course
-     * @param object $course
+     * @param int[] $courseids
      * @param $cmscourseid
      * @return bool true if successful
      */
-    public static function assign_course_users($course, $cmscourseid) {
+    public static function assign_course_users($courseids, $cmscourseid) {
         global $DB;
 
         $memberships = self::get_by_cmscourseids(array($cmscourseid));
@@ -510,46 +618,48 @@ class campusconnect_membership {
             return true;
         }
 
-        // Get a list of all affected users
+        // Get a list of all affected users.
         $personids = array();
         foreach ($memberships as $membership) {
-            $personids[$membership->personid] = $membership->personid;
+            $personids[] = new campusconnect_member_personid($membership->personid, $membership->personidtype);
         }
         $userids = self::get_userids_from_personids($personids);
 
         // Get a list of the enrol instances for 'campusconnect' in these courses.
-        $enrolinstance = $DB->get_records('enrol', array('enrol' => 'campusconnect', 'courseid' => $course->id),
-                                          'sortorder, id ASC', '*', 0, 1);
-        if (empty($enrolinstance)) {
-            $enrolinstance = self::add_enrol_instance($course->id, $enrol);
-        } else {
-            $enrolinstance = reset($enrolinstance);
+        list($csql, $params) = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED);
+        $enrolinstances = $DB->get_recordset_select('enrol', "enrol = 'campusconnect' AND courseid $csql", $params,
+                                                    'sortorder, id ASC');
+        $courseenrol = array();
+        foreach ($enrolinstances as $enrolinstance) {
+            if (!isset($courseenol[$enrolinstance->courseid])) { // Only use the first instance of campusconnect enrol in a course.
+                $courseenrol[$enrolinstance->courseid] = $enrolinstance;
+            }
         }
 
         // Call 'assign_role' on each of them.
         foreach ($memberships as $membership) {
-            if (!isset($userids[$membership->personid])) {
+            if (!isset($userids[$membership->personidtype][$membership->personid])) {
                 continue; // User doesn't (yet) exist - skip them.
             }
-            $userid = $userids[$membership->personid];
+            $userid = $userids[$membership->personidtype][$membership->personid];
             $pgroups = self::extract_parallel_groups($membership);
-            $pgroups = campusconnect_parallelgroups::get_groups_for_user($pgroups, $cmscourseid, array($course->id), $membership->role);
+            $pgroups = campusconnect_parallelgroups::get_groups_for_user($pgroups, $cmscourseid, $courseids, $membership->role);
 
             $assigned = false;
             foreach ($pgroups as $pgroup) {
-                if ($pgroup->courseid != $course->id) {
-                    continue;
+                if (!in_array($pgroup->courseid, $courseids)) {
+                    continue; // I'm not sure this should happen, but handle it gracefully.
                 }
                 $roleid = self::get_roleid($pgroup->role);
-                $enrol->enrol_user($enrolinstance, $userid, $roleid);
+                if (!isset($courseenrol[$pgroup->courseid])) {
+                    // No existing campusconnect enrol instance for this course => create one.
+                    $courseenrol[$pgroup->courseid] = self::add_enrol_instance($pgroup->courseid, $enrol);
+                }
+                $enrol->enrol_user($courseenrol[$pgroup->courseid], $userid, $roleid);
                 $assigned = true;
             }
 
             if ($assigned) {
-                // Theoretically, a user who was assigned to multiple parallel groups (in a single membership message) and
-                // whose membership message was processed before the course was created and where the parallel groups
-                // mode was set to create multiple courses could end up only enroled into one of those courses. If this
-                // ever happens, I'll rewrite this code. Until then, it would be a lot of work for a very obscure case.
                 $upd = new stdClass();
                 $upd->id = $membership->id;
                 $upd->status = self::STATUS_ASSIGNED;
@@ -581,7 +691,7 @@ class campusconnect_membership {
             return true;
         }
 
-        // Get a list of all the courses to enrol the user into
+        // Get a list of all the courses to enrol the user into.
         $cmscourseids = array();
         foreach ($memberships as $membership) {
             $cmscourseids[$membership->cmscourseid] = $membership->cmscourseid;
@@ -641,19 +751,72 @@ class campusconnect_membership {
 
     /**
      * Take a list of personids given by the ECS and return a list of Moodle userids that these relate to
-     * @param string[] $personids
-     * @return int[] the Moodle userids: personid => userid
+     * @param campusconnect_member_personid[] $personids
+     * @return int[][] the Moodle userids: [personidtype => [personid => userid]]
      */
     protected static function get_userids_from_personids($personids) {
-        // Assumes, for now, that the 'personids' are the 'usernames' of the users.
         global $DB;
 
         if (empty($personids)) {
             return array();
         }
 
-        list($psql, $params) = $DB->get_in_or_equal($personids);
-        return $DB->get_records_select_menu('user', "username $psql", $params, '', 'username, id');
+        // Organise the personids by personidtype.
+        $bytype = array();
+        foreach ($personids as $personid) {
+            if (!is_object($personid) || get_class($personid) != 'campusconnect_member_personid') {
+                throw new coding_exception('get_userids_from_personids expects an array of campusconnect_member_personid objects');
+            }
+            if (!isset($bytype[$personid->type])) {
+                $bytype[$personid->type] = array();
+            }
+            $bytype[$personid->type][$personid->id] = $personid->id; // Avoid duplicates.
+        }
+
+        // Process the different personidtypes one at a time (possibly slightly inefficient, but should rarely be more than one).
+        $ret = array();
+        foreach ($bytype as $personidtype => $personids) {
+            $ret[$personidtype] = array();
+            if (!$userfield = campusconnect_member_personid::get_userfield_from_type($personidtype)) {
+                campusconnect_log::add("personIDtype '{$personidtype}' included in course_members resource, but not currently mapped onto a Moodle user field");
+                continue;
+            }
+            list($psql, $params) = $DB->get_in_or_equal($personids, SQL_PARAMS_NAMED);
+            if ($fieldname = campusconnect_member_personid::is_custom_field($userfield)) {
+                // Look for the personid in the 'user_info_data' table.
+                $sql = "SELECT u.id, ud.data AS personid
+                              FROM {user} u
+                              JOIN {user_info_data} ud ON ud.userid = u.id
+                              JOIN {user_info_field} uf ON uf.id = ud.fieldid
+                             WHERE uf.shortname = :fieldname AND ud.data $psql";
+                $params['fieldname'] = $fieldname;
+                $users = $DB->get_recordset_sql($sql, $params);
+            } else {
+                // Look for the personid in the 'user' table.
+                $users = $DB->get_recordset_list('user', $userfield, $personids, '', "id, {$userfield} AS personid");
+            }
+            foreach ($users as $user) {
+                if (isset($ret[$personidtype][$user->personid])) {
+                    // Note duplicates, but do not remove them yet, in case there are further duplicates for the same personid.
+                    campusconnect_log::add("More than one user found with {$fieldname} (mapped from {$personidtype}) set to {$user->personid}");
+                    $ret[$personidtype][$user->personid] = 0;
+                } else {
+                    $ret[$personidtype][$user->personid] = $user->id;
+                }
+            }
+            // Remove any duplicate entries.
+            foreach ($ret[$personidtype] as $personid => $userid) {
+                if ($userid == 0) {
+                    unset($ret[$personidtype][$personid]);
+                }
+            }
+            // Clear the entry in the outer array, if no personids found.
+            if (!$ret[$personidtype]) {
+                unset($ret[$personidtype]);
+            }
+        }
+
+        return $ret;
     }
 
     /**
@@ -662,11 +825,37 @@ class campusconnect_membership {
      * @return object[] the local_campusconnect_mbr that relate to the given user
      */
     protected static function get_by_user($user) {
-        // Assumes, for now, that the 'personids' are the 'usernames' of the users.
-        global $DB;
-        return $DB->get_records_select('local_campusconnect_mbr', "personid = :username AND (status = :created OR status = :updated)",
-                                       array('username' => $user->username, 'created' => self::STATUS_CREATED,
-                                            'updated' => self::STATUS_UPDATED));
+        global $DB, $CFG;
+
+        // Find all ways this user could be identified, based on the different personidtypes.
+        $ret = array();
+        foreach (campusconnect_member_personid::$valididtypes as $personidtype) {
+            if (!$userfield = campusconnect_member_personid::get_userfield_from_type($personidtype)) {
+                continue; // Personidtype not mapped => skip it.
+            }
+            if ($fieldname = campusconnect_member_personid::is_custom_field($userfield)) {
+                if (!isset($user->profile)) {
+                    require_once($CFG->dirroot.'/user/profile/lib.php');
+                    profile_load_custom_fields($user);
+                }
+                if (empty($user->profile[$fieldname])) {
+                    continue; // No value set for this user.
+                }
+                $personid = $user->profile[$fieldname];
+            } else {
+                if (empty($user->$userfield)) {
+                    continue; // No value set for this user.
+                }
+                $personid = $user->$userfield;
+            }
+            $select = "personid = :personid AND personidtype = :personidtype AND (status = :created OR status = :updated)";
+            $params = array('personid' => $personid, 'personidtype' => $personidtype,
+                            'created' => self::STATUS_CREATED, 'updated' => self::STATUS_UPDATED);
+            $records = $DB->get_records_select('local_campusconnect_mbr', $select, $params);
+            $ret = $ret + $records;
+        }
+
+        return $ret;
     }
 
     /**

@@ -53,7 +53,7 @@ class local_campusconnect_coursemembers_test extends advanced_testcase {
     protected $transferdetails = null;
     protected $users = array();
 
-    protected $usernames = array('user1', 'user2', 'user3', 'user4');
+    protected $usernames = array('user1', 'user2', 'user3', 'user4', 'user5');
 
     protected $directorydata = array(1001 => 'dir1', 1002 => 'dir2', 1003 => 'dir3');
     protected $coursedata = '
@@ -241,7 +241,7 @@ class local_campusconnect_coursemembers_test extends advanced_testcase {
             $this->mid[$key] = $key * 10; // Real MID not needed, as no actual connection is created.
         }
 
-        // Set participant 1 as the CMS for participant 2
+        // Set participant 1 as the CMS for participant 2.
         $part = (object)array(
             'ecsid' => $this->settings[2]->get_id(),
             'mid' => $this->mid[1],
@@ -280,7 +280,7 @@ class local_campusconnect_coursemembers_test extends advanced_testcase {
 
         // Create some users to be enrolled in the course.
         foreach ($this->usernames as $username) {
-            // statslib_test has an annoying habit of creating 'user1' + 'user2', even when not running those tests.
+            // Statslib_test has an annoying habit of creating 'user1' + 'user2', even when not running those tests.
             if (!$user = $DB->get_record('user', array('username' => $username))) {
                 $user = $this->getDataGenerator()->create_user(array('username' => $username));
             }
@@ -307,6 +307,8 @@ class local_campusconnect_coursemembers_test extends advanced_testcase {
                 }
             }
         }
+
+        campusconnect_member_personid::reset_default_mapping(); // Clear the static variable.
     }
 
     public function test_parse_memberdata() {
@@ -391,7 +393,7 @@ class local_campusconnect_coursemembers_test extends advanced_testcase {
     public function test_create_members_nogroups() {
         global $DB;
 
-        // Course create request from participant 1 to participant 2
+        // Course create request from participant 1 to participant 2.
         $courseresourceid = -10;
         $memberresourceid = -20;
         $course = json_decode($this->coursedata);
@@ -405,65 +407,73 @@ class local_campusconnect_coursemembers_test extends advanced_testcase {
         $course1 = array_shift($courses);
         $course2 = array_shift($courses);
 
-        // Create the course members.
         $members = json_decode($this->coursemembers);
-        campusconnect_membership::create($memberresourceid, $this->settings[2], $members, $this->transferdetails);
-        campusconnect_membership::assign_all_roles($this->settings[2]);
+        for ($i = 1; $i <= 2; $i++) {
+            if ($i == 1) {
+                // Create the course members.
+                campusconnect_membership::create($memberresourceid, $this->settings[2], $members, $this->transferdetails);
+                campusconnect_membership::assign_all_roles($this->settings[2]);
+            } else {
+                // Update the course members - check that an identical update does not break anything.
+                campusconnect_membership::update($memberresourceid, $this->settings[2], $members, $this->transferdetails);
+                campusconnect_membership::assign_all_roles($this->settings[2]);
+            }
 
-        // Check the users are enroled on the 'real' course.
-        $userids = array();
-        foreach ($this->users as $user) {
-            $userids[] = $user->id;
+            // Check the users are enroled on the 'real' course.
+            $userids = array();
+            foreach ($this->users as $user) {
+                $userids[] = $user->id;
+            }
+
+            $userenrolments = self::get_course_enrolments($course1->id, $userids);
+            $this->assertCount(4, $userenrolments);
+            foreach ($userenrolments as $userenrolment) {
+                $this->assertEquals('campusconnect', $userenrolment->enrol);
+            }
+
+            // Check no users have been enroled on the course link.
+            $userenrolments = self::get_course_enrolments($course2->id, $userids);
+            $this->assertEmpty($userenrolments);
+
+            // Check the roles that each user has been given.
+            $context = context_course::instance($course1->id);
+            $roles1 = get_user_roles($context, $this->users[0]->id, false);
+            $roles2 = get_user_roles($context, $this->users[1]->id, false);
+            $roles3 = get_user_roles($context, $this->users[2]->id, false);
+            $roles4 = get_user_roles($context, $this->users[3]->id, false);
+
+            $this->assertCount(1, $roles1); // Each user should only have 1 role in the course.
+            $this->assertCount(1, $roles2);
+            $this->assertCount(1, $roles3);
+            $this->assertCount(1, $roles4);
+
+            $role1 = reset($roles1);
+            $role2 = reset($roles2);
+            $role3 = reset($roles3);
+            $role4 = reset($roles4);
+
+            $this->assertEquals('teacher', $role1->shortname); // Membership role..
+            $this->assertEquals('student', $role2->shortname); // Membership role.
+            $this->assertEquals('editingteacher', $role3->shortname); // Membership role.
+            $this->assertEquals('student', $role4->shortname); // Default role.
+
+            // Check no group memberships.
+            $groups1 = self::get_groups($course1->id, $this->users[0]->id);
+            $groups2 = self::get_groups($course1->id, $this->users[1]->id);
+            $groups3 = self::get_groups($course1->id, $this->users[2]->id);
+            $groups4 = self::get_groups($course1->id, $this->users[3]->id);
+
+            $this->assertEmpty($groups1);
+            $this->assertEmpty($groups2);
+            $this->assertEmpty($groups3);
+            $this->assertEmpty($groups4);
         }
-
-        $userenrolments = self::get_course_enrolments($course1->id, $userids);
-        $this->assertCount(4, $userenrolments);
-        foreach ($userenrolments as $userenrolment) {
-            $this->assertEquals('campusconnect', $userenrolment->enrol);
-        }
-
-        // Check no users have been enroled on the course link.
-        $userenrolments = self::get_course_enrolments($course2->id, $userids);
-        $this->assertEmpty($userenrolments);
-
-        // Check the roles that each user has been given.
-        $context = context_course::instance($course1->id);
-        $roles1 = get_user_roles($context, $this->users[0]->id, false);
-        $roles2 = get_user_roles($context, $this->users[1]->id, false);
-        $roles3 = get_user_roles($context, $this->users[2]->id, false);
-        $roles4 = get_user_roles($context, $this->users[3]->id, false);
-
-        $this->assertCount(1, $roles1); // Each user should only have 1 role in the course.
-        $this->assertCount(1, $roles2);
-        $this->assertCount(1, $roles3);
-        $this->assertCount(1, $roles4);
-
-        $role1 = reset($roles1);
-        $role2 = reset($roles2);
-        $role3 = reset($roles3);
-        $role4 = reset($roles4);
-
-        $this->assertEquals('teacher', $role1->shortname); // Membership role..
-        $this->assertEquals('student', $role2->shortname); // Membership role.
-        $this->assertEquals('editingteacher', $role3->shortname); // Membership role.
-        $this->assertEquals('student', $role4->shortname); // Default role.
-
-        // Check no group memberships.
-        $groups1 = self::get_groups($course1->id, $this->users[0]->id);
-        $groups2 = self::get_groups($course1->id, $this->users[1]->id);
-        $groups3 = self::get_groups($course1->id, $this->users[2]->id);
-        $groups4 = self::get_groups($course1->id, $this->users[3]->id);
-
-        $this->assertEmpty($groups1);
-        $this->assertEmpty($groups2);
-        $this->assertEmpty($groups3);
-        $this->assertEmpty($groups4);
     }
 
     public function test_create_members_separategroups() {
         global $DB;
 
-        // Course create request from participant 1 to participant 2
+        // Course create request from participant 1 to participant 2.
         $courseresourceid = -10;
         $memberresourceid = -20;
         $course = json_decode($this->coursedata);
@@ -476,71 +486,79 @@ class local_campusconnect_coursemembers_test extends advanced_testcase {
         $course1 = array_shift($courses);
         $course2 = array_shift($courses);
 
-        // Create the course members.
         $members = json_decode($this->coursemembers);
-        campusconnect_membership::create($memberresourceid, $this->settings[2], $members, $this->transferdetails);
-        campusconnect_membership::assign_all_roles($this->settings[2]);
+        for ($i = 1; $i <= 2; $i++) {
+            if ($i == 1) {
+                // Create the course members.
+                campusconnect_membership::create($memberresourceid, $this->settings[2], $members, $this->transferdetails);
+                campusconnect_membership::assign_all_roles($this->settings[2]);
+            } else {
+                // Update the course members - check that an identical update does not break anything.
+                campusconnect_membership::update($memberresourceid, $this->settings[2], $members, $this->transferdetails);
+                campusconnect_membership::assign_all_roles($this->settings[2]);
+            }
 
-        // Check the users are enroled on the 'real' course.
-        $userids = array();
-        foreach ($this->users as $user) {
-            $userids[] = $user->id;
+            // Check the users are enroled on the 'real' course.
+            $userids = array();
+            foreach ($this->users as $user) {
+                $userids[] = $user->id;
+            }
+
+            $userenrolments = self::get_course_enrolments($course1->id, $userids);
+            $this->assertCount(4, $userenrolments);
+            foreach ($userenrolments as $userenrolment) {
+                $this->assertEquals('campusconnect', $userenrolment->enrol);
+            }
+
+            // Check no users have been enroled on the course link.
+            $userenrolments = self::get_course_enrolments($course2->id, $userids);
+            $this->assertEmpty($userenrolments);
+
+            // Check the roles that each user has been given.
+            $context = context_course::instance($course1->id);
+            $roles1 = get_user_roles($context, $this->users[0]->id, false);
+            $roles2 = get_user_roles($context, $this->users[1]->id, false);
+            $roles3 = get_user_roles($context, $this->users[2]->id, false);
+            $roles4 = get_user_roles($context, $this->users[3]->id, false);
+
+            $this->assertCount(1, $roles1);
+            $this->assertCount(1, $roles2);
+            $this->assertCount(2, $roles3);
+            $this->assertCount(1, $roles4);
+
+            $role1 = reset($roles1);
+            $role2 = reset($roles2);
+            $role3 = reset($roles3);
+            $role3b = next($roles3);
+            $role4 = reset($roles4);
+
+            $this->assertEquals('editingteacher', $role1->shortname); // From group 0.
+            $this->assertEquals('student', $role2->shortname); // Membership role.
+            $this->assertEquals('teacher', $role3->shortname); // From group 1.
+            $this->assertEquals('student', $role3b->shortname); // From group 0.
+            $this->assertEquals('student', $role4->shortname); // Default role.
+
+            // Check the group memberships.
+            $groups1 = self::get_groups($course1->id, $this->users[0]->id);
+            $groups2 = self::get_groups($course1->id, $this->users[1]->id);
+            $groups3 = self::get_groups($course1->id, $this->users[2]->id);
+            $groups4 = self::get_groups($course1->id, $this->users[3]->id);
+
+            $this->assertCount(1, $groups1);
+            $this->assertCount(0, $groups2);
+            $this->assertCount(2, $groups3);
+            $this->assertCount(1, $groups4);
+
+            $this->assertEmpty(array_diff(array('Test Group1'), $groups1));
+            $this->assertEmpty(array_diff(array('Test Group1', 'Test Group2'), $groups3));
+            $this->assertEmpty(array_diff(array('Test Group2'), $groups4));
         }
-
-        $userenrolments = self::get_course_enrolments($course1->id, $userids);
-        $this->assertCount(4, $userenrolments);
-        foreach ($userenrolments as $userenrolment) {
-            $this->assertEquals('campusconnect', $userenrolment->enrol);
-        }
-
-        // Check no users have been enroled on the course link.
-        $userenrolments = self::get_course_enrolments($course2->id, $userids);
-        $this->assertEmpty($userenrolments);
-
-        // Check the roles that each user has been given.
-        $context = context_course::instance($course1->id);
-        $roles1 = get_user_roles($context, $this->users[0]->id, false);
-        $roles2 = get_user_roles($context, $this->users[1]->id, false);
-        $roles3 = get_user_roles($context, $this->users[2]->id, false);
-        $roles4 = get_user_roles($context, $this->users[3]->id, false);
-
-        $this->assertCount(1, $roles1);
-        $this->assertCount(1, $roles2);
-        $this->assertCount(2, $roles3);
-        $this->assertCount(1, $roles4);
-
-        $role1 = reset($roles1);
-        $role2 = reset($roles2);
-        $role3 = reset($roles3);
-        $role3b = next($roles3);
-        $role4 = reset($roles4);
-
-        $this->assertEquals('editingteacher', $role1->shortname); // From group 0.
-        $this->assertEquals('student', $role2->shortname); // Membership role.
-        $this->assertEquals('teacher', $role3->shortname); // From group 1.
-        $this->assertEquals('student', $role3b->shortname); // From group 0.
-        $this->assertEquals('student', $role4->shortname); // Default role.
-
-        // Check the group memberships.
-        $groups1 = self::get_groups($course1->id, $this->users[0]->id);
-        $groups2 = self::get_groups($course1->id, $this->users[1]->id);
-        $groups3 = self::get_groups($course1->id, $this->users[2]->id);
-        $groups4 = self::get_groups($course1->id, $this->users[3]->id);
-
-        $this->assertCount(1, $groups1);
-        $this->assertCount(0, $groups2);
-        $this->assertCount(2, $groups3);
-        $this->assertCount(1, $groups4);
-
-        $this->assertEmpty(array_diff(array('Test Group1'), $groups1));
-        $this->assertEmpty(array_diff(array('Test Group1', 'Test Group2'), $groups3));
-        $this->assertEmpty(array_diff(array('Test Group2'), $groups4));
     }
 
     public function test_create_members_separatecourses() {
         global $DB;
 
-        // Course create request from participant 1 to participant 2
+        // Course create request from participant 1 to participant 2.
         $courseresourceid = -10;
         $memberresourceid = -20;
         $course = json_decode($this->coursedata);
@@ -555,10 +573,381 @@ class local_campusconnect_coursemembers_test extends advanced_testcase {
         $course3 = array_shift($courses);
         $course4 = array_shift($courses);
 
-        // Create the course members.
+        $members = json_decode($this->coursemembers);
+        for ($i = 1; $i <= 2; $i++) {
+            if ($i == 1) {
+                // Create the course members.
+                campusconnect_membership::create($memberresourceid, $this->settings[2], $members, $this->transferdetails);
+                campusconnect_membership::assign_all_roles($this->settings[2]);
+            } else {
+                // Update the course members - check that an identical update does not break anything.
+                campusconnect_membership::update($memberresourceid, $this->settings[2], $members, $this->transferdetails);
+                campusconnect_membership::assign_all_roles($this->settings[2]);
+            }
+
+            // Check the users are enroled on the 'real' courses.
+            $userids = array();
+            foreach ($this->users as $user) {
+                $userids[] = $user->id;
+            }
+
+            $userenrolments = self::get_course_enrolments($course1->id, $userids);
+            $this->assertCount(3, $userenrolments); // User 1, 2, 3.
+            $enroleduserids = array();
+            foreach ($userenrolments as $userenrolment) {
+                $this->assertEquals('campusconnect', $userenrolment->enrol);
+                $enroleduserids[] = $userenrolment->userid;
+            }
+            $this->assertEmpty(array_diff(array($this->users[0]->id, $this->users[1]->id, $this->users[2]->id), $enroleduserids));
+
+            $userenrolments = self::get_course_enrolments($course3->id, $userids);
+            $this->assertCount(2, $userenrolments); // User 3, 4.
+            $enroleduserids = array();
+            foreach ($userenrolments as $userenrolment) {
+                $this->assertEquals('campusconnect', $userenrolment->enrol);
+                $enroleduserids[] = $userenrolment->userid;
+            }
+            $this->assertEmpty(array_diff(array($this->users[2]->id, $this->users[3]->id), $enroleduserids));
+
+            // Check no users have been enroled on the course links.
+            $userenrolments = self::get_course_enrolments($course2->id, $userids);
+            $this->assertEmpty($userenrolments);
+            $userenrolments = self::get_course_enrolments($course4->id, $userids);
+            $this->assertEmpty($userenrolments);
+
+            // Check the roles that each user has been given in course1.
+            $context = context_course::instance($course1->id);
+            $roles1 = get_user_roles($context, $this->users[0]->id, false);
+            $roles2 = get_user_roles($context, $this->users[1]->id, false);
+            $roles3 = get_user_roles($context, $this->users[2]->id, false);
+            $roles4 = get_user_roles($context, $this->users[3]->id, false);
+
+            $this->assertCount(1, $roles1); // Each user should only have 1 role in the course.
+            $this->assertCount(1, $roles2);
+            $this->assertCount(1, $roles3);
+            $this->assertCount(0, $roles4);
+
+            $role1 = reset($roles1);
+            $role2 = reset($roles2);
+            $role3 = reset($roles3);
+
+            $this->assertEquals('editingteacher', $role1->shortname); // From group 0.
+            $this->assertEquals('student', $role2->shortname); // Membership role.
+            $this->assertEquals('student', $role3->shortname); // From group 1.
+
+            // Check the roles that each user has been given in course3.
+            $context = context_course::instance($course3->id);
+            $roles1 = get_user_roles($context, $this->users[0]->id, false);
+            $roles2 = get_user_roles($context, $this->users[1]->id, false);
+            $roles3 = get_user_roles($context, $this->users[2]->id, false);
+            $roles4 = get_user_roles($context, $this->users[3]->id, false);
+
+            $this->assertCount(0, $roles1); // Each user should only have 1 role in the course.
+            $this->assertCount(0, $roles2);
+            $this->assertCount(1, $roles3);
+            $this->assertCount(1, $roles4);
+
+            $role3 = reset($roles3);
+            $role4 = reset($roles4);
+
+            $this->assertEquals('teacher', $role3->shortname); // From group 1.
+            $this->assertEquals('student', $role4->shortname); // Default role.
+
+            // Check the group memberships for course 1.
+            $groups1 = self::get_groups($course1->id, $this->users[0]->id);
+            $groups2 = self::get_groups($course1->id, $this->users[1]->id);
+            $groups3 = self::get_groups($course1->id, $this->users[2]->id);
+            $groups4 = self::get_groups($course1->id, $this->users[3]->id);
+
+            $this->assertCount(0, $groups1);
+            $this->assertCount(0, $groups2);
+            $this->assertCount(0, $groups3);
+            $this->assertCount(0, $groups4);
+
+            // Check the group memberships for course 3.
+            $groups1 = self::get_groups($course3->id, $this->users[0]->id);
+            $groups2 = self::get_groups($course3->id, $this->users[1]->id);
+            $groups3 = self::get_groups($course3->id, $this->users[2]->id);
+            $groups4 = self::get_groups($course3->id, $this->users[3]->id);
+
+            $this->assertCount(0, $groups1);
+            $this->assertCount(0, $groups2);
+            $this->assertCount(0, $groups3);
+            $this->assertCount(0, $groups4);
+        }
+    }
+
+    public function test_create_members_separatelecturers() {
+        global $DB;
+
+        // Course create request from participant 1 to participant 2.
+        $courseresourceid = -10;
+        $memberresourceid = -20;
+        $course = json_decode($this->coursedata);
+        $course->groupScenario = campusconnect_parallelgroups::PGROUP_SEPARATE_LECTURERS;
+        campusconnect_course::create($courseresourceid, $this->settings[2], $course, $this->transferdetails);
+
+        // Get the details of the two courses created.
+        $courses = $DB->get_records_select('course', 'id > 1', array(), 'id', 'id, fullname, shortname, category, summary');
+        $this->assertCount(2, $courses);
+        $course1 = array_shift($courses); // Group0 + group1 (Humphrey Bogart).
+        $course2 = array_shift($courses); // Course link.
+
+        $members = json_decode($this->coursemembers);
+        for ($i = 1; $i <= 2; $i++) {
+            if ($i == 1) {
+                // Create the course members.
+                campusconnect_membership::create($memberresourceid, $this->settings[2], $members, $this->transferdetails);
+                campusconnect_membership::assign_all_roles($this->settings[2]);
+            } else {
+                // Update the course members - check that an identical update does not break anything.
+                campusconnect_membership::update($memberresourceid, $this->settings[2], $members, $this->transferdetails);
+                campusconnect_membership::assign_all_roles($this->settings[2]);
+            }
+
+            // Check the users are enroled on the 'real' course.
+            $userids = array();
+            foreach ($this->users as $user) {
+                $userids[] = $user->id;
+            }
+
+            $userenrolments = self::get_course_enrolments($course1->id, $userids);
+            $this->assertCount(4, $userenrolments); // User 1, 2, 3, 4 - group0 + group1.
+            $enroleduserids = array();
+            foreach ($userenrolments as $userenrolment) {
+                $this->assertEquals('campusconnect', $userenrolment->enrol);
+                $enroleduserids[] = $userenrolment->userid;
+            }
+            $this->assertEmpty(array_diff(array($this->users[0]->id, $this->users[1]->id, $this->users[2]->id, $this->users[3]->id),
+                                          $enroleduserids));
+
+            // Check no users have been enroled on the course links.
+            $userenrolments = self::get_course_enrolments($course2->id, $userids);
+            $this->assertEmpty($userenrolments);
+
+            // Check the roles that each user has been given in the course.
+            $context = context_course::instance($course1->id);
+            $roles1 = get_user_roles($context, $this->users[0]->id, false);
+            $roles2 = get_user_roles($context, $this->users[1]->id, false);
+            $roles3 = get_user_roles($context, $this->users[2]->id, false);
+            $roles4 = get_user_roles($context, $this->users[3]->id, false);
+
+            $this->assertCount(1, $roles1);
+            $this->assertCount(1, $roles2);
+            $this->assertCount(2, $roles3);
+            $this->assertCount(1, $roles4);
+
+            $role1 = reset($roles1);
+            $role2 = reset($roles2);
+            $role3 = reset($roles3);
+            $role3b = next($roles3);
+            $role4 = reset($roles4);
+
+            $this->assertEquals('editingteacher', $role1->shortname); // From group 0.
+            $this->assertEquals('student', $role2->shortname); // Membership role.
+            $this->assertEquals('teacher', $role3->shortname); // From group 1.
+            $this->assertEquals('student', $role3b->shortname); // From group 0.
+            $this->assertEquals('student', $role4->shortname); // Default role.
+
+            // Check the group memberships for course 1.
+            $groups1 = self::get_groups($course1->id, $this->users[0]->id);
+            $groups2 = self::get_groups($course1->id, $this->users[1]->id);
+            $groups3 = self::get_groups($course1->id, $this->users[2]->id);
+            $groups4 = self::get_groups($course1->id, $this->users[3]->id);
+
+            $this->assertCount(1, $groups1);
+            $this->assertCount(0, $groups2);
+            $this->assertCount(2, $groups3);
+            $this->assertCount(1, $groups4);
+
+            $this->assertEmpty(array_diff(array('Test Group1'), $groups1));
+            $this->assertEmpty(array_diff(array('Test Group1', 'Test Group2'), $groups3));
+            $this->assertEmpty(array_diff(array('Test Group2'), $groups4));
+        }
+    }
+
+    public function test_update_members_separategroups() {
+        global $DB;
+
+        // Course create request from participant 1 to participant 2.
+        $courseresourceid = -10;
+        $memberresourceid = -20;
+        $course = json_decode($this->coursedata);
+        $course->groupScenario = campusconnect_parallelgroups::PGROUP_SEPARATE_GROUPS;
+        campusconnect_course::create($courseresourceid, $this->settings[2], $course, $this->transferdetails);
+
+        // Get the details of the two courses created.
+        $courses = $DB->get_records_select('course', 'id > 1', array(), 'id', 'id, fullname, shortname, category, summary');
+        $this->assertCount(2, $courses);
+        $course1 = array_shift($courses);
+        $course2 = array_shift($courses);
+
+        // Create the course members (this is already tested above, so no further checking done here).
         $members = json_decode($this->coursemembers);
         campusconnect_membership::create($memberresourceid, $this->settings[2], $members, $this->transferdetails);
         campusconnect_membership::assign_all_roles($this->settings[2]);
+
+        // Update the course members to new values.
+        foreach ($members->members as $idx => $member) {
+            if ($member->personID == 'user1') {
+                unset($members->members[$idx]); // Remove 'user1' from the course.
+            } else if ($member->personID == 'user2') {
+                $members->members[$idx]->role = 0; // Convert 'user2' to a lecturer (not student).
+            }
+        }
+        $members->members[] = (object)array(
+            'personID' => 'user5', // Add 'user5' to the course (student, in 'Test Group2').
+            'role' => 1,
+            'groups' => array(
+                (object)array('num' => 1),
+            )
+        );
+        campusconnect_membership::update($memberresourceid, $this->settings[2], $members, $this->transferdetails);
+        campusconnect_membership::assign_all_roles($this->settings[2]);
+
+        // Check the users are enroled on the 'real' course.
+        $userids = array();
+        foreach ($this->users as $user) {
+            $userids[] = $user->id;
+        }
+
+        $userenrolments = self::get_course_enrolments($course1->id, $userids);
+        $this->assertCount(4, $userenrolments); // Should still be 4 enrolments (user5 has replaced user1).
+        foreach ($userenrolments as $userenrolment) {
+            $this->assertEquals('campusconnect', $userenrolment->enrol);
+        }
+
+        // Check no users have been enroled on the course link.
+        $userenrolments = self::get_course_enrolments($course2->id, $userids);
+        $this->assertEmpty($userenrolments);
+
+        // Check the roles that each user has been given.
+        $context = context_course::instance($course1->id);
+        $roles1 = get_user_roles($context, $this->users[0]->id, false);
+        $roles2 = get_user_roles($context, $this->users[1]->id, false);
+        $roles3 = get_user_roles($context, $this->users[2]->id, false);
+        $roles4 = get_user_roles($context, $this->users[3]->id, false);
+        $roles5 = get_user_roles($context, $this->users[4]->id, false);
+
+        $this->assertCount(0, $roles1); // No role for 'user1' any more.
+        $this->assertCount(1, $roles2);
+        $this->assertCount(2, $roles3);
+        $this->assertCount(1, $roles4);
+        $this->assertCount(1, $roles5); // Role added for 'user5'.
+
+        $role2 = reset($roles2);
+        $role3 = reset($roles3);
+        $role3b = next($roles3);
+        $role4 = reset($roles4);
+        $role5 = reset($roles5);
+
+        $this->assertEquals('editingteacher', $role2->shortname); // Membership role (changed from student).
+        $this->assertEquals('teacher', $role3->shortname); // From group 1.
+        $this->assertEquals('student', $role3b->shortname); // From group 0.
+        $this->assertEquals('student', $role4->shortname); // Default role.
+        $this->assertEquals('student', $role5->shortname); // Membership role (new).
+
+        // Check the group memberships.
+        $groups1 = self::get_groups($course1->id, $this->users[0]->id);
+        $groups2 = self::get_groups($course1->id, $this->users[1]->id);
+        $groups3 = self::get_groups($course1->id, $this->users[2]->id);
+        $groups4 = self::get_groups($course1->id, $this->users[3]->id);
+        $groups5 = self::get_groups($course1->id, $this->users[4]->id);
+
+        $this->assertCount(0, $groups1); // No groups for 'user1' any more.
+        $this->assertCount(0, $groups2);
+        $this->assertCount(2, $groups3);
+        $this->assertCount(1, $groups4);
+        $this->assertCount(1, $groups5); // New groups for 'user5'.
+
+        $this->assertEmpty(array_diff(array('Test Group1', 'Test Group2'), $groups3));
+        $this->assertEmpty(array_diff(array('Test Group2'), $groups4));
+        $this->assertEmpty(array_diff(array('Test Group2'), $groups5));
+    }
+
+    public function test_delete_members_separategroups() {
+        global $DB;
+
+        // Course create request from participant 1 to participant 2.
+        $courseresourceid = -10;
+        $memberresourceid = -20;
+        $course = json_decode($this->coursedata);
+        $course->groupScenario = campusconnect_parallelgroups::PGROUP_SEPARATE_GROUPS;
+        campusconnect_course::create($courseresourceid, $this->settings[2], $course, $this->transferdetails);
+
+        // Get the details of the two courses created.
+        $courses = $DB->get_records_select('course', 'id > 1', array(), 'id', 'id, fullname, shortname, category, summary');
+        $this->assertCount(2, $courses);
+        $course1 = array_shift($courses);
+        $course2 = array_shift($courses);
+
+        // Create the course members (this is already tested above, so no further checking done here).
+        $members = json_decode($this->coursemembers);
+        campusconnect_membership::create($memberresourceid, $this->settings[2], $members, $this->transferdetails);
+        campusconnect_membership::assign_all_roles($this->settings[2]);
+
+        // Delete the course members resource.
+        campusconnect_membership::delete($memberresourceid, $this->settings[2]);
+        campusconnect_membership::assign_all_roles($this->settings[2]);
+
+        // Check the users are enroled on the 'real' course.
+        $userids = array();
+        foreach ($this->users as $user) {
+            $userids[] = $user->id;
+        }
+
+        $userenrolments = self::get_course_enrolments($course1->id, $userids);
+        $this->assertEmpty($userenrolments); // No remaining enrolments expected.
+
+        // Check the users now have no roles.
+        $context = context_course::instance($course1->id);
+        $roles1 = get_user_roles($context, $this->users[0]->id, false);
+        $roles2 = get_user_roles($context, $this->users[1]->id, false);
+        $roles3 = get_user_roles($context, $this->users[2]->id, false);
+        $roles4 = get_user_roles($context, $this->users[3]->id, false);
+
+        $this->assertCount(0, $roles1);
+        $this->assertCount(0, $roles2);
+        $this->assertCount(0, $roles3);
+        $this->assertCount(0, $roles4);
+
+        // Check the users are no longer in any groups.
+        $groups1 = self::get_groups($course1->id, $this->users[0]->id);
+        $groups2 = self::get_groups($course1->id, $this->users[1]->id);
+        $groups3 = self::get_groups($course1->id, $this->users[2]->id);
+        $groups4 = self::get_groups($course1->id, $this->users[3]->id);
+
+        $this->assertCount(0, $groups1);
+        $this->assertCount(0, $groups2);
+        $this->assertCount(0, $groups3);
+        $this->assertCount(0, $groups4);
+    }
+
+    // Test that processing a 'course' resource after processing the 'course_members' resource for that same course
+    // still results in the users being enroled in the course.
+    public function test_course_create_event_separatecourses() {
+        global $DB;
+
+        $courseresourceid = -10;
+        $memberresourceid = -20;
+
+        // Create the course members (note - BEFORE the course creation has been processed).
+        $members = json_decode($this->coursemembers);
+        campusconnect_membership::create($memberresourceid, $this->settings[2], $members, $this->transferdetails);
+        campusconnect_membership::assign_all_roles($this->settings[2]);
+
+        // Course create request from participant 1 to participant 2 (AFTER the course_members have been processed).
+        $course = json_decode($this->coursedata);
+        $course->groupScenario = campusconnect_parallelgroups::PGROUP_SEPARATE_COURSES;
+        campusconnect_course::create($courseresourceid, $this->settings[2], $course, $this->transferdetails);
+
+        // Get the details of the two courses created.
+        $courses = $DB->get_records_select('course', 'id > 1', array(), 'id', 'id, fullname, shortname, category, summary');
+        $this->assertCount(4, $courses);
+        $course1 = array_shift($courses);
+        $course2 = array_shift($courses);
+        $course3 = array_shift($courses);
+        $course4 = array_shift($courses);
 
         // Check the users are enroled on the 'real' courses.
         $userids = array();
@@ -651,84 +1040,207 @@ class local_campusconnect_coursemembers_test extends advanced_testcase {
         $this->assertCount(0, $groups4);
     }
 
-    public function test_create_members_separatelecturers() {
-        global $DB;
+    // Test that creating a new user account, after the 'course_members' resource has already been processed,
+    // still results in that user being correctly enroled into the relevant course.
+    public function test_user_create_event_separatecourses() {
+        global $DB, $CFG;
 
-        // Course create request from participant 1 to participant 2
+        // Course create request from participant 1 to participant 2.
         $courseresourceid = -10;
         $memberresourceid = -20;
         $course = json_decode($this->coursedata);
-        $course->groupScenario = campusconnect_parallelgroups::PGROUP_SEPARATE_LECTURERS;
+        $course->groupScenario = campusconnect_parallelgroups::PGROUP_SEPARATE_COURSES;
         campusconnect_course::create($courseresourceid, $this->settings[2], $course, $this->transferdetails);
 
         // Get the details of the two courses created.
         $courses = $DB->get_records_select('course', 'id > 1', array(), 'id', 'id, fullname, shortname, category, summary');
-        $this->assertCount(2, $courses);
-        $course1 = array_shift($courses); // group0 + group1 (Humphrey Bogart).
-        $course2 = array_shift($courses); //   course link.
+        $this->assertCount(4, $courses);
+        $course1 = array_shift($courses);
+        $course2 = array_shift($courses);
+        $course3 = array_shift($courses);
+        $course4 = array_shift($courses);
 
         // Create the course members.
         $members = json_decode($this->coursemembers);
+        $members->members[] = (object)array(
+            'personID' => 'user6@example.com', // Add an extra 'user6' (who does not yet exist on the system).
+            'personIDtype' => 'ecs_email',
+            'role' => 2, // Assistant (Moodle: 'teacher').
+            'groups' => array(
+                (object)array('num' => 1), // Enrol into 'Test Group2'.
+            )
+        );
         campusconnect_membership::create($memberresourceid, $this->settings[2], $members, $this->transferdetails);
         campusconnect_membership::assign_all_roles($this->settings[2]);
 
-        // Check the users are enroled on the 'real' course.
+        // Now create 'user6'.
+        $user6 = $this->getDataGenerator()->create_user(array('username' => 'user6', 'email' => 'user6@example.com'));
+
+        // Manually trigger the 'user_created' event (as the data generator does not do this).
+        if ($CFG->version > 2013111800) { // Moodle 2.6+.
+            \core\event\user_created::create_from_userid($user6->id)->trigger();
+        } else {
+            events_trigger('user_created', $user6);
+        }
+
+        // Check the users are enroled on the 'real' courses.
         $userids = array();
         foreach ($this->users as $user) {
             $userids[] = $user->id;
         }
+        $userids[] = $user6->id;
 
-        $userenrolments = self::get_course_enrolments($course1->id, $userids);
-        $this->assertCount(4, $userenrolments); // User 1, 2, 3, 4 - group0 + group1.
+        $userenrolments = self::get_course_enrolments($course1->id, $userids); // Test Group1.
+        $this->assertCount(3, $userenrolments); // User 1, 2, 3.
         $enroleduserids = array();
         foreach ($userenrolments as $userenrolment) {
             $this->assertEquals('campusconnect', $userenrolment->enrol);
             $enroleduserids[] = $userenrolment->userid;
         }
-        $this->assertEmpty(array_diff(array($this->users[0]->id, $this->users[1]->id, $this->users[2]->id, $this->users[3]->id),
-                                      $enroleduserids));
+        $this->assertEmpty(array_diff(array($this->users[0]->id, $this->users[1]->id, $this->users[2]->id), $enroleduserids));
+
+        $userenrolments = self::get_course_enrolments($course3->id, $userids); // Test Group2.
+        $this->assertCount(3, $userenrolments); // User 3, 4, 6.
+        $enroleduserids = array();
+        foreach ($userenrolments as $userenrolment) {
+            $this->assertEquals('campusconnect', $userenrolment->enrol);
+            $enroleduserids[] = $userenrolment->userid;
+        }
+        $this->assertEmpty(array_diff(array($this->users[2]->id, $this->users[3]->id, $user6->id), $enroleduserids));
 
         // Check no users have been enroled on the course links.
         $userenrolments = self::get_course_enrolments($course2->id, $userids);
         $this->assertEmpty($userenrolments);
+        $userenrolments = self::get_course_enrolments($course4->id, $userids);
+        $this->assertEmpty($userenrolments);
 
-        // Check the roles that each user has been given in the course.
+        // Check the roles that each user has been given in course1.
         $context = context_course::instance($course1->id);
         $roles1 = get_user_roles($context, $this->users[0]->id, false);
         $roles2 = get_user_roles($context, $this->users[1]->id, false);
         $roles3 = get_user_roles($context, $this->users[2]->id, false);
         $roles4 = get_user_roles($context, $this->users[3]->id, false);
+        $roles6 = get_user_roles($context, $user6->id, false);
 
-        $this->assertCount(1, $roles1);
+        $this->assertCount(1, $roles1); // Each user should only have 1 role in the course.
         $this->assertCount(1, $roles2);
-        $this->assertCount(2, $roles3);
-        $this->assertCount(1, $roles4);
+        $this->assertCount(1, $roles3);
+        $this->assertCount(0, $roles4);
+        $this->assertCount(0, $roles6); // Not enroled in 'Test Group1'.
 
         $role1 = reset($roles1);
         $role2 = reset($roles2);
         $role3 = reset($roles3);
-        $role3b = next($roles3);
-        $role4 = reset($roles4);
 
         $this->assertEquals('editingteacher', $role1->shortname); // From group 0.
         $this->assertEquals('student', $role2->shortname); // Membership role.
+        $this->assertEquals('student', $role3->shortname); // From group 1.
+
+        // Check the roles that each user has been given in course3.
+        $context = context_course::instance($course3->id);
+        $roles1 = get_user_roles($context, $this->users[0]->id, false);
+        $roles2 = get_user_roles($context, $this->users[1]->id, false);
+        $roles3 = get_user_roles($context, $this->users[2]->id, false);
+        $roles4 = get_user_roles($context, $this->users[3]->id, false);
+        $roles6 = get_user_roles($context, $user6->id, false);
+
+        $this->assertCount(0, $roles1); // Each user should only have 1 role in the course.
+        $this->assertCount(0, $roles2);
+        $this->assertCount(1, $roles3);
+        $this->assertCount(1, $roles4);
+        $this->assertCount(1, $roles6);
+
+        $role3 = reset($roles3);
+        $role4 = reset($roles4);
+        $role6 = reset($roles6);
+
         $this->assertEquals('teacher', $role3->shortname); // From group 1.
-        $this->assertEquals('student', $role3b->shortname); // From group 0.
         $this->assertEquals('student', $role4->shortname); // Default role.
+        $this->assertEquals('teacher', $role6->shortname); // Membership role.
 
         // Check the group memberships for course 1.
         $groups1 = self::get_groups($course1->id, $this->users[0]->id);
         $groups2 = self::get_groups($course1->id, $this->users[1]->id);
         $groups3 = self::get_groups($course1->id, $this->users[2]->id);
         $groups4 = self::get_groups($course1->id, $this->users[3]->id);
+        $groups6 = self::get_groups($course1->id, $user6->id);
 
-        $this->assertCount(1, $groups1);
+        $this->assertCount(0, $groups1);
         $this->assertCount(0, $groups2);
-        $this->assertCount(2, $groups3);
-        $this->assertCount(1, $groups4);
+        $this->assertCount(0, $groups3);
+        $this->assertCount(0, $groups4);
+        $this->assertCount(0, $groups6);
 
-        $this->assertEmpty(array_diff(array('Test Group1'), $groups1));
-        $this->assertEmpty(array_diff(array('Test Group1', 'Test Group2'), $groups3));
-        $this->assertEmpty(array_diff(array('Test Group2'), $groups4));
+        // Check the group memberships for course 3.
+        $groups1 = self::get_groups($course3->id, $this->users[0]->id);
+        $groups2 = self::get_groups($course3->id, $this->users[1]->id);
+        $groups3 = self::get_groups($course3->id, $this->users[2]->id);
+        $groups4 = self::get_groups($course3->id, $this->users[3]->id);
+        $groups6 = self::get_groups($course3->id, $user6->id);
+
+        $this->assertCount(0, $groups1);
+        $this->assertCount(0, $groups2);
+        $this->assertCount(0, $groups3);
+        $this->assertCount(0, $groups4);
+        $this->assertCount(0, $groups6);
+    }
+
+    protected function create_text_profile_field($fieldname) {
+        global $CFG;
+        $data = (object)array(
+            'categoryid' => 1,
+            'datatype' => 'text',
+            'shortname' => $fieldname,
+            'name' => $fieldname,
+            'required' => 0,
+            'locked' => 0,
+            'forceunique' => 0,
+            'signup' => 0,
+            'visible' => PROFILE_VISIBLE_ALL,
+            'param1' => 30,
+            'param2' => 2048,
+            'param3' => 0,
+        );
+        require_once($CFG->dirroot.'/user/profile/field/text/define.class.php');
+        $formfield = new profile_define_text();
+        $formfield->define_save($data);
+    }
+
+    public function test_update_mappings() {
+        // Define a custom user profile field.
+        $this->create_text_profile_field('eppn');
+        campusconnect_participantsettings::reset_custom_fields();
+
+        // Set the new mapping.
+        $newmapping = array(
+            campusconnect_courselink::PERSON_UNIQUECODE => 'flowerpot', // Non-existent user field.
+            campusconnect_courselink::PERSON_EPPN => 'custom_eppn', // Map onto user custom field.
+            campusconnect_courselink::PERSON_LOGIN => 'username',
+            campusconnect_courselink::PERSON_LOGINUID => null,
+            campusconnect_courselink::PERSON_UID => null,  // Remove default mapping onto 'id'.
+            campusconnect_courselink::PERSON_EMAIL => 'department', // Change from 'email' to 'department'.
+            'doesnotexist' => 'firstname', // Invalid ECS field - should be ignored.
+        );
+        campusconnect_member_personid::set_mapping($newmapping);
+        $mapping = campusconnect_member_personid::get_mapping();
+
+        $expectedmapping = array(
+            campusconnect_courselink::PERSON_UNIQUECODE => null,
+            campusconnect_courselink::PERSON_EPPN => 'custom_eppn',
+            campusconnect_courselink::PERSON_LOGIN => 'username',
+            campusconnect_courselink::PERSON_LOGINUID => null,
+            campusconnect_courselink::PERSON_UID => null,
+            campusconnect_courselink::PERSON_EMAIL => 'department',
+        );
+        $this->assertEquals($expectedmapping, $mapping);
+
+        $userfield = campusconnect_member_personid::get_userfield_from_type(campusconnect_courselink::PERSON_UNIQUECODE);
+        $this->assertNull($userfield);
+
+        $userfield = campusconnect_member_personid::get_userfield_from_type(campusconnect_courselink::PERSON_LOGIN);
+        $this->assertEquals('username', $userfield);
+
+        $userfield = campusconnect_member_personid::get_userfield_from_type(campusconnect_courselink::PERSON_EMAIL);
+        $this->assertEquals('department', $userfield);
     }
 }

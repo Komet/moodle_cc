@@ -38,6 +38,7 @@ class campusconnect_userdata_mapping_form extends moodleform {
 
         if ($this->_customdata['showexport']) {
             $mform->addElement('header', 'exportheader', get_string('exportuserdata', 'local_campusconnect'));
+            $mform->addElement('html', html_writer::tag('p', get_string('exportuserdatainfo', 'local_campusconnect')));
 
             $exportopts = campusconnect_participantsettings::get_possible_export_fields();
             $exportopts = array_merge(array('' => '-'), array_combine($exportopts, $exportopts));
@@ -62,6 +63,7 @@ class campusconnect_userdata_mapping_form extends moodleform {
 
         if ($this->_customdata['showimport']) {
             $mform->addElement('header', 'importheader', get_string('importuserdata', 'local_campusconnect'));
+            $mform->addElement('html', html_writer::tag('p', get_string('importuserdatainfo', 'local_campusconnect')));
 
             $importopts = campusconnect_participantsettings::get_possible_import_fields();
             $importopts = array_merge(array('' => '-'), array_combine($importopts, $importopts));

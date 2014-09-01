@@ -892,6 +892,52 @@ function xmldb_local_campusconnect_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2014081901, 'local', 'campusconnect');
     }
 
+    // Add the personidtype field to the local_campusconnect_mbr table.
+    if ($oldversion < 2014082700) {
+
+        // Define field personidtype to be added to local_campusconnect_mbr.
+        $table = new xmldb_table('local_campusconnect_mbr');
+        $field = new xmldb_field('personidtype', XMLDB_TYPE_CHAR, '40', null, XMLDB_NOTNULL, null, 'ecs_login', 'personid');
+
+        // Conditionally launch add field personidtype.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Campusconnect savepoint reached.
+        upgrade_plugin_savepoint(true, 2014082700, 'local', 'campusconnect');
+    }
+
+    // Change the personid index to include personidtype as well.
+    if ($oldversion < 2014082701) {
+
+        // Define index personid (not unique) to be dropped form local_campusconnect_mbr.
+        $table = new xmldb_table('local_campusconnect_mbr');
+        $index = new xmldb_index('personid', XMLDB_INDEX_NOTUNIQUE, array('personid'));
+
+        // Conditionally launch drop index personid.
+        if ($dbman->index_exists($table, $index)) {
+            $dbman->drop_index($table, $index);
+        }
+
+        // Campusconnect savepoint reached.
+        upgrade_plugin_savepoint(true, 2014082701, 'local', 'campusconnect');
+    }
+
+    if ($oldversion < 2014082702) {
+
+        // Define index personid (not unique) to be added to local_campusconnect_mbr.
+        $table = new xmldb_table('local_campusconnect_mbr');
+        $index = new xmldb_index('personid', XMLDB_INDEX_NOTUNIQUE, array('personid', 'personidtype'));
+
+        // Conditionally launch add index personid.
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Campusconnect savepoint reached.
+        upgrade_plugin_savepoint(true, 2014082702, 'local', 'campusconnect');
+    }
 
     return true;
 }

@@ -204,7 +204,7 @@ class campusconnect_notification {
             return;
         }
         $admin = get_admin();
-        $userobjs = $DB->get_records_list('user', 'username', $users, '', 'id, firstname, lastname, email, mailformat');
+        $userobjs = $DB->get_records_list('user', 'username', $users, '', 'id, email, mailformat, '.get_all_user_name_fields(true));
         foreach ($userobjs as $user) {
             email_to_user($user, $admin, $subject, $bodytext, $body);
         }

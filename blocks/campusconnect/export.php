@@ -35,7 +35,7 @@ if ($course->id == $SITE->id) {
 $PAGE->set_url(new moodle_url('/blocks/campusconnect/export.php', array('courseid' => $course->id)));
 require_login($course);
 
-$context = get_context_instance(CONTEXT_COURSE, $course->id);
+$context = context_course::instance($course->id);
 require_capability('moodle/course:update', $context);
 
 $export = new campusconnect_export($course->id);

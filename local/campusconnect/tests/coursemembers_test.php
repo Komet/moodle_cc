@@ -282,7 +282,7 @@ class local_campusconnect_coursemembers_test extends advanced_testcase {
         foreach ($this->usernames as $username) {
             // Statslib_test has an annoying habit of creating 'user1' + 'user2', even when not running those tests.
             if (!$user = $DB->get_record('user', array('username' => $username))) {
-                $user = $this->getDataGenerator()->create_user(array('username' => $username));
+                $user = $this->getDataGenerator()->create_user(array('username' => $username, 'email' => $username.'@example.com'));
             }
             $this->users[] = $user;
         }
@@ -309,7 +309,86 @@ class local_campusconnect_coursemembers_test extends advanced_testcase {
         }
 
         campusconnect_member_personid::reset_default_mapping(); // Clear the static variable.
+
+        // Statslib_test now has an annoying habit of creating an unwanted course as well - delete the record if it exists.
+        $unwantedcourses = $DB->get_records_select('course', 'id <> ?', array(SITEID), '', 'id');
+        foreach ($unwantedcourses as $unwantedcourse) {
+            $DB->delete_records('course', array('id' => $unwantedcourse->id));
+        }
     }
+
+    // Helper functions.
+
+    protected function create_text_profile_field($fieldname) {
+        global $CFG;
+        $data = (object)array(
+            'categoryid' => 1,
+            'datatype' => 'text',
+            'shortname' => $fieldname,
+            'name' => $fieldname,
+            'required' => 0,
+            'locked' => 0,
+            'forceunique' => 0,
+            'signup' => 0,
+            'visible' => PROFILE_VISIBLE_ALL,
+            'param1' => 30,
+            'param2' => 2048,
+            'param3' => 0,
+        );
+        require_once($CFG->dirroot.'/user/profile/field/text/define.class.php');
+        $formfield = new profile_define_text();
+        $formfield->define_save($data);
+    }
+
+    protected function set_profile_field($user, $field, $value) {
+        global $DB;
+        $fieldid = $DB->get_field('user_info_field', 'id', array('shortname' => $field));
+        if ($existing = $DB->get_record('user_info_data', array('fieldid' => $fieldid, 'userid' => $user->id))) {
+            $upd = (object)array(
+                'id' => $existing->id,
+                'data' => $value,
+            );
+            $DB->update_record('user_info_data', $upd);
+        } else {
+            $ins = (object)array(
+                'fieldid' => $fieldid,
+                'userid' => $user->id,
+                'data' => $value,
+            );
+            $DB->insert_record('user_info_data', $ins);
+        }
+    }
+
+    protected static function get_course_enrolments($courseid, $userids) {
+        global $DB;
+
+        list($usql, $params) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED);
+        $sql = "
+        SELECT ue.id, ue.userid, e.enrol
+          FROM {user_enrolments} ue
+          JOIN {enrol} e ON e.id = ue.enrolid
+         WHERE e.courseid = :courseid AND ue.userid $usql";
+        $params['courseid'] = $courseid;
+
+        return $DB->get_records_sql($sql, $params);
+    }
+
+    protected static function get_groups($courseid, $userid) {
+        global $DB;
+
+        $sql = "
+        SELECT g.id, g.name
+          FROM {groups} g
+          JOIN {groups_members} gm ON gm.groupid = g.id
+         WHERE g.courseid = :courseid AND gm.userid = :userid
+         ORDER BY g.name ASC
+        ";
+        $params = array('courseid' => $courseid, 'userid' => $userid);
+
+        return $DB->get_records_sql_menu($sql, $params);
+    }
+
+    // Actual tests start here.
 
     public function test_parse_memberdata() {
         global $DB;
@@ -359,35 +438,6 @@ class local_campusconnect_coursemembers_test extends advanced_testcase {
         $this->assertEquals(campusconnect_membership::ROLE_UNSPECIFIED, $member4->role);
         $this->assertEquals(campusconnect_membership::STATUS_CREATED, $member4->status);
         $this->assertEquals(array(1 => campusconnect_membership::ROLE_UNSPECIFIED), $extract->invoke(null, $member4));
-    }
-
-    protected static function get_course_enrolments($courseid, $userids) {
-        global $DB;
-
-        list($usql, $params) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED);
-        $sql = "
-        SELECT ue.id, ue.userid, e.enrol
-          FROM {user_enrolments} ue
-          JOIN {enrol} e ON e.id = ue.enrolid
-         WHERE e.courseid = :courseid AND ue.userid $usql";
-        $params['courseid'] = $courseid;
-
-        return $DB->get_records_sql($sql, $params);
-    }
-
-    protected static function get_groups($courseid, $userid) {
-        global $DB;
-
-        $sql = "
-        SELECT g.id, g.name
-          FROM {groups} g
-          JOIN {groups_members} gm ON gm.groupid = g.id
-         WHERE g.courseid = :courseid AND gm.userid = :userid
-         ORDER BY g.name ASC
-        ";
-        $params = array('courseid' => $courseid, 'userid' => $userid);
-
-        return $DB->get_records_sql_menu($sql, $params);
     }
 
     public function test_create_members_nogroups() {
@@ -1185,27 +1235,6 @@ class local_campusconnect_coursemembers_test extends advanced_testcase {
         $this->assertCount(0, $groups6);
     }
 
-    protected function create_text_profile_field($fieldname) {
-        global $CFG;
-        $data = (object)array(
-            'categoryid' => 1,
-            'datatype' => 'text',
-            'shortname' => $fieldname,
-            'name' => $fieldname,
-            'required' => 0,
-            'locked' => 0,
-            'forceunique' => 0,
-            'signup' => 0,
-            'visible' => PROFILE_VISIBLE_ALL,
-            'param1' => 30,
-            'param2' => 2048,
-            'param3' => 0,
-        );
-        require_once($CFG->dirroot.'/user/profile/field/text/define.class.php');
-        $formfield = new profile_define_text();
-        $formfield->define_save($data);
-    }
-
     public function test_update_mappings() {
         // Define a custom user profile field.
         $this->create_text_profile_field('eppn');
@@ -1216,7 +1245,7 @@ class local_campusconnect_coursemembers_test extends advanced_testcase {
             campusconnect_courselink::PERSON_UNIQUECODE => 'flowerpot', // Non-existent user field.
             campusconnect_courselink::PERSON_EPPN => 'custom_eppn', // Map onto user custom field.
             campusconnect_courselink::PERSON_LOGIN => 'username',
-            campusconnect_courselink::PERSON_LOGINUID => null,
+            //campusconnect_courselink::PERSON_LOGINUID, // Mapping not specified => expect to be mapped to 'null'.
             campusconnect_courselink::PERSON_UID => null,  // Remove default mapping onto 'id'.
             campusconnect_courselink::PERSON_EMAIL => 'department', // Change from 'email' to 'department'.
             'doesnotexist' => 'firstname', // Invalid ECS field - should be ignored.
@@ -1242,5 +1271,179 @@ class local_campusconnect_coursemembers_test extends advanced_testcase {
 
         $userfield = campusconnect_member_personid::get_userfield_from_type(campusconnect_courselink::PERSON_EMAIL);
         $this->assertEquals('department', $userfield);
+    }
+
+    public function test_personid_mapping() {
+        global $DB;
+
+        // Define a custom user profile field.
+        $this->create_text_profile_field('eppn');
+        campusconnect_participantsettings::reset_custom_fields();
+
+        // Set up the personidtype mappings.
+        $newmapping = array(
+            campusconnect_courselink::PERSON_EPPN => 'custom_eppn', // Mapped on to custom field.
+            campusconnect_courselink::PERSON_LOGIN => 'username', // Default mapping if no type specified.
+            campusconnect_courselink::PERSON_EMAIL => 'email',
+            // All other types will be unmapped.
+        );
+        campusconnect_member_personid::set_mapping($newmapping);
+
+        // Course create request from participant 1 to participant 2.
+        $courseresourceid = -10;
+        $memberresourceid = -20;
+        $course = json_decode($this->coursedata);
+        $course->groupScenario = campusconnect_parallelgroups::PGROUP_SEPARATE_GROUPS;
+        campusconnect_course::create($courseresourceid, $this->settings[2], $course, $this->transferdetails);
+
+        // Get the details of the two courses created.
+        $courses = $DB->get_records_select('course', 'id > 1', array(), 'id', 'id, fullname, shortname, category, summary');
+        $this->assertCount(2, $courses);
+        $course1 = array_shift($courses);
+        $course2 = array_shift($courses);
+
+        $members = json_decode($this->coursemembers);
+
+        // Adjust the members data to match via a range of different fields.
+        // User1 should default to matching via 'ecs_login' => 'username'.
+        $members->members[0]->personID = 'user1';
+        // User2 - match by 'ecs_email' => 'email'.
+        $members->members[1]->personID = 'user2@example.com';
+        $members->members[1]->personIDtype = campusconnect_courselink::PERSON_EMAIL;
+        // User3 - match by 'ecs_eppn' => 'custom_eppn'.
+        $members->members[2]->personID = 'user3eppn';
+        $members->members[2]->personIDtype = campusconnect_courselink::PERSON_EPPN;
+        $this->set_profile_field($this->users[2], 'eppn', 'user3eppn');
+        // User4 - match explicitly by 'ecs_login' => 'username'.
+        $members->members[3]->personID = 'user4';
+        $members->members[3]->personIDtype = campusconnect_courselink::PERSON_LOGIN;
+        // User5 - match by 'ecs_loginuid' - not mapped, so no user should be found.
+        $members->members[4] = (object)array(
+            'personID' => 'user5',
+            'personIDtype' => campusconnect_courselink::PERSON_LOGINUID,
+            'groups' => array(
+                (object)array('num' => 1),
+            ),
+        ); // Not in the sample data defined at the top of this file, so the whole object needs inserting.
+        // User6 - match by 'ecs_login', but with a username that will not be found.
+        $user6 = $this->getDataGenerator()->create_user(array('username' => 'user6', 'email' => 'user6@example.com'));
+        $members->members[5] = (object)array(
+            'personID' => 'user6doesnotexist',
+            'personIDtype' => campusconnect_courselink::PERSON_LOGIN,
+            'groups' => array(
+                (object)array('num' => 1),
+            ),
+        ); // Not in the sample data defined at the top of this file, so the whole object needs inserting.
+
+        // Check the personid mappings.
+        $personids = array();
+        foreach ($members->members as $member) {
+            $type = campusconnect_member_personid::get_type_from_member($member);
+            $personids[] = new campusconnect_member_personid($member->personID, $type);
+        }
+        // Expect: [
+        //  campusconnect_courselink::PERSON_EMAIL => [ 'user2@example.com' => user2->id ]
+        //  campusconnect_courselink::PERSON_EPPN => [ 'user3eppn' => user3->id ]
+        //  campusconnect_courselink::PERSON_LOGIN => [ 'user1' => user1->id, 'user4' => user4->id ]
+        // ]
+        // user5 / user6 should not be mapped at all.
+        $useridmap = campusconnect_membership::get_userids_from_personids($personids);
+        $this->assertCount(3, $useridmap);
+
+        $this->assertArrayHasKey(campusconnect_courselink::PERSON_EMAIL, $useridmap);
+        $userids = $useridmap[campusconnect_courselink::PERSON_EMAIL];
+        $this->assertCount(1, $userids);
+        $this->assertArrayHasKey('user2@example.com', $userids);
+        $this->assertEquals($this->users[1]->id, $userids['user2@example.com']);
+
+        $this->assertArrayHasKey(campusconnect_courselink::PERSON_EPPN, $useridmap);
+        $userids = $useridmap[campusconnect_courselink::PERSON_EPPN];
+        $this->assertCount(1, $userids);
+        $this->assertArrayHasKey('user3eppn', $userids);
+        $this->assertEquals($this->users[2]->id, $userids['user3eppn']);
+
+        $this->assertArrayHasKey(campusconnect_courselink::PERSON_LOGIN, $useridmap);
+        $userids = $useridmap[campusconnect_courselink::PERSON_LOGIN];
+        $this->assertCount(2, $userids);
+        $this->assertArrayHasKey('user1', $userids);
+        $this->assertEquals($this->users[0]->id, $userids['user1']);
+        $this->assertArrayHasKey('user4', $userids);
+        $this->assertEquals($this->users[3]->id, $userids['user4']);
+
+        for ($i = 1; $i <= 2; $i++) {
+            if ($i == 1) {
+                // Create the course members.
+                campusconnect_membership::create($memberresourceid, $this->settings[2], $members, $this->transferdetails);
+                campusconnect_membership::assign_all_roles($this->settings[2]);
+            } else {
+                // Update the course members - check that an identical update does not break anything.
+                campusconnect_membership::update($memberresourceid, $this->settings[2], $members, $this->transferdetails);
+                campusconnect_membership::assign_all_roles($this->settings[2]);
+            }
+
+            // Check the users are enroled on the 'real' course.
+            $useridmap = array();
+            foreach ($this->users as $user) {
+                $useridmap[] = $user->id;
+            }
+            $useridmap[] = $user6->id;
+
+            $userenrolments = self::get_course_enrolments($course1->id, $useridmap);
+            $this->assertCount(4, $userenrolments); // User5 + user6 should not be found by mapping, so no enrolments expected.
+            foreach ($userenrolments as $userenrolment) {
+                $this->assertEquals('campusconnect', $userenrolment->enrol);
+            }
+
+            // Check no users have been enroled on the course link.
+            $userenrolments = self::get_course_enrolments($course2->id, $useridmap);
+            $this->assertEmpty($userenrolments);
+
+            // Check the roles that each user has been given.
+            $context = context_course::instance($course1->id);
+            $roles1 = get_user_roles($context, $this->users[0]->id, false);
+            $roles2 = get_user_roles($context, $this->users[1]->id, false);
+            $roles3 = get_user_roles($context, $this->users[2]->id, false);
+            $roles4 = get_user_roles($context, $this->users[3]->id, false);
+            $roles5 = get_user_roles($context, $this->users[4]->id, false);
+            $roles6 = get_user_roles($context, $user6->id, false);
+
+            $this->assertCount(1, $roles1);
+            $this->assertCount(1, $roles2);
+            $this->assertCount(2, $roles3);
+            $this->assertCount(1, $roles4);
+            $this->assertCount(0, $roles5); // User5 + user6 should not be found by mapping, so no roles expected.
+            $this->assertCount(0, $roles6);
+
+            $role1 = reset($roles1);
+            $role2 = reset($roles2);
+            $role3 = reset($roles3);
+            $role3b = next($roles3);
+            $role4 = reset($roles4);
+
+            $this->assertEquals('editingteacher', $role1->shortname); // From group 0.
+            $this->assertEquals('student', $role2->shortname); // Membership role.
+            $this->assertEquals('teacher', $role3->shortname); // From group 1.
+            $this->assertEquals('student', $role3b->shortname); // From group 0.
+            $this->assertEquals('student', $role4->shortname); // Default role.
+
+            // Check the group memberships.
+            $groups1 = self::get_groups($course1->id, $this->users[0]->id);
+            $groups2 = self::get_groups($course1->id, $this->users[1]->id);
+            $groups3 = self::get_groups($course1->id, $this->users[2]->id);
+            $groups4 = self::get_groups($course1->id, $this->users[3]->id);
+            $groups5 = self::get_groups($course1->id, $this->users[4]->id);
+            $groups6 = self::get_groups($course1->id, $user6->id);
+
+            $this->assertCount(1, $groups1);
+            $this->assertCount(0, $groups2);
+            $this->assertCount(2, $groups3);
+            $this->assertCount(1, $groups4);
+            $this->assertCount(0, $groups5); // User5 + user6 should not be found by mapping, so no groups expected.
+            $this->assertCount(0, $groups6);
+
+            $this->assertEmpty(array_diff(array('Test Group1'), $groups1));
+            $this->assertEmpty(array_diff(array('Test Group1', 'Test Group2'), $groups3));
+            $this->assertEmpty(array_diff(array('Test Group2'), $groups4));
+        }
     }
 }

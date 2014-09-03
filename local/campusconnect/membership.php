@@ -754,7 +754,7 @@ class campusconnect_membership {
      * @param campusconnect_member_personid[] $personids
      * @return int[][] the Moodle userids: [personidtype => [personid => userid]]
      */
-    protected static function get_userids_from_personids($personids) {
+    public static function get_userids_from_personids($personids) {
         global $DB;
 
         if (empty($personids)) {
@@ -776,11 +776,11 @@ class campusconnect_membership {
         // Process the different personidtypes one at a time (possibly slightly inefficient, but should rarely be more than one).
         $ret = array();
         foreach ($bytype as $personidtype => $personids) {
-            $ret[$personidtype] = array();
             if (!$userfield = campusconnect_member_personid::get_userfield_from_type($personidtype)) {
-                campusconnect_log::add("personIDtype '{$personidtype}' included in course_members resource, but not currently mapped onto a Moodle user field");
+                campusconnect_log::add("personIDtype '{$personidtype}' included in course_members resource, but not currently mapped onto a Moodle user field", false, true, false);
                 continue;
             }
+            $ret[$personidtype] = array();
             list($psql, $params) = $DB->get_in_or_equal($personids, SQL_PARAMS_NAMED);
             if ($fieldname = campusconnect_member_personid::is_custom_field($userfield)) {
                 // Look for the personid in the 'user_info_data' table.

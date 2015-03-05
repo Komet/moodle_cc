@@ -24,6 +24,9 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
+require_once($CFG->dirroot.'/local/campusconnect/courselink.php');
+
 /**
  * Exception thrown by the campusconnect_courselink object
  */
